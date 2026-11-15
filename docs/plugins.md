@@ -29,7 +29,7 @@ At start, Kurai loads every entry point in the group `kurai.plugins`. Each must 
 # pyproject.toml
 [project]
 name = "kurai-incoming"
-dependencies = ["kurai>=0.2.13,<0.3"]
+dependencies = ["kurai>=0.2.14,<0.3"]
 
 [project.entry-points."kurai.plugins"]
 incoming = "kurai_incoming.plugin:plugin"
@@ -163,6 +163,7 @@ plugins.AdminTab(
     data=tab_data,            # async (db) -> extra values for the template
     validate=validate,        # (values) -> an error message, or None
     after_save=after_save,    # async (db, saved, before): e.g. queue a job that applies the new values
+    docs="/docs/admin/incoming",  # its help page (from your docs), linked at the tab's top
 )
 ```
 
@@ -238,7 +239,7 @@ Kurai's image already has Kurai and its libraries; a plugin's image adds only th
 the Kurai version it was written for:
 
 ```dockerfile
-ARG KURAI_VERSION=0.2.13
+ARG KURAI_VERSION=0.2.14
 FROM ghcr.io/astral-sh/uv:0.9.7 AS uv
 
 FROM ghcr.io/whobscr/kurai:${KURAI_VERSION}
@@ -288,7 +289,7 @@ a job from a test.
 ## Versions
 
 The plugin interface may still change between Kurai's minor versions (0.2 → 0.3) until 1.0. Pin the range you've
-tested (`kurai>=0.2.13,<0.3`), and build each plugin release on the Kurai version it was tested with. Kurai's
+tested (`kurai>=0.2.14,<0.3`), and build each plugin release on the Kurai version it was tested with. Kurai's
 changelog says when a hook changes.
 
 ## Rules

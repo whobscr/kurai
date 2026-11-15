@@ -93,6 +93,7 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .check-result.bad { color: var(--error); }
 .app-frame { width: 100%; height: calc(100vh - 14rem); min-height: 30rem; border: 1px solid var(--outline-variant, var(--outline));
   border-radius: 1rem; background: var(--surface); }
+.tab-help { margin: .25rem 0 -.25rem; }
 .app-actions { margin: .75rem 0; }
 /* on the whole screen: the frame fills it, with «Свернуть» floating in a corner */
 .app-stage { position: relative; }

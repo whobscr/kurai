@@ -396,3 +396,14 @@ async def test_jobs_are_paged_filtered_and_pruned(client, db):
     assert await queue.prune(db) >= 70
     left = (await db.execute(select(func.count()).select_from(Job).where(Job.kind == "paged_job"))).scalar_one()
     assert left == 0
+
+
+async def test_every_settings_tab_links_its_help_page(client):
+    from kurai.web.routes.admin import CORE_DOCS
+
+    await login(client, "admin", "a-long-password")
+    for tab, link in CORE_DOCS.items():
+        assert f'href="{link}"' in (await client.get(f"/admin/{tab}")).text, tab
+        path, _, anchor = link.partition("#")
+        page = await client.get(path)
+        assert page.status_code == 200 and (not anchor or f'id="{anchor}"' in page.text), link

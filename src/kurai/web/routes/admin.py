@@ -34,6 +34,10 @@ CORE_TABS = {
     "plugins": _("Плагины"),
     "jobs": _("Задачи"),
 }
+# each tab's help page, linked at its top (a plugin's tab says its own: AdminTab.docs)
+CORE_DOCS = {"general": "/docs/admin/first-run", "models": "/docs/admin/models", "audio": "/docs/admin/audio",
+             "gateway": "/docs/admin/gateway", "users": "/docs/admin/users", "apps": "/docs/admin/apps#apps",
+             "plugins": "/docs/admin/apps#plugins", "jobs": "/docs/admin/jobs"}
 # «Запустить» on «Задачи»: Kurai's own; plugins add theirs
 CORE_MANUAL_JOBS = {"nightly": _("Ночная работа сейчас"), "sync_library": _("Синхронизировать библиотеку"),
                     "sync_listens": _("Прослушивания")}
@@ -49,6 +53,10 @@ def tabs() -> dict[str, str]:
     at = keys.index("gateway") + 1
     extra = {k: t.label for k, t in plugin_tabs().items()}
     return {**dict((k, CORE_TABS[k]) for k in keys[:at]), **extra, **dict((k, CORE_TABS[k]) for k in keys[at:])}
+
+
+def tab_docs(tab: str) -> str:
+    return plugin_tabs()[tab].docs if tab in plugin_tabs() else CORE_DOCS.get(tab, "")
 
 
 def manual_jobs() -> dict[str, str]:
@@ -163,7 +171,7 @@ async def tab_page(request: Request, tab: str, message: str = "", confirm: int |
     values = await settings.get_all(ctx.db)
     return render(request, "admin.html", ctx, tab=tab, tabs=tabs(), values=values, llm_tasks=settings.LLM_TASKS,
                   subsystems=settings.outbound_subsystems(), plugin_tab=plugin_tabs().get(tab),
-                  manual_jobs=manual_jobs(), message=message, confirm=confirm,
+                  manual_jobs=manual_jobs(), message=message, confirm=confirm, tab_docs=tab_docs(tab),
                   **await _tab_data(ctx, tab, page, status))
 
 

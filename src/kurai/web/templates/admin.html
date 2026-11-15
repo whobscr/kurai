@@ -9,6 +9,8 @@
 <div class="tabs scroll left-align">
   {% for key, label in tabs.items() %}<a href="/admin/{{ key }}" class="{{ 'active' if key == tab }}">{{ label }}</a>{% endfor %}
 </div>
+{% if tab_docs %}<div class="row tab-help"><span class="max"></span>
+  <a class="button transparent round small" href="{{ tab_docs }}"><i>help</i><span>{{ _("Справка по вкладке") }}</span></a></div>{% endif %}
 {% if message %}<article class="round primary-container">{{ message }}</article>{% endif %}
 
 {% if tab == "general" %}

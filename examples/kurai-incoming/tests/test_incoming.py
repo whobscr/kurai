@@ -68,6 +68,7 @@ async def test_an_approved_album_moves_into_the_library(client, db, tmp_path, mo
     assert (album.artist, album.title, album.files, album.status) == ("Band", "Album", 1, "new")
 
     page = (await client.get("/admin/incoming")).text
+    assert 'href="/docs/admin/incoming"' in page and (await client.get("/docs/admin/incoming")).status_code == 200
     assert "Band — Album" in page and f"/admin/incoming/{album.id}/approve" in page
     check = (await client.post("/admin/check/incoming", headers={"X-CSRF-Token": token})).json()
     assert check["ok"] and "папок: 2" in check["detail"]

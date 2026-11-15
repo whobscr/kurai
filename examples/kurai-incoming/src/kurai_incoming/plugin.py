@@ -41,7 +41,7 @@ plugin = plugins.Plugin(
     admin_tabs={
         "incoming": plugins.AdminTab(_("Входящие"), "incoming/admin_incoming.html",
                                      {"incoming.dir": str, "incoming.auto_approve": bool},
-                                     data=web.tab_data, validate=validate),
+                                     data=web.tab_data, validate=validate, docs="/docs/admin/incoming"),
     },
     checks={"incoming": check},
     templates=ROOT / "templates",

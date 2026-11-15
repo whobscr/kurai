@@ -41,6 +41,7 @@ class AdminTab:
     data: Callable[[Any], Awaitable[dict]] | None = None  # (db) -> extra values for the template
     after_save: Callable[[Any, dict, dict], Awaitable[None]] | None = None  # (db, saved values, values before)
     validate: Callable[[dict], str | None] | None = None  # (values) -> an error message, or None
+    docs: str = ""  # its help page, linked from the tab: "/docs/admin/<slug>[#anchor]"
 
 
 @dataclass(frozen=True)
