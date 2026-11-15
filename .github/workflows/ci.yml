@@ -1,0 +1,27 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: kurai
+          POSTGRES_PASSWORD: kurai
+          POSTGRES_DB: kurai
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kurai" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      KURAI_TEST_DATABASE_URL: postgresql+psycopg://kurai:kurai@localhost:5432/kurai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run ruff check src tests
+      - run: uv run pytest -q

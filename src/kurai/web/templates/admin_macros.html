@@ -1,0 +1,26 @@
+{# The form pieces of «Системные настройки», for Kurai's tabs and the plugins' ones:
+   {% from "admin_macros.html" import text, secret, switch, select, check, form_start, form_end %} #}
+{% macro text(key, label, type="text", help="") %}
+<div class="field label border round"><input name="{{ key }}" type="{{ type }}" value="{{ values[key] if values[key] is not none else '' }}"
+  {% if type == "number" %}step="any"{% endif %}><label>{{ label }}</label>{% if help %}<span class="helper">{{ help }}</span>{% endif %}</div>
+{% endmacro %}
+{% macro secret(key, label) %}
+<div class="field label border round"><input name="{{ key }}" type="password" autocomplete="new-password"
+  placeholder="{{ _('задан — оставьте пустым, чтобы не менять') if values[key] else '' }}"><label>{{ label }}</label></div>
+{% endmacro %}
+{% macro switch(key, label, help="") %}
+<div class="row switch-row"><div class="max">{{ label }}{% if help %}<div class="small-text">{{ help }}</div>{% endif %}</div>
+  <label class="switch"><input type="checkbox" name="{{ key }}" {{ 'checked' if values[key] }}><span></span></label></div>
+{% endmacro %}
+{% macro select(key, label, options) %}
+<div class="field label suffix border round"><select name="{{ key }}">
+  {% for v, l in options %}<option value="{{ v }}" {{ 'selected' if values[key] == v }}>{{ l }}</option>{% endfor %}
+</select><label>{{ label }}</label><i>arrow_drop_down</i></div>
+{% endmacro %}
+{% macro check(what, label=None) %}
+<button type="button" class="round border check" data-check="{{ what }}"><i>network_check</i><span>{{ label or _("Проверить") }}</span></button>
+<span class="check-result small-text" data-for="{{ what }}"></span>
+{% endmacro %}
+{% macro form_start(tab) %}<form method="post" action="/admin/{{ tab }}"><input type="hidden" name="csrf" value="{{ csrf }}">{% endmacro %}
+{% macro form_end() %}<div class="row"><button class="round"><i>save</i><span>{{ _("Сохранить") }}</span></button></div></form>{% endmacro %}
+

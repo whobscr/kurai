@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Системные настройки") }}{% endblock %}
+{% block heading %}{{ _("Системные настройки") }}{% endblock %}
+
+{% from "admin_macros.html" import text, secret, switch, select, check, form_start as _form_start, form_end with context %}
+{% macro form_start() %}{{ _form_start(tab) }}{% endmacro %}
+
+{% block content %}
+<div class="tabs scroll left-align">
+  {% for key, label in tabs.items() %}<a href="/admin/{{ key }}" class="{{ 'active' if key == tab }}">{{ label }}</a>{% endfor %}
+</div>
+{% if message %}<article class="round primary-container">{{ message }}</article>{% endif %}
+
+{% if tab == "general" %}
+<article class="round">{{ form_start() }}
+  <h6>{{ _("Оформление по умолчанию") }}</h6>
+  <div class="color-pick"><span class="swatch" style="background:{{ values['ui.default_accent'] }}"><input type="color" id="default-accent" name="ui.default_accent" value="{{ values['ui.default_accent'] }}"></span>
+    <label for="default-accent">{{ _("Акцентный цвет для всех, кто не выбрал свой. Цвет текста и значков на нём подбирается сам.") }}</label></div>
+  <div class="row wrap presets">{% for c in ["#6750a4", "#006a6a", "#386a20", "#984061", "#8b5000", "#00639b", "#b3261e", "#5d5f5f"] %}
+    <button type="button" class="circle preset" style="background:{{ c }}" data-color="{{ c }}" title="{{ c }}"></button>{% endfor %}</div>
+  <h6>{{ _("Ночное окно") }}</h6>
+  <p class="small-text">{{ _("Когда идёт тяжёлая работа: индексация, вкусы, ночные миксы, поиск новой музыки, кандидаты на удаление. Сейчас — {h} ч.").format(h=night_hours) }}</p>
+  <div class="row wrap">{{ text("night.start", _("Начало (ЧЧ:ММ)")) }}{{ text("night.end", _("Конец (ЧЧ:ММ)")) }}</div>
+  {{ text("playlists.per_night", _("Ночных миксов на пользователя"), "number") }}
+  <h6>{{ _("Telegram-бот") }}</h6>
+  {{ switch("telegram.enabled", _("Бот включён")) }}
+  {{ secret("telegram.token", _("Токен бота (от @BotFather)")) }}
+  <p class="small-text">{{ _("Сеть бота — на вкладке «Шлюз» (прокси и DNS).") }}</p>
+{{ form_end() }}</article>
+
+{% elif tab == "models" %}
+<article class="round">{{ form_start() }}
+  <h6>{{ _("Модель для текста") }}</h6>
+  {{ switch("llm.enabled", _("Модель включена"), _("Выключено: всё работает, кроме названий плейлистов, объяснений и «Спросить».")) }}
+  {{ select("llm.provider", _("Поставщик"), [("openai_compatible", _("OpenAI-совместимый сервер (llama.cpp, vLLM, OpenAI, OpenRouter…)")), ("ollama", "Ollama"), ("anthropic", "Claude (Anthropic)")]) }}
+  {{ select("llm.server_type", _("Тип сервера (для OpenAI-совместимого)"), [("llama_cpp", "llama.cpp"), ("vllm", "vLLM"), ("openai", "OpenAI"), ("openrouter", "OpenRouter"), ("other", _("другой"))]) }}
+  {{ text("llm.base_url", _("Адрес (…/v1)")) }}
+  {{ secret("llm.api_key", _("API-ключ")) }}
+  {{ text("llm.model", _("Модель"), help=_("Для Claude по умолчанию claude-opus-5-5.")) }}
+  <div class="row wrap">{{ text("llm.timeout", _("Таймаут, с"), "number") }}
+    {{ text("llm.parallel", _("Параллельные запросы к модели"), "number", _("Сколько запросов Kurai шлёт одновременно; сам сервер принимает столько, сколько у него слотов.")) }}</div>
+  <div class="row">{{ check("llm", _("Проверить модель")) }}</div>
+  <h6>{{ _("«Модель думает»") }}</h6>
+  <p class="small-text">{{ _("Размышление заметно улучшает ответы, но на процессоре добавляет минуты к каждому запросу. По умолчанию включено для ночных задач.") }}</p>
+  {% for task, info in llm_tasks.items() %}
+    {% set t_on = timings.get((task, true)) %}{% set t_off = timings.get((task, false)) %}
+    {{ switch("think." ~ task, info.label,
+       (_("обычно ~{s} с с размышлением").format(s=t_on[0]) if t_on else "") ~ (" · " if t_on and t_off else "") ~ (_("~{s} с без").format(s=t_off[0]) if t_off else "")) }}
+  {% endfor %}
+  <h6>{{ _("Модель эмбеддингов") }}</h6>
+  <p class="small-text">{{ _("У Claude эмбеддингов нет — здесь нужен локальный сервер или OpenAI. Смена модели переиндексирует всю библиотеку ночью.") }}</p>
+  {{ select("embed.provider", _("Поставщик"), [("openai_compatible", _("OpenAI-совместимый")), ("ollama", "Ollama")]) }}
+  {{ text("embed.base_url", _("Адрес")) }}{{ secret("embed.api_key", _("API-ключ")) }}{{ text("embed.model", _("Модель")) }}
+  <div class="row">{{ check("embed", _("Проверить эмбеддинги")) }}</div>
+  <p class="small-text">{{ _("Облачный поставщик получает с каждым запросом вкусы слушателей и названия из библиотеки.") }}</p>
+{{ form_end() }}</article>
+
+{% elif tab == "audio" %}
+<article class="round">{{ form_start() }}
+  <h6>{{ _("Анализ звука") }}</h6>
+  <p class="small-text">{{ _("Kurai слушает сами файлы: по звуку миксы точнее и плавнее, а «Спросить» находит треки по описанию звучания. Работает в отдельном контейнере (профиль audio) ночью; днём — только новые треки.") }}
+    <a href="/docs/admin/audio">{{ _("Подробнее") }}</a></p>
+  {{ switch("audio.enabled", _("Анализ включён"), _("Пока выключен, подборки строятся только по тегам.")) }}
+  {{ switch("audio.clap", _("Поиск по описанию звучания (CLAP)"), _("Ещё одна модель (~1 ГБ памяти): около секунды дольше на трек.")) }}
+  {{ text("audio.url", _("Адрес сервиса анализа"), help=_("По умолчанию http://audio:8097 — контейнер из того же docker-compose.")) }}
+  <div class="row wrap">
+    {{ text("audio.mix_weight", _("Доля звука в миксах (0–1)"), "number") }}
+    {{ text("audio.ask_weight", _("Доля звука в «Спросить» (0–1)"), "number") }}</div>
+  <p class="small-text">{{ _("Остальное — теги: жанры, исполнители, альбомы.") }}</p>
+  <div class="row">{{ check("audio", _("Проверить сервис")) }}</div>
+  <p class="small-text">{{ _("Модели скачиваются при первом запуске (около 25 МБ Essentia и 590 МБ CLAP), через шлюз, если на вкладке «Шлюз» отмечена «Загрузка моделей анализа звука». Модели Essentia — только для некоммерческого использования (CC BY-NC-SA 4.0); CLAP — Apache 2.0.") }}</p>
+{{ form_end() }}</article>
+<article class="round">
+  <h6>{{ _("Ход анализа") }}</h6>
+  {% set a = audio %}
+  <p>{{ _("Треков в библиотеке: {t}. По звуку разобрано: {s}, с описанием (CLAP): {c}. Ждут: {p}. Не получилось: {f}.").format(t=a.total, s=a.sound, c=a.clap, p=a.pending, f=a.failed) }}</p>
+  {% if a.per_track %}<p class="small-text">{{ _("В среднем {s} с на трек: ночного окна хватает примерно на {n} треков.").format(s=a.per_track, n=((night_seconds / a.per_track) | int)) }}</p>{% endif %}
+  {% if a.last_job %}<p class="small-text">{{ _("Последний запуск") }} {{ a.last_job.finished_at.strftime("%d.%m %H:%M") }}: {{ a.last_job.error or (a.last_job.result | tojson) }}</p>{% endif %}
+  <div class="row wrap">
+    <form method="post" action="/admin/audio/run"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="round border"><i>graphic_eq</i><span>{{ _("Разобрать 100 треков сейчас") }}</span></button></form>
+    {% if a.failed %}<form method="post" action="/admin/audio/retry"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="round border"><i>replay</i><span>{{ _("Повторить неудачные") }}</span></button></form>{% endif %}
+  </div>
+  {% if a.failed_rows %}
+  <table class="stripes small-text"><tbody>{% for _id, artist, title, error in a.failed_rows %}
+    <tr><td>{{ artist }} — {{ title }}</td><td class="job-result">{{ error }}</td></tr>{% endfor %}</tbody></table>
+  {% endif %}
+</article>
+
+{% elif tab == "gateway" %}
+<article class="round">{{ form_start() }}
+  <h6>{{ _("Прокси для исходящих соединений") }}</h6>
+  <p class="small-text">{{ _("socks5h://host:port (имена разрешает прокси), socks5://… или http://… Пусто — всё напрямую. С галочкой подсистема ходит только через прокси и при его недоступности не обходит его.") }}</p>
+  {{ text("outbound.proxy", _("Прокси")) }}
+  <div class="row wrap">{{ text("outbound.user", _("Логин прокси")) }}{{ secret("outbound.password", _("Пароль прокси")) }}</div>
+  {{ text("outbound.dns", _("DNS-сервер (необязательно)"), help=_("IP-адрес, например 10.8.0.1 или 10.8.0.1:53 — для VPN, чей DNS отдаёт адреса внутри туннеля. Не нужен с socks5h.")) }}
+  <h6>{{ _("Что ходит через прокси") }}</h6>
+  {% for name, label in subsystems.items() %}
+  <div class="row">{{ switch("outbound.via." ~ name, label) }}{{ check(name) }}</div>
+  {% endfor %}
+  <p class="small-text">{{ _("Navidrome берёт прокси только из переменных окружения (после перезапуска контейнера).") }}</p>
+{{ form_end() }}</article>
+
+{% elif tab == "users" %}
+<article class="round">
+  <h6>{{ _("Новый пользователь") }}</h6>
+  <form method="post" action="/admin/users/create" class="row wrap"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field label border round"><input name="username" required><label>{{ _("Имя для входа") }}</label></div>
+    <div class="field label border round"><input name="display_name"><label>{{ _("Как обращаться") }}</label></div>
+    <div class="field label border round"><input name="password" type="password" minlength="8" required><label>{{ _("Пароль") }}</label></div>
+    <div class="field label suffix border round"><select name="role"><option value="user">{{ _("Пользователь") }}</option>
+      <option value="admin">{{ _("Администратор") }}</option></select><label>{{ _("Роль") }}</label><i>arrow_drop_down</i></div>
+    <button class="round">{{ _("Добавить") }}</button></form>
+</article>
+<article class="round">
+  {% for u in users %}
+  <div class="row wrap user-row">
+    <div class="max"><b>{{ u.display_name }}</b> <span class="small-text">{{ u.username }} · {{ _("админ") if u.is_admin else _("пользователь") }}{% if not u.active %} · {{ _("отключён") }}{% endif %}{% if u.totp_enabled %} · 2FA{% endif %}</span></div>
+    {% for action, label in (("role", _("Сменить роль")), ("active", _("Включить") if not u.active else _("Отключить")), ("reset-2fa", _("Сбросить 2FA"))) %}
+      {% if action != "reset-2fa" or u.totp_enabled %}
+      <form method="post" action="/admin/users/{{ u.id }}/{{ action }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="round border small">{{ label }}</button></form>{% endif %}
+    {% endfor %}
+    <form method="post" action="/admin/users/{{ u.id }}/password" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field small border round"><input name="password" type="password" minlength="8" placeholder="{{ _('новый пароль') }}" required></div>
+      <button class="round border small">{{ _("Задать пароль") }}</button></form>
+  </div>{% endfor %}
+</article>
+
+{% elif tab == "apps" %}
+<div class="tabs left-align apps-tabs">
+  {% for app, label in apps %}
+  <a data-app="{{ app }}" class="{{ 'active' if loop.first }}">{{ label }}</a>{% endfor %}
+</div>
+<iframe id="app-frame" class="app-frame" src="/admin/apps/{{ apps[0][0] }}/" title="app"></iframe>
+<p class="small-text">{{ _("Прямой доступ к их API — через SSH с пробросом порта.") }}</p>
+
+{% elif plugin_tab %}
+{% include plugin_tab.template %}
+
+{% elif tab == "jobs" %}
+<article class="round row wrap">
+  {% for kind, label in manual_jobs.items() %}
+  <form method="post" action="/admin/jobs/run/{{ kind }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="round border small">{{ label }}</button></form>{% endfor %}
+</article>
+<article class="round">
+  <table class="stripes">
+    <thead><tr><th>#</th><th>{{ _("Задача") }}</th><th>{{ _("Состояние") }}</th><th>{{ _("Когда") }}</th><th>{{ _("Итог") }}</th></tr></thead>
+    <tbody>{% for j in jobs %}<tr><td>{{ j.id }}</td><td>{{ j.kind }}{% if j.night_only %} 🌙{% endif %}</td><td>{{ j.status }}</td>
+      <td class="small-text">{{ (j.finished_at or j.started_at or j.created_at).strftime("%d.%m %H:%M") }}</td>
+      <td class="small-text job-result">{{ j.error or (j.result | tojson if j.result else "") }}</td></tr>{% endfor %}</tbody>
+  </table>
+</article>
+{% endif %}
+{% endblock %}

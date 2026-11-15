@@ -1,0 +1,24 @@
+<svg class="art" viewBox="0 0 600 1000" preserveAspectRatio="xMinYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <rect class="bg" width="600" height="1000"/>
+  <circle class="pc soft" cx="480" cy="900" r="240"/>
+  <circle class="tc soft" cx="60" cy="110" r="200"/>
+  <rect class="sc" x="330" y="-40" width="90" height="1080" rx="45" opacity=".4"/>
+  <!-- the tape comes in from the left and winds onto a reel -->
+  <path class="line-ink" d="M0 700 C60 690 90 640 150 600" stroke-width="7"/>
+  <g transform="translate(200 520)">
+    <circle class="s" r="110"/><circle class="sc" r="84"/><circle class="ink" r="70" opacity=".85"/>
+    <circle class="sc" r="26"/><circle class="s" r="9"/>
+    <rect class="s" x="-6" y="-84" width="12" height="40" rx="6"/>
+    <rect class="s" x="-6" y="44" width="12" height="40" rx="6"/>
+    <rect class="s" x="44" y="-6" width="40" height="12" rx="6"/>
+  </g>
+  <!-- headphones hanging on a hook -->
+  <rect class="ol" x="120" y="120" width="12" height="90" rx="6"/>
+  <path class="line" d="M126 205 C60 205 40 300 60 360" stroke-width="16"/>
+  <path class="line" d="M126 205 C192 205 212 300 192 360" stroke-width="16"/>
+  <rect class="p" x="34" y="340" width="52" height="78" rx="22"/><rect class="p" x="166" y="340" width="52" height="78" rx="22"/>
+  <rect class="pc" x="44" y="352" width="22" height="54" rx="11"/><rect class="pc" x="186" y="352" width="22" height="54" rx="11"/>
+  <g class="t"><circle cx="420" cy="300" r="13"/><rect x="429" y="230" width="6" height="72" rx="3"/>
+    <path d="M429 230 q34 8 30 40" fill="none" stroke="var(--tertiary)" stroke-width="6" stroke-linecap="round"/></g>
+  <g class="p"><circle cx="460" cy="680" r="10"/><rect x="466" y="626" width="5" height="56" rx="2.5"/></g>
+</svg>

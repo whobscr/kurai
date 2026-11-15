@@ -1,0 +1,76 @@
+[project]
+name = "kurai"
+version = "0.2.0"
+description = "A self-hosted music server that learns tastes and makes playlists"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
+dependencies = [
+    "aiodns>=4.0.4",
+    "aiogram>=3.31.0",
+    "aiohttp>=3.14.5",
+    "aiohttp-socks>=0.12.0",
+    "alembic>=1.20.1",
+    "anthropic>=2.8.0",
+    "argon2-cffi>=25.1.0",
+    "cryptography>=50.0.2",
+    "fastapi>=0.163.0",
+    "jinja2>=3.1.6",
+    "markdown>=3.11.3",
+    "numpy>=2.5.4",
+    "pgvector>=0.5.1",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.16.3",
+    "pyotp>=2.11.1",
+    "python-multipart>=0.0.33",
+    "pywebpush>=2.5.0",
+    "requests[socks]>=2.34.2",
+    "segno>=1.6.6",
+    "sqlalchemy[asyncio]>=2.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.optional-dependencies]
+# the audio analysis container (Dockerfile.audio): Essentia's models and CLAP; Linux x86_64 only
+audio = [
+    "essentia-tensorflow==2.1b6.dev1389; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torch>=2.15.0",
+    "transformers>=5.23.0",
+]
+
+[project.scripts]
+kurai = "kurai.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "ruff>=0.17.5",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["B008"]  # FastAPI's Depends() in defaults

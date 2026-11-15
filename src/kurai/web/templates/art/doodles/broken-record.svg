@@ -1,0 +1,9 @@
+<svg class="art" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <ellipse class="sv" cx="200" cy="268" rx="150" ry="14"/>
+  <path class="ink" d="M190 60 A100 100 0 0 0 176 258 L198 200 L170 160 L200 120 Z"/>
+  <path class="ink" d="M212 62 A100 100 0 0 1 196 262 L222 200 L194 160 L222 118 Z" transform="rotate(8 260 160)"/>
+  <circle class="line-ink" cx="200" cy="160" r="70" stroke-width="2" opacity=".2"/>
+  <path class="p" d="M178 140 A22 22 0 0 0 186 180 L196 158 Z"/><path class="p" d="M216 136 A22 22 0 0 1 214 182 L206 160 Z" transform="rotate(8 260 160)"/>
+  <g class="t"><circle cx="320" cy="90" r="10"/><rect x="327" y="40" width="5" height="52" rx="2.5"/></g>
+  <path class="line-t" d="M300 120 q10 20 -6 40" stroke-width="4" stroke-dasharray="2 10"/>
+</svg>

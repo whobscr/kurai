@@ -1,0 +1,86 @@
+"""The web app (`kurai web`): FastAPI with server-rendered pages (Jinja2, Beer CSS, HTMX)."""
+
+import logging
+from contextlib import asynccontextmanager
+from http import HTTPStatus
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException
+
+from kurai import db as database
+from kurai import plugins, settings
+from kurai.web.deps import LoginRequired, PasswordChangeRequired, context
+from kurai.web.routes import admin, apps, auth, main, me, misc
+from kurai.web.templating import ROOT, doodle, render
+
+ERRORS = {
+    403: "Сюда нельзя",
+    404: "Такой страницы нет",
+    500: "Что-то сломалось",
+    502: "Сервис не отвечает",
+}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from kurai.bootstrap import bootstrap
+
+    await bootstrap()
+    async with database.session() as db:
+        app.state.default_accent = await settings.get(db, "ui.default_accent")
+    yield
+    await database.dispose()
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="Kurai", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.default_accent = settings.defaults()["ui.default_accent"]
+    app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+    for module in (auth, main, me, admin, apps, misc):
+        app.include_router(module.router)
+    for plugin in plugins.plugins():
+        if plugin.router is not None:
+            app.include_router(plugin.router)
+
+    @app.exception_handler(LoginRequired)
+    async def to_login(request: Request, exc: LoginRequired):
+        if request.headers.get("HX-Request"):
+            return RedirectResponse("/login", 303, headers={"HX-Redirect": "/login"})
+        return RedirectResponse("/login", 303)
+
+    @app.exception_handler(PasswordChangeRequired)
+    async def to_password(request: Request, exc: PasswordChangeRequired):
+        return RedirectResponse("/password", 303)
+
+    @app.exception_handler(HTTPException)
+    async def http_error(request: Request, exc: HTTPException):
+        # FastAPI's HTTPException is a subclass: this catches both, unknown addresses (404) too
+        if request.url.path.startswith(("/jobs/", "/admin/check/", "/me/push")) or exc.status_code < 400:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+        # Starlette's own details are just the status's phrase ("Not Found"): only Kurai's messages are shown
+        detail = exc.detail if isinstance(exc.detail, str) and exc.detail != HTTPStatus(exc.status_code).phrase else ""
+        return await _error_page(request, exc.status_code, detail)
+
+    @app.exception_handler(Exception)
+    async def crash(request: Request, exc: Exception):
+        logging.getLogger("kurai").exception("unhandled error on %s", request.url.path)
+        return await _error_page(request, 500, "")
+
+    return app
+
+
+async def _error_page(request: Request, status: int, detail: str):
+    ctx = None
+    try:
+        async with database.session() as db:
+            ctx = await context(request, db)
+            return render(request, "error.html", ctx, status_code=status, status=status,
+                          title=ERRORS.get(status, "Ошибка"), detail=detail, doodle=doodle())
+    except Exception:
+        return render(request, "error.html", None, status_code=status, status=status,
+                      title=ERRORS.get(status, "Ошибка"), detail="", doodle=doodle())
+
+
+app = create_app()

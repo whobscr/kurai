@@ -1,0 +1,20 @@
+<svg class="art" viewBox="0 0 600 1000" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <rect class="bg" width="600" height="1000"/>
+  <circle class="sc soft" cx="80" cy="140" r="220"/>
+  <!-- a night city -->
+  <g class="pc"><rect x="230" y="560" width="80" height="440" rx="8"/><rect x="320" y="620" width="70" height="380" rx="8"/>
+    <rect x="400" y="520" width="90" height="480" rx="8"/><rect x="500" y="660" width="100" height="340" rx="8"/></g>
+  <g class="sf" opacity=".7"><rect x="250" y="590" width="14" height="18" rx="3"/><rect x="276" y="640" width="14" height="18" rx="3"/>
+    <rect x="420" y="560" width="14" height="18" rx="3"/><rect x="454" y="610" width="14" height="18" rx="3"/>
+    <rect x="338" y="660" width="14" height="18" rx="3"/><rect x="520" y="700" width="14" height="18" rx="3"/>
+    <rect x="556" y="760" width="14" height="18" rx="3"/></g>
+  <!-- the radio tower and its waves, reaching the right edge -->
+  <path class="ink" d="M440 520 L470 180 L500 520 Z" opacity=".75"/>
+  <path class="line-ink" d="M448 440 L492 360 M452 360 L488 280 M456 280 L484 210" stroke-width="5" opacity=".5"/>
+  <circle class="t" cx="470" cy="170" r="16"/>
+  <path class="line" d="M520 130 a70 70 0 0 1 0 80" stroke-width="9"/>
+  <path class="line soft" d="M550 100 a110 110 0 0 1 0 140" stroke-width="9"/>
+  <path class="line" d="M580 70 a150 150 0 0 1 20 120" stroke-width="9" opacity=".25"/>
+  <g class="t"><circle cx="160" cy="430" r="5"/><circle cx="210" cy="360" r="4"/><circle cx="120" cy="560" r="3"/></g>
+  <path class="tc" d="M150 230 a50 50 0 1 0 60 66 a40 40 0 1 1 -60 -66 Z"/>
+</svg>

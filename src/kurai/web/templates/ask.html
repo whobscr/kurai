@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Спросить") }}{% endblock %}
+{% block heading %}{{ _("Спросить") }}{% endblock %}
+{% block content %}
+<article class="round">
+  <form method="post" action="/ask">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field textarea label border round">
+      <textarea name="text" required maxlength="1000">{{ text or "" }}</textarea>
+      <label>{{ _("Например: что-нибудь спокойное на дождливый вечер, как Bonobo, но без вокала") }}</label>
+    </div>
+    <div class="row">
+      <button class="round"><i>send</i><span>{{ _("Попросить") }}</span></button>
+      <span class="small-text max">
+        {% if typical %}{{ _("Обычно занимает ~{n} с.").format(n=typical) }}{% endif %}
+        {{ _("Готовый плейлист появится в плеере, а здесь — уведомление.") }}</span>
+    </div>
+  </form>
+</article>
+<div id="ask-jobs">{% include "partials/ask_jobs.html" %}</div>
+{% endblock %}

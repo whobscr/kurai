@@ -1,0 +1,20 @@
+{% set busy = jobs | selectattr("status", "in", ["queued", "running"]) | list %}
+<div {% if busy %}hx-get="/ask/jobs" hx-trigger="every 5s" hx-target="#ask-jobs" hx-swap="innerHTML"{% endif %}>
+{% for j in jobs %}
+<article class="round job">
+  <div class="row">
+    {% if j.status in ["queued", "running"] %}<progress class="circle small"></progress>
+    {% elif j.status == "done" %}<i class="primary-text">check_circle</i>
+    {% else %}<i class="error-text">error</i>{% endif %}
+    <div class="max"><b>{{ j.payload.text }}</b>
+      <div class="small-text">
+        {% if j.status == "queued" %}{{ _("в очереди") }}{% elif j.status == "running" %}{{ _("модель думает…") }}
+        {% elif j.status == "failed" %}{{ j.error }}
+        {% elif j.result and j.result.answer %}{{ j.result.answer }}
+        {% elif j.result and j.result.name %}{{ _("Плейлист «{name}», {n} треков — уже в плеере").format(name=j.result.name, n=j.result.tracks) }}
+        {% endif %}
+      </div></div>
+  </div>
+</article>
+{% endfor %}
+</div>

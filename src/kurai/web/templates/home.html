@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Для вас") }}{% endblock %}
+{% block heading %}{{ _("Для вас") }}{% endblock %}
+{% block content %}
+{% if notes %}
+<article class="round notes">
+  {% for n in notes %}
+  <div class="row"><i class="{{ '' if n.read else 'primary-text' }}">notifications</i>
+    <div class="max">{% if n.link %}<a href="{{ n.link }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</div>
+    <span class="small-text">{{ n.created_at.strftime("%d.%m %H:%M") }}</span></div>
+  {% endfor %}
+</article>
+{% endif %}
+
+<p>{{ _("Плейлисты появляются в вашем музыкальном приложении (Symfonium, Feishin, Substreamer…) — они уже там. Оценка помогает следующим подборкам.") }}</p>
+{% if not playlists %}
+<article class="round empty"><i class="extra">nights_stay</i>
+  <p>{{ _("Пока пусто. Ночью Kurai изучит, что вы слушаете, и соберёт первые миксы. А можно попросить подборку прямо сейчас в «Спросить».") }}</p></article>
+{% endif %}
+<div class="grid">
+  {% for p in playlists %}
+  <article class="s12 m6 l4 round playlist">
+    <div class="row"><i class="primary-text">{{ "auto_awesome" if p.kind == "ask" else "queue_music" }}</i>
+      <h6 class="max">{{ p.name }}</h6></div>
+    {% if p.description %}<p>{{ p.description }}</p>{% endif %}
+    <div class="row small-text"><span class="max">{{ p.track_ids | length }} {{ _("треков") }} · {{ p.created_at.strftime("%d.%m") }}</span>
+      {% for value, icon in ((1, "thumb_up"), (-1, "thumb_down")) %}
+      <form method="post" action="/playlists/{{ p.id }}/feedback">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="value" value="{{ value }}">
+        <button class="circle {{ 'fill' if p.feedback == value else 'transparent' }}"><i>{{ icon }}</i></button>
+      </form>
+      {% endfor %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

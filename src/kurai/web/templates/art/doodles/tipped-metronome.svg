@@ -1,0 +1,10 @@
+<svg class="art" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <ellipse class="sv" cx="200" cy="262" rx="170" ry="12"/>
+  <g transform="rotate(72 200 200)">
+    <path class="p" d="M150 260 L180 70 H220 L250 260 Z"/>
+    <path class="pc" d="M168 240 L188 100 H212 L232 240 Z"/>
+    <rect class="ink" x="196" y="110" width="8" height="120" rx="4" transform="rotate(14 200 230)"/>
+    <rect class="t" x="186" y="140" width="28" height="18" rx="5" transform="rotate(14 200 230)"/>
+  </g>
+  <g class="line-ink" stroke-width="5"><path d="M100 110 l20 10"/><path d="M96 140 l24 2"/><path d="M110 82 l14 18"/></g>
+</svg>

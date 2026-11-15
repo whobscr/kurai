@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block shell %}
+<div class="error-page center-align">
+  <div class="doodle" aria-hidden="true">{% include "art/doodles/" ~ doodle ~ ".svg" %}</div>
+  <h3>{{ status }}</h3>
+  <h5>{{ title }}</h5>
+  {% if detail %}<p>{{ detail }}</p>{% endif %}
+  <a class="button round" href="/">{{ _("На главную") }}</a>
+</div>
+{% endblock %}

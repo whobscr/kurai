@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Kurai{% endblock %} · Kurai</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icons/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <meta name="theme-color" content="{{ accent }}">
+  <link rel="stylesheet" href="/static/vendor/beercss/beer.min.css">
+  <link rel="stylesheet" href="/static/css/kurai.css">
+  <script src="/static/vendor/material-dynamic-colors/material-dynamic-colors.min.js" type="module"></script>
+  <script src="/static/vendor/beercss/beer.min.js" type="module"></script>
+  <script src="/static/vendor/htmx/htmx.min.js" defer></script>
+  <script src="/static/js/kurai.js" defer></script>
+</head>
+<body data-accent="{{ accent }}" data-mode="{{ mode }}" data-csrf="{{ csrf }}" class="{% block body_class %}{% endblock %}">
+{% block shell %}
+  {% set nav = [("/", "library_music", _("Для вас")), ("/ask", "chat", _("Спросить"))]
+     + nav_extra + [("/me", "person", _("Кабинет"))] %}
+  {% if user and user.is_admin %}{% set nav = nav + [("/admin", "tune", _("Система"))] %}{% endif %}
+  <nav class="left m l">
+    <header><img src="/static/icons/logo.svg" alt="" class="logo-rail"></header>
+    {% for href, icon, label in nav %}
+      <a href="{{ href }}" class="{{ 'active' if (path == href or (href != '/' and path.startswith(href))) else '' }}">
+        <i>{{ icon }}</i><div>{{ label }}</div></a>
+    {% endfor %}
+    <a href="/docs" class="{{ 'active' if path.startswith('/docs') else '' }}"><i>menu_book</i><div>{{ _("Справка") }}</div></a>
+  </nav>
+  <nav class="bottom s">
+    {% for href, icon, label in nav %}
+      <a href="{{ href }}" class="{{ 'active' if (path == href or (href != '/' and path.startswith(href))) else '' }}"><i>{{ icon }}</i></a>
+    {% endfor %}
+  </nav>
+  <main class="responsive">
+    <header class="page-head">
+      <h5 class="max">{% block heading %}{% endblock %}</h5>
+      {% if user %}
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="transparent circle" title="{{ _('Выйти') }}"><i>logout</i></button>
+      </form>
+      {% endif %}
+    </header>
+    {% block content %}{% endblock %}
+    <footer class="foot small-text">Kurai {{ version }} · <a href="/docs/changelog">{{ _("Что нового") }}</a> ·
+      <a href="https://github.com/whobscr/kurai">{{ _("Исходный код") }}</a> (AGPL-3.0)</footer>
+  </main>
+{% endblock %}
+</body>
+</html>

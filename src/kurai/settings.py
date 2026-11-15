@@ -1,0 +1,125 @@
+"""The system settings: one table of keys, each with a default here or in a plugin. The system settings page writes
+them; everything else reads them through `get` / `get_all`. Secret values (API keys, tokens) are stored encrypted."""
+
+from functools import lru_cache
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from kurai import plugins, security
+from kurai.config import get_config
+from kurai.db.models import Setting
+
+# every task that may ask a model; «Модель думает» is on by default for the night ones (time is plentiful, answers are
+# better) and off where a person waits
+LLM_TASKS = {
+    "name_playlist": {"label": "Названия и описания плейлистов", "night": True},
+    "starter_profiles": {"label": "Описания стартовых профилей вкуса", "night": True},
+    "ask": {"label": "Запросы «Спросить»", "night": False},
+    "explain": {"label": "«Почему этот трек»", "night": False},
+}
+
+# the subsystems whose outgoing connections can go through the outbound gateway (outbound.py); plugins add theirs
+CORE_SUBSYSTEMS = {
+    "telegram": "Telegram-бот",
+    "llm": "Внешние модели (облачные API)",
+    "webpush": "Push-уведомления",
+    "models": "Загрузка моделей анализа звука",
+}
+
+CORE_SECRET_KEYS = {"llm.api_key", "embed.api_key", "telegram.token", "outbound.password", "navidrome.admin_password",
+                    "webpush.private_key"}
+
+
+@lru_cache
+def outbound_subsystems() -> dict[str, str]:
+    return {**CORE_SUBSYSTEMS, **plugins.merged("outbound")}
+
+
+@lru_cache
+def secret_keys() -> frozenset[str]:
+    return frozenset(CORE_SECRET_KEYS).union(*(p.secret_keys for p in plugins.plugins()))
+
+
+def _defaults() -> dict[str, Any]:
+    c = get_config()
+    return {
+        # the look
+        "ui.default_accent": "#6750a4",
+        # the night window for model and analysis work (local time, HH:MM); may cross midnight
+        "night.start": "06:00",
+        "night.end": "10:00",
+        # models: the text provider and the embedding provider are separate (Claude has no embeddings)
+        "llm.provider": "openai_compatible",  # openai_compatible | ollama | anthropic
+        "llm.server_type": "llama_cpp",  # llama_cpp | vllm | openai | openrouter | other (openai_compatible only)
+        "llm.base_url": c.llm_base_url,
+        "llm.api_key": c.llm_api_key,
+        "llm.model": c.llm_model,
+        "llm.timeout": 900,
+        "llm.parallel": 2,  # «Параллельные запросы к модели»: how many Kurai sends at once
+        "llm.enabled": True,
+        "embed.provider": "openai_compatible",  # openai_compatible | ollama
+        "embed.base_url": c.embed_base_url,
+        "embed.api_key": c.embed_api_key,
+        "embed.model": c.embed_model,
+        **{f"think.{task}": info["night"] for task, info in LLM_TASKS.items()},
+        # the outbound gateway: one proxy, a checkbox per subsystem, an optional DNS server, never a direct fallback
+        "outbound.proxy": c.outbound_proxy,
+        "outbound.user": "",
+        "outbound.password": "",
+        "outbound.dns": "",
+        **{f"outbound.via.{name}": bool(c.outbound_proxy) for name in outbound_subsystems()},
+        # the audio analysis (the `audio` container): off until it runs; how much the sound counts
+        "audio.enabled": False,
+        "audio.url": c.audio_url,
+        "audio.clap": True,  # CLAP too: search by a description of the sound; doubles the time per track
+        "audio.mix_weight": 0.5,  # mixes: the sound's share against the tags
+        "audio.ask_weight": 0.5,  # «Спросить»: the sound's share (CLAP and the sound) against the tags
+        # the nightly mixes per user
+        "playlists.per_night": 3,
+        # Telegram (its own bot, the token is entered here)
+        "telegram.enabled": bool(c.telegram_bot_token),
+        "telegram.token": c.telegram_bot_token,
+        # Navidrome: the admin account Kurai creates for itself on first start
+        "navidrome.admin_user": "kurai",
+        "navidrome.admin_password": "",
+        # web push (VAPID keys made on first start)
+        "webpush.public_key": "",
+        "webpush.private_key": "",
+    }
+
+
+@lru_cache
+def defaults() -> dict[str, Any]:
+    values = _defaults()
+    for p in plugins.plugins():
+        values.update(p.settings())
+    return values
+
+
+async def get_all(db: AsyncSession) -> dict[str, Any]:
+    values = dict(defaults())
+    for row in (await db.execute(select(Setting))).scalars():
+        values[row.key] = security.decrypt(row.value) if row.key in secret_keys() and row.value else row.value
+    return values
+
+
+async def get(db: AsyncSession, key: str) -> Any:
+    if key not in defaults():
+        raise KeyError(key)
+    row = await db.get(Setting, key)
+    if row is None:
+        return defaults()[key]
+    return security.decrypt(row.value) if key in secret_keys() and row.value else row.value
+
+
+async def put(db: AsyncSession, values: dict[str, Any]) -> None:
+    """Saves the given keys (unknown keys are refused). Commit is the caller's."""
+    for key, value in values.items():
+        if key not in defaults():
+            raise KeyError(key)
+        stored = security.encrypt(value) if key in secret_keys() and value else value
+        await db.execute(insert(Setting).values(key=key, value=stored)
+                         .on_conflict_do_update(index_elements=[Setting.key], set_={"value": stored}))

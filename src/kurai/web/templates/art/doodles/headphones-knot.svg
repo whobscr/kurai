@@ -1,0 +1,7 @@
+<svg class="art" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <ellipse class="sv" cx="200" cy="278" rx="150" ry="10"/>
+  <path class="line" d="M120 150 C120 40 280 40 280 150" stroke-width="18"/>
+  <rect class="p" x="92" y="130" width="56" height="84" rx="24"/><rect class="p" x="252" y="130" width="56" height="84" rx="24"/>
+  <rect class="pc" x="104" y="144" width="22" height="56" rx="11"/><rect class="pc" x="274" y="144" width="22" height="56" rx="11"/>
+  <path class="line-ink" d="M120 214 C120 260 170 250 190 230 C220 200 160 190 180 230 C196 262 250 230 230 210 C210 190 190 250 240 262 C280 272 300 240 280 214" stroke-width="5"/>
+</svg>

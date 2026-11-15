@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Справка") }}{% endblock %}
+{% block heading %}{{ _("Справка") }}{% endblock %}
+{% block content %}
+<div class="docs">
+  <aside class="docs-nav">
+    {% for sec, items in pages.items() %}
+    <h6>{{ _("Для пользователей") if sec == "user" else _("Для администраторов") }}</h6>
+    {% for s, title in items.items() %}
+    <a href="/docs/{{ sec }}/{{ s }}" class="{{ 'active' if section == sec and slug == s }}">{{ title }}</a>
+    {% endfor %}{% endfor %}
+    <h6>{{ _("Версии") }}</h6>
+    <a href="/docs/changelog" class="{{ 'active' if section == 'changelog' }}">{{ _("Что нового") }}</a>
+  </aside>
+  <article class="round docs-body">
+    {% if toc %}
+    <details class="docs-toc" open><summary>{{ _("Содержание") }}</summary>
+      <ul>{% for t in toc %}
+        {% if t.children is defined and t.id is not defined %}
+        <li><details><summary>{{ t.name }}</summary><ul>{% for c in t.children %}<li><a href="#{{ c.id }}">{{ c.name }}</a></li>{% endfor %}</ul></details></li>
+        {% else %}<li><a href="#{{ t.id }}">{{ t.name }}</a></li>{% endif %}
+      {% endfor %}</ul></details>
+    {% endif %}
+    <div class="markdown">{{ html | safe }}</div>
+  </article>
+</div>
+{% endblock %}

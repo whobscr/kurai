@@ -1,0 +1,15 @@
+<svg class="art" viewBox="0 0 600 1000" preserveAspectRatio="xMinYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <rect class="bg" width="600" height="1000"/>
+  <circle class="pc soft" cx="420" cy="160" r="150"/>
+  <!-- mountains the sound travels to -->
+  <path class="sc" d="M0 748 C40 740 80 720 120 690 L260 520 L360 640 L430 560 L600 760 V1000 H0 Z"/>
+  <path class="sf" d="M260 520 L300 568 L276 562 L256 586 L232 556 Z" opacity=".8"/>
+  <path class="pc" d="M0 878 C120 860 260 880 380 900 C480 916 560 910 600 900 V1000 H0 Z"/>
+  <!-- the wave arrives from the left edge and spreads -->
+  <path class="line" d="M0 425 C30 400 60 450 90 425 S150 400 180 425 S240 450 270 425" stroke-width="7"/>
+  <path class="line soft" d="M0 390 C40 360 80 410 120 385 S200 350 240 380" stroke-width="7"/>
+  <!-- birds -->
+  <g class="line-ink" stroke-width="6"><path d="M330 330 q16 -16 30 0 q16 -16 30 0"/><path d="M420 290 q12 -12 22 0 q12 -12 22 0"/>
+    <path d="M300 250 q10 -10 18 0 q10 -10 18 0"/></g>
+  <g class="t"><circle cx="500" cy="420" r="12"/><rect x="508" y="356" width="6" height="66" rx="3"/></g>
+</svg>

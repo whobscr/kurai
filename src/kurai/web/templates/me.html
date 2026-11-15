@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Личный кабинет") }}{% endblock %}
+{% block heading %}{{ _("Личный кабинет") }}{% endblock %}
+{% block content %}
+{% if message %}<article class="round primary-container">{{ message }}</article>{% endif %}
+
+<article class="round">
+  <h6>{{ user.display_name }} <span class="small-text">({{ user.username }}{% if user.is_admin %}, {{ _("администратор") }}{% endif %})</span></h6>
+  <p class="small-text">{{ _("Этим же именем и паролем входите в музыкальных приложениях (сервер — адрес Kurai).") }}</p>
+  <a class="button border round" href="/password"><i>password</i><span>{{ _("Сменить пароль") }}</span></a>
+</article>
+
+<article class="round">
+  <h6>{{ _("Оформление") }}</h6>
+  <form method="post" action="/me/look" class="row wrap">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="color-pick"><span class="swatch" style="background:{{ user.accent_color or accent }}"><input type="color" id="my-accent" name="accent" value="{{ user.accent_color or accent }}"></span>
+      <label for="my-accent">{{ _("Свой акцентный цвет") }}</label></div>
+    <div class="field label suffix border round"><select name="mode">
+      {% for v, l in (("auto", _("Как в системе")), ("light", _("Светлая")), ("dark", _("Тёмная"))) %}
+      <option value="{{ v }}" {{ 'selected' if user.theme_mode == v else '' }}>{{ l }}</option>{% endfor %}
+    </select><label>{{ _("Тема") }}</label><i>arrow_drop_down</i></div>
+    <button class="round">{{ _("Сохранить") }}</button>
+  </form>
+  {% if user.accent_color %}
+  <form method="post" action="/me/look"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="accent" value=""><input type="hidden" name="mode" value="{{ user.theme_mode }}">
+    <button class="transparent">{{ _("Вернуть цвет по умолчанию") }}</button></form>
+  {% endif %}
+</article>
+
+<article class="round" id="totp">
+  <h6>{{ _("Двухфакторный вход") }}</h6>
+  {% if new_codes %}
+    <p>{{ _("Резервные коды — каждый срабатывает один раз, если под рукой нет телефона. Сохраните их сейчас: больше они не покажутся.") }}</p>
+    <pre class="codes">{{ new_codes | join("\n") }}</pre>
+  {% elif totp_setup %}
+    <p>{{ _("Отсканируйте код в Google Authenticator, Aegis или другом приложении и введите шесть цифр.") }}</p>
+    <div class="qr">{{ qr_svg(totp_setup.uri) }}</div>
+    <p class="small-text">{{ _("Или введите ключ вручную:") }} <code>{{ totp_setup.secret }}</code></p>
+    <form method="post" action="/me/totp/confirm" class="row">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field label border round"><input name="code" inputmode="numeric" autocomplete="one-time-code" required>
+        <label>{{ _("Код") }}</label></div>
+      <button class="round">{{ _("Включить") }}</button>
+    </form>
+  {% elif user.totp_enabled %}
+    <p>{{ _("Включён: при входе нужен код из приложения.") }} {{ _("Осталось резервных кодов: {n}.").format(n=user.recovery_codes | length) }}</p>
+    <form method="post" action="/me/totp/disable" class="row">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field label border round"><input name="password" type="password" required><label>{{ _("Пароль") }}</label></div>
+      <button class="round border">{{ _("Выключить") }}</button>
+    </form>
+  {% else %}
+    <p>{{ _("Необязательно: вход в веб-приложение будет требовать ещё и код из приложения-аутентификатора. На музыкальные приложения не влияет.") }}</p>
+    <form method="post" action="/me/totp/start"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="round border"><i>shield_lock</i><span>{{ _("Настроить") }}</span></button></form>
+  {% endif %}
+</article>
+
+<article class="round">
+  <h6>{{ _("Telegram") }}</h6>
+  {% if user.telegram_chat_id %}
+    <p>{{ _("Подключён. В боте можно просить подборки, искать и заказывать альбомы, получать уведомления.") }}</p>
+    <form method="post" action="/me/telegram/unlink"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="round border">{{ _("Отключить") }}</button></form>
+  {% elif user.telegram_link_code and bot %}
+    <p>{{ _("Откройте ссылку на телефоне и нажмите «Старт»:") }}</p>
+    <a class="button round" href="https://t.me/{{ bot }}?start={{ user.telegram_link_code }}" target="_blank" rel="noopener">
+      <i>send</i><span>t.me/{{ bot }}</span></a>
+  {% elif user.telegram_link_code %}
+    <p>{{ _("Бот сейчас недоступен (не задан токен или нет связи с Telegram). Код для команды /start:") }} <code>{{ user.telegram_link_code }}</code></p>
+  {% else %}
+    <form method="post" action="/me/telegram/link"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="round border"><i>link</i><span>{{ _("Подключить") }}</span></button></form>
+  {% endif %}
+</article>
+
+<article class="round">
+  <h6>{{ _("Уведомления") }}</h6>
+  <form method="post" action="/me/notifications">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="checkbox"><input type="checkbox" name="push" {{ 'checked' if user.notify_push }}><span>{{ _("Push в браузере и приложении") }}</span></label>
+    <label class="checkbox"><input type="checkbox" name="telegram" {{ 'checked' if user.notify_telegram }}><span>{{ _("В Telegram") }}</span></label>
+    <div class="row"><button class="round border">{{ _("Сохранить") }}</button>
+      <button type="button" class="round transparent" id="push-enable" data-key="{{ push_key }}">{{ _("Разрешить push на этом устройстве") }}</button></div>
+  </form>
+</article>
+{% endblock %}

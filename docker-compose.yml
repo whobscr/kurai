@@ -1,0 +1,111 @@
+# Kurai, its player (Navidrome) and what it may run beside them. Settings in .env (see .env.example); profiles in
+# COMPOSE_PROFILES:
+#   db   PostgreSQL with pgvector (leave out with your own database: KURAI_DATABASE_URL)
+#   cpu  llama.cpp on the CPU: a chat model and an embedding model
+#   gpu  the same on an NVIDIA GPU
+#   audio  the audio analysis (Essentia and CLAP on the CPU; switched on on the «Звук» tab)
+# A plugin may bring its own compose file to add with COMPOSE_FILE=docker-compose.yml:<its file>.
+# Every port is published on ${KURAI_BIND:-127.0.0.1}: put a reverse proxy with TLS in front (README).
+name: kurai
+
+x-kurai: &kurai
+  image: ghcr.io/whobscr/kurai:${KURAI_VERSION:-latest}
+  env_file: .env
+  restart: unless-stopped
+  user: "${PUID:-1000}:${PGID:-1000}"
+  depends_on:
+    postgres: {condition: service_healthy, required: false}
+
+services:
+  web:
+    <<: *kurai
+    container_name: kurai-web
+    command: ["kurai", "web"]
+    ports: ["${KURAI_BIND:-127.0.0.1}:${KURAI_WEB_PORT:-8095}:${KURAI_WEB_PORT:-8095}"]
+
+  worker:
+    <<: *kurai
+    container_name: kurai-worker
+    command: ["kurai", "worker"]
+    healthcheck: {disable: true}
+
+  navidrome:
+    image: deluan/navidrome:0.58.0
+    container_name: kurai-navidrome
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_PORT: ${NAVIDROME_PORT:-4533}
+      ND_BASEURL: /admin/apps/navidrome
+      ND_SCANSCHEDULE: 1h
+      # Kurai logs its admin in by this header; trusted only from Kurai's address(es)
+      ND_REVERSEPROXYUSERHEADER: Remote-User
+      ND_REVERSEPROXYWHITELIST: ${ND_REVERSEPROXYWHITELIST:-172.16.0.0/12}
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+    volumes:
+      - ${KURAI_DIR:?set KURAI_DIR in .env}/config/navidrome:/data
+      - ${KURAI_DIR}/data/music:/music:ro
+    ports: ["${KURAI_BIND:-127.0.0.1}:${NAVIDROME_PORT:-4533}:${NAVIDROME_PORT:-4533}"]
+
+  # ---------- the audio analysis: reached only by Kurai (http://audio:8097); models in ${KURAI_DIR}/models/audio ----------
+  audio:
+    <<: *kurai
+    profiles: [audio]
+    image: ghcr.io/whobscr/kurai-audio:${KURAI_VERSION:-latest}
+    container_name: kurai-audio
+    command: ["kurai", "audio"]
+    volumes:
+      - ${KURAI_DIR}/models/audio:/models
+    # the analysis uses at most this much CPU and memory, whatever else runs at night
+    cpus: ${KURAI_AUDIO_CPUS:-2}
+    mem_limit: ${KURAI_AUDIO_MEMORY:-3g}
+
+  postgres:
+    profiles: [db]
+    image: pgvector/pgvector:pg17
+    container_name: kurai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kurai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: kurai
+    volumes:
+      - ${KURAI_DIR}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kurai -d kurai"]
+      interval: 10s
+      retries: 10
+
+  # ---------- local models (llama.cpp); models are downloaded from Hugging Face on the first start ----------
+  llama:
+    profiles: [cpu]
+    image: ghcr.io/ggml-org/llama.cpp:server-b12375
+    container_name: kurai-llama
+    restart: unless-stopped
+    command: ["-hf", "${LLAMA_MODEL:-bartowski/Qwen_Qwen3-8B-GGUF:Q4_K_M}", "--host", "0.0.0.0", "--port", "8080",
+              "-c", "8192", "--parallel", "${LLAMA_PARALLEL:-2}", "--cache-ram", "1024", "--alias", "qwen3"]
+    volumes: ["${KURAI_DIR}/models:/root/.cache/llama.cpp"]
+
+  llama-embed:
+    profiles: [cpu, gpu]
+    image: ghcr.io/ggml-org/llama.cpp:server-b12375
+    container_name: kurai-llama-embed
+    restart: unless-stopped
+    command: ["-hf", "${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B-GGUF:Q8_0}", "--host", "0.0.0.0", "--port", "8080",
+              "--embedding", "--pooling", "last", "--cache-ram", "0", "--alias", "qwen3-embedding"]
+    volumes: ["${KURAI_DIR}/models:/root/.cache/llama.cpp"]
+
+  llama-gpu:
+    profiles: [gpu]
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b12375
+    container_name: kurai-llama
+    restart: unless-stopped
+    command: ["-hf", "${LLAMA_MODEL:-bartowski/Qwen_Qwen3-8B-GGUF:Q4_K_M}", "--host", "0.0.0.0", "--port", "8080",
+              "-c", "16384", "--parallel", "${LLAMA_PARALLEL:-4}", "-ngl", "99", "--alias", "qwen3"]
+    volumes: ["${KURAI_DIR}/models:/root/.cache/llama.cpp"]
+    networks: {default: {aliases: [llama]}}
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]

@@ -1,0 +1,10 @@
+<svg class="art" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <ellipse class="sv" cx="200" cy="274" rx="150" ry="12"/>
+  <rect class="p" x="80" y="120" width="240" height="150" rx="26"/>
+  <rect class="pc" x="104" y="144" width="110" height="102" rx="14"/>
+  <circle class="pc" cx="262" cy="176" r="22"/><circle class="pc" cx="262" cy="228" r="14"/>
+  <path class="line-ink" d="M110 196 l12 -20 l12 34 l12 -40 l12 46 l12 -30 l12 22 l12 -14" stroke-width="4"/>
+  <path class="line-ink" d="M260 120 L310 40" stroke-width="5"/><circle class="t" cx="312" cy="36" r="7"/>
+  <path class="line-t" d="M330 60 l14 -8 l-6 16 l16 -6" stroke-width="4"/>
+  <path class="line-t" d="M60 90 l14 6 l-12 8 l14 6" stroke-width="4"/>
+</svg>

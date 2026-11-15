@@ -1,0 +1,26 @@
+<svg class="art" viewBox="0 0 600 1000" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <rect class="bg" width="600" height="1000"/>
+  <circle class="tc soft" cx="140" cy="860" r="260"/>
+  <circle class="sc soft" cx="520" cy="90" r="180"/>
+  <rect class="pc" x="200" y="-40" width="90" height="1080" rx="45" opacity=".35"/>
+  <!-- a cassette, tilted -->
+  <g transform="rotate(-12 430 420)">
+    <rect class="p" x="290" y="330" width="290" height="190" rx="22"/>
+    <rect class="pc" x="314" y="352" width="242" height="104" rx="14"/>
+    <rect class="sf" x="352" y="380" width="166" height="48" rx="24"/>
+    <circle class="ink" cx="384" cy="404" r="18"/><circle class="sf" cx="384" cy="404" r="7"/>
+    <circle class="ink" cx="486" cy="404" r="18"/><circle class="sf" cx="486" cy="404" r="7"/>
+    <path class="sc" d="M340 520 L360 470 H510 L530 520 Z"/>
+    <circle class="p" cx="390" cy="500" r="6"/><circle class="p" cx="480" cy="500" r="6"/>
+  </g>
+  <!-- its tape runs out and away to the right -->
+  <path class="line-ink" d="M420 518 C400 640 520 560 480 660 C450 740 560 720 600 700" stroke-width="7"/>
+  <!-- a stack of more tapes below -->
+  <g transform="translate(330 790)">
+    <rect class="sc" x="0" y="0" width="230" height="36" rx="8"/><rect class="tc" x="16" y="40" width="210" height="36" rx="8"/>
+    <rect class="pc" x="-10" y="80" width="240" height="36" rx="8"/>
+    <rect class="sf" x="30" y="10" width="90" height="16" rx="4"/><rect class="sf" x="46" y="50" width="70" height="16" rx="4"/>
+    <rect class="sf" x="20" y="90" width="110" height="16" rx="4"/>
+  </g>
+  <g class="t"><circle cx="290" cy="200" r="11"/><rect x="297" y="140" width="5" height="62" rx="2.5"/></g>
+</svg>

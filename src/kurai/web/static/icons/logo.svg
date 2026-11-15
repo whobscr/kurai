@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kurai">
+  <!-- Kurai: a kurai (the Bashkir reed flute) across a rounded tile. Fixed colours: an icon is shown
+       outside the page's theme (tabs, home screens). -->
+  <rect width="512" height="512" rx="128" fill="#eaddff"/>
+  <g transform="rotate(-45 256 256)">
+    <rect x="58" y="226" width="396" height="60" rx="30" fill="#6750a4"/>
+    <rect x="402" y="226" width="52" height="60" rx="26" fill="#4f378b"/>
+    <circle cx="150" cy="256" r="12" fill="#eaddff"/>
+    <circle cx="206" cy="256" r="12" fill="#eaddff"/>
+    <circle cx="262" cy="256" r="12" fill="#eaddff"/>
+    <circle cx="318" cy="256" r="12" fill="#eaddff"/>
+  </g>
+</svg>

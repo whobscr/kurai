@@ -1,0 +1,172 @@
+"""The worker process (`kurai worker`): schedules the recurring and nightly jobs, runs the queue in its two lanes, and
+runs the Telegram bot when it's on."""
+
+import asyncio
+import logging
+from datetime import datetime, timedelta
+
+from kurai import db as database
+from kurai import plugins, settings
+from kurai.audio import analyze as audio_analyze
+from kurai.db.models import Job, User
+from kurai.jobs import queue, window
+from kurai.notify import notify
+from kurai.recommend import library, playlists
+
+log = logging.getLogger(__name__)
+
+TICK = 20
+# outside the night: how often the light jobs run (plugins add theirs)
+EVERY = {"sync_library": timedelta(hours=1), "sync_listens": timedelta(minutes=30),
+         "embed_new": timedelta(minutes=30)}
+# a small number of new tracks is embedded during the day; a big backlog (the first indexing) waits for the night
+DAYTIME_EMBED_LIMIT = 200
+# the audio analysis (when it's on): new imports during the day, the backlog at night
+AUDIO_EVERY = timedelta(minutes=30)
+
+
+async def _nightly(db, job: Job) -> dict:
+    """The night's work, in order: the library, its vectors, each user's listens, taste and mixes, then the plugins'
+    steps (e.g. finding new music)."""
+    result: dict = {}
+    result["library"] = await library.sync_library(db)
+    result["embeddings"] = await library.embed_tracks(db)
+    for user in await library.active_users(db):
+        result[f"user {user.username}"] = {
+            "listens": await library.sync_listens(db, user),
+            "taste": await library.build_taste(db, user),
+            "playlists": await playlists.nightly(db, user),
+        }
+    for plugin in plugins.plugins():
+        for name, step in plugin.nightly:
+            result[name] = await step(db)
+    return result
+
+
+async def _sync_listens(db, job: Job) -> dict:
+    return {u.username: await library.sync_listens(db, u) for u in await library.active_users(db)}
+
+
+async def _embed_new(db, job: Job) -> dict:
+    if await library.pending_embeddings(db) > DAYTIME_EMBED_LIMIT:
+        return {"skipped": "много новых треков: проиндексируются ночью"}
+    return await library.embed_tracks(db)
+
+
+async def _ask(db, job: Job) -> dict:
+    user = await db.get(User, job.user_id)
+    result = await playlists.ask(db, user, job.payload["text"])
+    if "playlist_id" in result:
+        await notify(db, user.id, f"Плейлист «{result['name']}» готов — он уже в вашем плеере", "/")
+    return result
+
+
+async def _explain(db, job: Job) -> dict:
+    return {"text": await playlists.explain(db, await db.get(User, job.user_id), job.payload["track_id"])}
+
+
+HANDLERS = {
+    "nightly": _nightly,
+    "sync_library": lambda db, job: library.sync_library(db),
+    "embed_new": _embed_new,
+    "sync_listens": _sync_listens,
+    "ask": _ask,
+    "explain": _explain,
+    "analyze_audio": audio_analyze.run,  # taken only by the audio container's lane
+}
+
+
+def handlers() -> dict:
+    return {**HANDLERS, **plugins.jobs()}
+
+
+async def run_one(job_id: int) -> None:
+    async with database.session() as db:
+        job = await db.get(Job, job_id)
+        handler = handlers().get(job.kind)
+        try:
+            if handler is None:
+                raise ValueError(f"неизвестная задача {job.kind}")
+            result = await handler(db, job)
+            await queue.finish(db, job, result if isinstance(result, dict) else {"result": result})
+        except Exception as e:  # a job's failure is recorded for the admin page, the worker goes on
+            log.exception("job %s (%s) failed", job.id, job.kind)
+            await db.rollback()
+            job = await db.get(Job, job_id)
+            message = str(e) or e.__class__.__name__
+            await queue.finish(db, job, error=message[:2000])
+            if job.kind in queue.INTERACTIVE and job.user_id:
+                await notify(db, job.user_id, f"Не получилось: {message[:300]}", "/ask")
+
+
+async def schedule(now: datetime) -> bool:
+    """Puts the due recurring jobs into the queue; returns whether it's night."""
+    async with database.session() as db:
+        values = await settings.get_all(db)
+        night = window.current(now, values["night.start"], values["night.end"])
+        if night:
+            await queue.enqueue(db, "nightly", night_only=True, priority=60,
+                                dedupe_key=f"nightly:{night[0].date().isoformat()}", once=True)
+        for kind, every in {**EVERY, **plugins.every()}.items():
+            last = await queue.last_done(db, kind)
+            if last is None or now - last >= every:
+                await queue.enqueue(db, kind, priority=40, dedupe_key=kind)
+        if values["audio.enabled"]:
+            await _schedule_audio(db, now, night)
+        return night is not None
+
+
+async def _schedule_audio(db, now: datetime, night: tuple[datetime, datetime] | None) -> None:
+    """At night: one run until the window ends; by day: a small run every half hour for the new imports."""
+    if night:
+        await queue.enqueue(db, "analyze_audio", {"until": night[1].isoformat()}, night_only=True, priority=60,
+                            dedupe_key=f"analyze_audio:{night[0].date().isoformat()}", once=True)
+        return
+    last = await queue.last_done(db, "analyze_audio")
+    if last is None or now - last >= AUDIO_EVERY:
+        await queue.enqueue(db, "analyze_audio", {"limit": audio_analyze.DAYTIME_LIMIT}, priority=40,
+                            dedupe_key="analyze_audio")
+
+
+async def lane(interactive: bool, state: dict) -> None:
+    running: set[asyncio.Task] = set()
+    while True:
+        async with database.session() as db:
+            limit = int(await settings.get(db, "llm.parallel")) if interactive else 1
+            while len(running) < max(1, limit):
+                job = await queue.claim(db, "interactive" if interactive else "general", state["night"])
+                if job is None:
+                    break
+                task = asyncio.create_task(run_one(job.id))
+                running.add(task)
+                task.add_done_callback(running.discard)
+        await asyncio.sleep(2 if interactive else 5)
+
+
+async def scheduler(state: dict) -> None:
+    while True:
+        try:
+            state["night"] = await schedule(datetime.now().astimezone())
+        except Exception:
+            log.exception("scheduling failed")
+        await asyncio.sleep(TICK)
+
+
+async def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    from kurai.bootstrap import bootstrap
+
+    await bootstrap()
+    async with database.session() as db:
+        await queue.requeue_interrupted(db, ("general", "interactive"))
+        for plugin in plugins.plugins():
+            for kind in plugin.on_start:
+                await queue.enqueue(db, kind, priority=10, dedupe_key=kind)
+    state = {"night": False}
+    from kurai.telegram.bot import run_bot
+
+    await asyncio.gather(scheduler(state), lane(False, state), lane(True, state), run_bot())
+
+
+def run() -> None:
+    asyncio.run(main())
