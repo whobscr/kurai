@@ -52,6 +52,9 @@ class App:
     url: Callable[[], str]  # its base URL
     keep_prefix: bool  # whether it lives under /admin/apps/<name> itself (its URL base is set to that)
     headers: Callable[[str], dict[str, str]] | None = None  # (base URL) -> extra request headers
+    # whether its page works inside the tab's frame; one that expects to be the whole page (its scripts break in a
+    # frame) is offered in a new tab instead, still behind Kurai's login
+    frame: bool = True
 
 
 @dataclass(frozen=True)

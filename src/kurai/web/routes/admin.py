@@ -139,7 +139,8 @@ async def _tab_data(ctx: Ctx, tab: str, page: int = 1, status: str = "") -> dict
     if tab == "users":
         data["users"] = (await db.execute(select(User).order_by(User.id))).scalars().all()
     if tab == "apps":
-        data["apps"] = [("navidrome", "Navidrome")] + [(k, a.label) for k, a in plugins.merged("apps").items()]
+        data["apps"] = [("navidrome", "Navidrome", True)] + [(k, a.label, a.frame)
+                                                             for k, a in plugins.merged("apps").items()]
     if tab == "plugins":
         off = set(await settings.get(db, plugins.DISABLED_KEY))
         data["plugin_list"] = [(p, p.name not in off) for p in plugins.installed()]

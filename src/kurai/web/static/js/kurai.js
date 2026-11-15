@@ -66,11 +66,18 @@
   }));
 
   // ---------- the apps' admin pages in one frame ----------
-  document.querySelectorAll(".apps-tabs a").forEach((a) => a.addEventListener("click", () => {
+  // an app that works in a frame is shown in it; one that doesn't (data-frame="no") gets only the way to its own tab
+  const showApp = (a) => {
     document.querySelectorAll(".apps-tabs a").forEach((x) => x.classList.toggle("active", x === a));
-    document.getElementById("app-frame").src = `/admin/apps/${a.dataset.app}/`;
-    document.getElementById("app-tab").href = `/admin/apps/${a.dataset.app}/`;
-  }));
+    const url = `/admin/apps/${a.dataset.app}/`, framed = a.dataset.frame !== "no";
+    const frame = document.getElementById("app-frame");
+    frame.src = framed ? url : "about:blank";
+    document.getElementById("app-stage").classList.toggle("no-frame", !framed);
+    document.getElementById("app-tab").href = document.getElementById("app-tab-big").href = url;
+    document.getElementById("app-noframe-name").textContent = a.dataset.label;
+    document.getElementById("app-full").classList.toggle("unframed", !framed);
+  };
+  document.querySelectorAll(".apps-tabs a").forEach((a) => a.addEventListener("click", () => showApp(a)));
   // the frame with its app on the whole screen, where the browser allows it; the frame stays as it is otherwise
   const stage = document.getElementById("app-stage");
   if (stage && document.fullscreenEnabled && stage.requestFullscreen) {

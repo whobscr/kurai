@@ -133,8 +133,8 @@
 
 {% elif tab == "apps" %}
 <div class="tabs left-align apps-tabs">
-  {% for app, label in apps %}
-  <a data-app="{{ app }}" class="{{ 'active' if loop.first }}">{{ label }}</a>{% endfor %}
+  {% for app, label, framed in apps %}
+  <a data-app="{{ app }}" data-label="{{ label }}" data-frame="{{ 'yes' if framed else 'no' }}" class="{{ 'active' if loop.first }}">{{ label }}</a>{% endfor %}
 </div>
 <div class="row wrap app-actions">
   {# shown by kurai.js only where the browser can show an element on the whole screen (not on iPhones) #}
@@ -143,6 +143,12 @@
 </div>
 <div id="app-stage" class="app-stage">
   <iframe id="app-frame" class="app-frame" src="/admin/apps/{{ apps[0][0] }}/" title="app"></iframe>
+  {# an app whose page doesn't work in a frame: only the way to it #}
+  <article class="round app-noframe">
+    <i class="extra">open_in_new</i>
+    <p><b id="app-noframe-name"></b> {{ _("работает только на отдельной странице — внутри этой его настройки не сохраняются.") }}</p>
+    <a id="app-tab-big" class="button round large" href="#" target="_blank" rel="noopener"><i>open_in_new</i><span>{{ _("Открыть в новой вкладке") }}</span></a>
+  </article>
   {# on the whole screen: a way back without a keyboard (phones and tablets have no Esc) #}
   <button type="button" id="app-exit" class="round app-exit"><i>fullscreen_exit</i><span>{{ _("Свернуть") }}</span></button>
 </div>

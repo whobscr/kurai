@@ -102,6 +102,11 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .app-actions { margin: .75rem 0; }
 /* on the whole screen: the frame fills it, with «Свернуть» floating in a corner */
 .app-stage { position: relative; }
+.app-noframe { display: none; text-align: center; padding: 3rem 1.5rem; }
+.app-noframe > i { color: var(--primary); }
+.app-stage.no-frame .app-frame { display: none; }
+.app-stage.no-frame .app-noframe { display: block; }
+#app-full.unframed { display: none; }
 .app-exit { display: none !important; }
 .app-stage:fullscreen { background: var(--surface); }
 .app-stage:fullscreen .app-frame { height: 100vh; min-height: 0; border: 0; border-radius: 0; }
