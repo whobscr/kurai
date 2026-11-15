@@ -139,3 +139,19 @@ def test_openai_compatible_body_by_server_type():
     openai = OpenAICompatible({**values, "llm.server_type": "openai", "llm.model": "gpt"})._body(
         llm.TextRequest("s", "p"))
     assert "max_completion_tokens" in openai and "max_tokens" not in openai
+
+
+def test_times_are_shown_in_the_servers_time_zone(monkeypatch):
+    import time
+
+    from kurai.web.templating import templates
+
+    monkeypatch.setenv("TZ", "Europe/Moscow")
+    time.tzset()
+    try:
+        moment = datetime(2026, 11, 15, 21, 30, tzinfo=UTC)  # as the database hands it over
+        render = templates.env.from_string('{{ t | local }} · {{ t | local("%d.%m") }}').render
+        assert render(t=moment) == "16.11 00:30 · 16.11"
+    finally:
+        monkeypatch.delenv("TZ")
+        time.tzset()

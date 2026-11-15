@@ -2,6 +2,7 @@
 
 import functools
 import random
+from datetime import datetime
 from pathlib import Path
 
 import jinja2
@@ -36,6 +37,14 @@ class _Loader(jinja2.BaseLoader):
 
 templates = Jinja2Templates(env=jinja2.Environment(loader=_Loader(), autoescape=True))
 templates.env.globals.update(_=_, version=__version__)
+
+
+def local(moment: datetime, fmt: str = "%d.%m %H:%M") -> str:
+    """A time in the server's time zone (TZ): the database hands them over in UTC."""
+    return moment.astimezone().strftime(fmt)
+
+
+templates.env.filters["local"] = local
 
 
 @functools.cache

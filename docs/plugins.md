@@ -29,7 +29,7 @@ At start, Kurai loads every entry point in the group `kurai.plugins`. Each must 
 # pyproject.toml
 [project]
 name = "kurai-incoming"
-dependencies = ["kurai>=0.2.5,<0.3"]
+dependencies = ["kurai>=0.2.6,<0.3"]
 
 [project.entry-points."kurai.plugins"]
 incoming = "kurai_incoming.plugin:plugin"
@@ -85,7 +85,7 @@ plugin = plugins.Plugin(
 | `checks` | «Проверить» buttons, `{name: async (db) -> str}`: return what to show, raise on a problem. |
 | `apps` | Admin pages of other programs, shown on «Приложения» behind Kurai's login (`plugins.App`). |
 | `templates` | A folder of Jinja2 templates; keep yours in a subfolder named after the plugin. |
-| `template_globals` | Values or functions available in every template. |
+| `template_globals` | Values or functions available in every template. Times from the database: `{{ t \| local }}` shows them in the server's time zone (`TZ`), `{{ t \| local("%d.%m") }}` in another format. |
 | `docs` | A folder `<section>/NN-slug.md` (`user` or `admin`), shown in Kurai's «Справка» among its own pages. |
 | `telegram` | `(dispatcher) -> None`: registers aiogram handlers, tried before Kurai's own «Спросить». |
 | `share_path` | Where «Поделиться» from another app goes, `"{q}"` replaced by the shared text (the first plugin that sets it wins). |
@@ -231,7 +231,7 @@ Kurai's image already has Kurai and its libraries; a plugin's image adds only th
 the Kurai version it was written for:
 
 ```dockerfile
-ARG KURAI_VERSION=0.2.5
+ARG KURAI_VERSION=0.2.6
 FROM ghcr.io/astral-sh/uv:0.9.7 AS uv
 
 FROM ghcr.io/whobscr/kurai:${KURAI_VERSION}
@@ -281,7 +281,7 @@ a job from a test.
 ## Versions
 
 The plugin interface may still change between Kurai's minor versions (0.2 → 0.3) until 1.0. Pin the range you've
-tested (`kurai>=0.2.5,<0.3`), and build each plugin release on the Kurai version it was tested with. Kurai's
+tested (`kurai>=0.2.6,<0.3`), and build each plugin release on the Kurai version it was tested with. Kurai's
 changelog says when a hook changes.
 
 ## Rules

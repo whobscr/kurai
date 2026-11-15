@@ -7,7 +7,7 @@
   {% for n in notes %}
   <div class="row"><i class="{{ '' if n.read else 'primary-text' }}">notifications</i>
     <div class="max">{% if n.link %}<a href="{{ n.link }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</div>
-    <span class="small-text">{{ n.created_at.strftime("%d.%m %H:%M") }}</span></div>
+    <span class="small-text">{{ n.created_at | local }}</span></div>
   {% endfor %}
 </article>
 {% endif %}
@@ -23,7 +23,7 @@
     <div class="row"><i class="primary-text">{{ "auto_awesome" if p.kind == "ask" else "queue_music" }}</i>
       <h6 class="max">{{ p.name }}</h6></div>
     {% if p.description %}<p>{{ p.description }}</p>{% endif %}
-    <div class="row small-text"><span class="max">{{ p.track_ids | length }} {{ _("треков") }} · {{ p.created_at.strftime("%d.%m") }}</span>
+    <div class="row small-text"><span class="max">{{ p.track_ids | length }} {{ _("треков") }} · {{ p.created_at | local("%d.%m") }}</span>
       {% for value, icon in ((1, "thumb_up"), (-1, "thumb_down")) %}
       <form method="post" action="/playlists/{{ p.id }}/feedback">
         <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="value" value="{{ value }}">
