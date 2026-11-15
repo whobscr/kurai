@@ -31,9 +31,14 @@ nav:is(.left, .bottom) > a.active:not(.button, .chip) > i { background-color: va
 .hero-art .a1 { inline-size: 13rem; block-size: 13rem; right: -3rem; bottom: -6.5rem; background: var(--tertiary-container); opacity: .9; }
 .hero-art .a2 { inline-size: 7rem; block-size: 7rem; right: 11rem; top: -2.5rem; background: var(--primary-container); opacity: .55; }
 .hero-art .a3 { inline-size: 3.25rem; block-size: 3.25rem; right: 9rem; bottom: 1rem; background: var(--tertiary); opacity: .8; }
-.hero-tools { position: relative; z-index: 1; display: flex; align-items: center; margin-inline-start: auto; }
-.hero-tools form { margin: 0; display: flex; }
-.hero-tools button, .hero-tools i { color: var(--on-primary); }
+/* the band's buttons: one pill of the accent with a shadow, readable over any shape behind it; the logout form
+   steps aside (display: contents), so both buttons are siblings and line up */
+.hero-tools { position: relative; z-index: 1; display: flex; align-items: center; gap: .25rem; flex: none;
+  margin-inline-start: auto; padding: .25rem; border-radius: 2rem; background: var(--primary);
+  box-shadow: 0 .25rem .75rem color-mix(in srgb, var(--shadow, #000) 35%, transparent); }
+.hero-tools form { display: contents; }
+.hero-tools button { margin: 0; color: var(--on-primary); }
+.hero-tools button:hover { background: color-mix(in srgb, var(--on-primary) 14%, transparent); }
 /* the shapes' slow turning only for those who don't ask for less motion */
 @media (prefers-reduced-motion: reduce) { .hero-art .shape { animation: none; } }
 @media (max-width: 600px) {
