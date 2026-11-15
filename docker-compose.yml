@@ -68,7 +68,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: kurai
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # not required by compose: it checks every service, also this one when the db profile is off (your own
+      # database); with the profile on, PostgreSQL itself refuses to start without it
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: kurai
     volumes:
       - ${KURAI_DIR}/postgres:/var/lib/postgresql/data
