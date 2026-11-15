@@ -373,3 +373,26 @@ async def test_wave_follows_plays_and_skips(db, navidrome):
     await wave.build(db, user)
     assert (await db.execute(select(func.count()).select_from(Playlist).where(
         Playlist.user_id == user.id, Playlist.kind == "wave"))).scalar_one() == 1
+
+
+async def test_jobs_are_paged_filtered_and_pruned(client, db):
+    from datetime import UTC, datetime, timedelta
+
+    from kurai.jobs import queue
+
+    old = datetime.now(UTC) - timedelta(days=40)
+    for i in range(70):
+        db.add(Job(kind="paged_job", status="failed" if i % 10 == 0 else "done", payload={}, finished_at=old,
+                   result={"n": i}))
+    await db.commit()
+    await login(client, "admin", "a-long-password")
+    first = (await client.get("/admin/jobs")).text
+    assert "Старее" in first and "Новее" not in first and first.count("<tr>") == 31  # the head and 30 jobs
+    second = (await client.get("/admin/jobs", params={"page": 2})).text
+    assert "Новее" in second and "Страница 2" in second
+    failed = (await client.get("/admin/jobs", params={"status": "failed"})).text
+    assert "paged_job" in failed and "<td>done</td>" not in failed
+
+    assert await queue.prune(db) >= 70
+    left = (await db.execute(select(func.count()).select_from(Job).where(Job.kind == "paged_job"))).scalar_one()
+    assert left == 0

@@ -42,6 +42,7 @@ async def _nightly(db, job: Job) -> dict:
     for plugin in plugins.plugins():
         for name, step in plugin.nightly:
             result[name] = await step(db)
+    result["old_jobs_removed"] = await queue.prune(db)
     return result
 
 

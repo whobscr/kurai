@@ -170,12 +170,23 @@
     <button class="round border small">{{ label }}</button></form>{% endfor %}
 </article>
 <article class="round">
+  <nav class="row wrap job-filters">
+    {% for key, (label, _statuses) in job_filters.items() %}
+    <a class="chip {{ 'fill' if key == jobs_status }}" href="/admin/jobs{{ '?status=' ~ key if key }}">{{ label }}</a>{% endfor %}
+  </nav>
   <table class="stripes">
     <thead><tr><th>#</th><th>{{ _("Задача") }}</th><th>{{ _("Состояние") }}</th><th>{{ _("Когда") }}</th><th>{{ _("Итог") }}</th></tr></thead>
     <tbody>{% for j in jobs %}<tr><td>{{ j.id }}</td><td>{{ j.kind }}{% if j.night_only %} 🌙{% endif %}</td><td>{{ j.status }}</td>
       <td class="small-text">{{ (j.finished_at or j.started_at or j.created_at) | local }}</td>
-      <td class="small-text job-result">{{ j.error or (j.result | tojson if j.result else "") }}</td></tr>{% endfor %}</tbody>
+      <td class="small-text job-result">{{ j.error or (j.result | tojson if j.result else "") }}</td></tr>
+    {% else %}<tr><td colspan="5">{{ _("Нет задач.") }}</td></tr>{% endfor %}</tbody>
   </table>
+  {% set q = '&status=' ~ jobs_status if jobs_status else '' %}
+  <nav class="row pager">
+    {% if jobs_page > 1 %}<a class="button border round" href="/admin/jobs?page={{ jobs_page - 1 }}{{ q }}"><i>chevron_left</i><span>{{ _("Новее") }}</span></a>{% endif %}
+    <span class="max small-text">{{ _("Страница {n}").format(n=jobs_page) }} · {{ _("старше 30 дней удаляются ночью") }}</span>
+    {% if jobs_older %}<a class="button border round" href="/admin/jobs?page={{ jobs_page + 1 }}{{ q }}"><span>{{ _("Старее") }}</span><i>chevron_right</i></a>{% endif %}
+  </nav>
 </article>
 {% endif %}
 {% endblock %}

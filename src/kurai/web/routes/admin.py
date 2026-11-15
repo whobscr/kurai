@@ -67,6 +67,10 @@ FIELDS: dict[str, dict[str, type]] = {
     "gateway": {"outbound.proxy": str, "outbound.user": str, "outbound.password": str, "outbound.dns": str},
 }
 MANUAL_AUDIO_TRACKS = 100
+JOBS_PAGE = 30
+# «Задачи»'s filter: label, and which statuses it shows (None: all)
+JOB_FILTERS = {"": (_("Все"), None), "failed": (_("Ошибки"), ["failed"]),
+               "active": (_("Идут и в очереди"), ["running", "queued"])}
 
 
 def fields(tab: str) -> dict[str, type] | None:
@@ -110,7 +114,7 @@ def _validate(values: dict[str, Any]) -> str | None:
     return None
 
 
-async def _tab_data(ctx: Ctx, tab: str) -> dict[str, Any]:
+async def _tab_data(ctx: Ctx, tab: str, page: int = 1, status: str = "") -> dict[str, Any]:
     db = ctx.db
     data: dict[str, Any] = {}
     if tab == "general":
@@ -135,7 +139,14 @@ async def _tab_data(ctx: Ctx, tab: str) -> dict[str, Any]:
     if tab in plugin_tabs() and plugin_tabs()[tab].data:
         data.update(await plugin_tabs()[tab].data(db))
     if tab == "jobs":
-        data["jobs"] = (await db.execute(select(Job).order_by(Job.id.desc()).limit(100))).scalars().all()
+        statuses = JOB_FILTERS.get(status, JOB_FILTERS[""])[1]
+        query = select(Job).where(Job.status.in_(statuses)) if statuses else select(Job)
+        page = max(1, page)
+        # one more than a page: whether there's an older one
+        rows = (await db.execute(query.order_by(Job.id.desc()).offset((page - 1) * JOBS_PAGE)
+                                 .limit(JOBS_PAGE + 1))).scalars().all()
+        data.update(jobs=rows[:JOBS_PAGE], jobs_page=page, jobs_older=len(rows) > JOBS_PAGE,
+                    jobs_status=status if status in JOB_FILTERS else "", job_filters=JOB_FILTERS)
     return data
 
 
@@ -145,14 +156,15 @@ async def index():
 
 
 @router.get("/{tab}")
-async def tab_page(request: Request, tab: str, message: str = "", confirm: int | None = None,
-                   ctx: Ctx = Depends(admin_required)):
+async def tab_page(request: Request, tab: str, message: str = "", confirm: int | None = None, page: int = 1,
+                   status: str = "", ctx: Ctx = Depends(admin_required)):
     if tab not in tabs():
         raise HTTPException(404)
     values = await settings.get_all(ctx.db)
     return render(request, "admin.html", ctx, tab=tab, tabs=tabs(), values=values, llm_tasks=settings.LLM_TASKS,
                   subsystems=settings.outbound_subsystems(), plugin_tab=plugin_tabs().get(tab),
-                  manual_jobs=manual_jobs(), message=message, confirm=confirm, **await _tab_data(ctx, tab))
+                  manual_jobs=manual_jobs(), message=message, confirm=confirm,
+                  **await _tab_data(ctx, tab, page, status))
 
 
 async def _restart_web() -> None:

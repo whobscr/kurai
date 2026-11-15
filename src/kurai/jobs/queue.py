@@ -1,10 +1,10 @@
 """The jobs table as a queue: enqueue (deduplicated by key), claim (FOR UPDATE SKIP LOCKED), finish."""
 
 from collections.abc import Collection
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai.db.models import Job
@@ -15,6 +15,7 @@ from kurai.db.models import Job
 INTERACTIVE = {"ask", "explain", "wave"}
 AUDIO = {"analyze_audio"}
 LANES = {"interactive": INTERACTIVE, "audio": AUDIO}
+KEEP_DAYS = 30  # finished jobs older than this are removed at night
 
 
 def _in_lane(lane: str):
@@ -73,6 +74,16 @@ async def requeue_interrupted(db: AsyncSession, lanes: tuple[str, ...]) -> None:
     await db.execute(update(Job).where(Job.status == "running", or_(*(_in_lane(lane) for lane in lanes)))
                      .values(status="queued", started_at=None))
     await db.commit()
+
+
+async def prune(db: AsyncSession, days: int = KEEP_DAYS) -> int:
+    """Removes the finished jobs older than `days` (the night's work does it); the once-only ones are keyed by date,
+    so removing them can't start them again."""
+    before = datetime.now(UTC) - timedelta(days=days)
+    removed = (await db.execute(delete(Job).where(Job.status.in_(["done", "failed"]),
+                                                  Job.finished_at < before))).rowcount
+    await db.commit()
+    return removed
 
 
 async def last_done(db: AsyncSession, kind: str) -> datetime | None:
