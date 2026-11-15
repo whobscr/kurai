@@ -134,7 +134,16 @@
   {% for app, label in apps %}
   <a data-app="{{ app }}" class="{{ 'active' if loop.first }}">{{ label }}</a>{% endfor %}
 </div>
-<iframe id="app-frame" class="app-frame" src="/admin/apps/{{ apps[0][0] }}/" title="app"></iframe>
+<div class="row wrap app-actions">
+  {# shown by kurai.js only where the browser can show an element on the whole screen (not on iPhones) #}
+  <button type="button" id="app-full" class="round" hidden><i>fullscreen</i><span>{{ _("На весь экран") }}</span></button>
+  <a id="app-tab" class="button border round" href="/admin/apps/{{ apps[0][0] }}/" target="_blank" rel="noopener"><i>open_in_new</i><span>{{ _("Открыть в новой вкладке") }}</span></a>
+</div>
+<div id="app-stage" class="app-stage">
+  <iframe id="app-frame" class="app-frame" src="/admin/apps/{{ apps[0][0] }}/" title="app"></iframe>
+  {# on the whole screen: a way back without a keyboard (phones and tablets have no Esc) #}
+  <button type="button" id="app-exit" class="round app-exit"><i>fullscreen_exit</i><span>{{ _("Свернуть") }}</span></button>
+</div>
 <p class="small-text">{{ _("Прямой доступ к их API — через SSH с пробросом порта.") }}</p>
 
 {% elif tab == "plugins" %}

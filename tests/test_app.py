@@ -189,6 +189,9 @@ async def test_pages_docs_errors_and_pwa(client):
         r = await client.get(path)
         assert r.status_code == 200, (path, r.status_code)
     assert "Плагины не установлены" in (await client.get("/admin/plugins")).text
+    apps = (await client.get("/admin/apps")).text
+    assert 'id="app-full"' in apps and 'id="app-stage"' in apps
+    assert 'href="/admin/apps/navidrome/" target="_blank"' in apps  # the new tab
     # the band's light / dark switch remembers the choice
     home = (await client.get("/")).text
     assert 'id="mode-toggle"' in home and 'class="hero tall"' in home

@@ -69,7 +69,16 @@
   document.querySelectorAll(".apps-tabs a").forEach((a) => a.addEventListener("click", () => {
     document.querySelectorAll(".apps-tabs a").forEach((x) => x.classList.toggle("active", x === a));
     document.getElementById("app-frame").src = `/admin/apps/${a.dataset.app}/`;
+    document.getElementById("app-tab").href = `/admin/apps/${a.dataset.app}/`;
   }));
+  // the frame with its app on the whole screen, where the browser allows it; the frame stays as it is otherwise
+  const stage = document.getElementById("app-stage");
+  if (stage && document.fullscreenEnabled && stage.requestFullscreen) {
+    const full = document.getElementById("app-full");
+    full.hidden = false;
+    full.addEventListener("click", () => stage.requestFullscreen().catch(() => { full.hidden = true; }));
+    document.getElementById("app-exit").addEventListener("click", () => document.exitFullscreen());
+  }
 
   // ---------- the service worker (installable app, push, «Поделиться») and push subscription ----------
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", {scope: "/"});
