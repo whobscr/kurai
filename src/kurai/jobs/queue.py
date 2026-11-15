@@ -1,5 +1,6 @@
 """The jobs table as a queue: enqueue (deduplicated by key), claim (FOR UPDATE SKIP LOCKED), finish."""
 
+from collections.abc import Collection
 from datetime import UTC, datetime
 from typing import Any
 
@@ -41,9 +42,12 @@ async def enqueue(db: AsyncSession, kind: str, payload: dict[str, Any] | None = 
     return job
 
 
-async def claim(db: AsyncSession, lane: str, in_night: bool) -> Job | None:
+async def claim(db: AsyncSession, lane: str, in_night: bool, kinds: Collection[str] | None = None) -> Job | None:
+    """The next queued job of the lane; only of these kinds when given (a switched-off plugin's jobs wait)."""
     stmt = (select(Job).where(Job.status == "queued", _in_lane(lane)).order_by(Job.priority, Job.id)
             .limit(1).with_for_update(skip_locked=True))
+    if kinds is not None:
+        stmt = stmt.where(Job.kind.in_(list(kinds)))
     if not in_night:
         stmt = stmt.where(Job.night_only.is_(False))
     job = (await db.execute(stmt)).scalars().first()

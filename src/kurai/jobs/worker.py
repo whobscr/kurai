@@ -134,7 +134,8 @@ async def lane(interactive: bool, state: dict) -> None:
         async with database.session() as db:
             limit = int(await settings.get(db, "llm.parallel")) if interactive else 1
             while len(running) < max(1, limit):
-                job = await queue.claim(db, "interactive" if interactive else "general", state["night"])
+                job = await queue.claim(db, "interactive" if interactive else "general", state["night"],
+                                        handlers().keys())
                 if job is None:
                     break
                 task = asyncio.create_task(run_one(job.id))
@@ -143,8 +144,17 @@ async def lane(interactive: bool, state: dict) -> None:
         await asyncio.sleep(2 if interactive else 5)
 
 
+async def plugins_switched(db) -> bool:
+    """Whether the plugins' switches changed since this process started (it then restarts to pick them up)."""
+    return frozenset(await settings.get(db, plugins.DISABLED_KEY)) != plugins.disabled()
+
+
 async def scheduler(state: dict) -> None:
     while True:
+        async with database.session() as db:
+            if await plugins_switched(db):
+                log.info("the plugins were switched on or off: restarting")
+                return
         try:
             state["night"] = await schedule(datetime.now().astimezone())
         except Exception:
@@ -165,7 +175,15 @@ async def main() -> None:
     state = {"night": False}
     from kurai.telegram.bot import run_bot
 
-    await asyncio.gather(scheduler(state), lane(False, state), lane(True, state), run_bot())
+    # the scheduler returns when the plugins' switches change: the worker then stops, and Docker starts it again
+    # (restart: unless-stopped); a job cut short is queued again at start
+    tasks = [asyncio.create_task(c) for c in (scheduler(state), lane(False, state), lane(True, state), run_bot())]
+    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    for task in done:
+        task.result()  # a crash is raised as before
 
 
 def run() -> None:

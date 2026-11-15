@@ -48,6 +48,10 @@ async def test_queue_dedupes_and_keeps_night_jobs_for_the_night(db):
     assert (await queue.claim(db, "interactive", in_night=False)).kind == "ask"
     audio = await queue.claim(db, "audio", in_night=False)
     assert audio.kind == "analyze_audio"
+    await queue.enqueue(db, "some_plugins_job", priority=1)
+    # a switched-off plugin's job waits: the worker claims only the kinds it knows
+    assert (await queue.claim(db, "general", in_night=True, kinds={"sync_library", "nightly"})) is None
+    assert (await queue.claim(db, "general", in_night=True)).kind == "some_plugins_job"
     await queue.requeue_interrupted(db, ("general", "interactive"))  # the main worker restarting
     await db.refresh(audio)
     assert audio.status == "running"  # the audio container's job is not its to requeue
@@ -181,9 +185,10 @@ async def test_user_cannot_open_admin_and_totp_flow(client, db):
 async def test_pages_docs_errors_and_pwa(client):
     await login(client, "admin", "a-long-password")
     for path in ("/", "/ask", "/me", "/docs", "/docs/admin/audio", "/docs/changelog", "/admin/models",
-                 "/admin/gateway", "/admin/users", "/admin/apps", "/admin/jobs"):
+                 "/admin/gateway", "/admin/users", "/admin/apps", "/admin/plugins", "/admin/jobs"):
         r = await client.get(path)
         assert r.status_code == 200, (path, r.status_code)
+    assert "Плагины не установлены" in (await client.get("/admin/plugins")).text
     missing = await client.get("/no/such/page")
     assert missing.status_code == 404 and "<svg" in missing.text and "Такой страницы нет" in missing.text
     manifest = (await client.get("/manifest.webmanifest")).json()

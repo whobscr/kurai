@@ -29,7 +29,7 @@ At start, Kurai loads every entry point in the group `kurai.plugins`. Each must 
 # pyproject.toml
 [project]
 name = "kurai-incoming"
-dependencies = ["kurai>=0.2.6,<0.3"]
+dependencies = ["kurai>=0.2.7,<0.3"]
 
 [project.entry-points."kurai.plugins"]
 incoming = "kurai_incoming.plugin:plugin"
@@ -37,6 +37,12 @@ incoming = "kurai_incoming.plugin:plugin"
 
 Kurai never imports a plugin by name: it only reads that registry (`src/kurai/plugins.py`). Several plugins can be
 installed at once; they're loaded in the order of their entry point names.
+
+An admin can switch an installed plugin off on «Системные настройки → Плагины». A switched-off plugin adds nothing (no
+pages, tabs, jobs, Telegram handlers…); its settings, data and tables stay, and its migrations still run, so switching
+it on again picks up where it was. Its queued jobs wait. The switches are read once at start: on a change the web and
+the worker restart themselves (Docker's `restart: unless-stopped` starts them again). In your code, `plugins.plugins()`
+is the switched-on ones, `plugins.installed()` all of them.
 
 ## The `Plugin` object
 
@@ -71,6 +77,7 @@ plugin = plugins.Plugin(
 | Field | What Kurai does with it |
 |---|---|
 | `name` | A short identifier: the prefix of your settings, template folder and job names. |
+| `title`, `description` | How it's listed on «Системные настройки → Плагины» (the name when empty), where an admin can switch it off. |
 | `settings` | A function returning your settings' defaults. They're stored in Kurai's settings table, read with `settings.get` / `get_all`. |
 | `secret_keys` | Which of your settings are secrets (tokens, passwords): stored encrypted, shown as empty fields. |
 | `outbound` | Your subsystems for the outbound gateway, `{name: label}`: each gets a «through the proxy» checkbox on «Шлюз». |
@@ -231,7 +238,7 @@ Kurai's image already has Kurai and its libraries; a plugin's image adds only th
 the Kurai version it was written for:
 
 ```dockerfile
-ARG KURAI_VERSION=0.2.6
+ARG KURAI_VERSION=0.2.7
 FROM ghcr.io/astral-sh/uv:0.9.7 AS uv
 
 FROM ghcr.io/whobscr/kurai:${KURAI_VERSION}
@@ -281,7 +288,7 @@ a job from a test.
 ## Versions
 
 The plugin interface may still change between Kurai's minor versions (0.2 → 0.3) until 1.0. Pin the range you've
-tested (`kurai>=0.2.6,<0.3`), and build each plugin release on the Kurai version it was tested with. Kurai's
+tested (`kurai>=0.2.7,<0.3`), and build each plugin release on the Kurai version it was tested with. Kurai's
 changelog says when a hook changes.
 
 ## Rules

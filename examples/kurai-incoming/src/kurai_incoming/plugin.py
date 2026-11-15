@@ -31,6 +31,8 @@ async def check(db) -> str:
 
 plugin = plugins.Plugin(
     name="incoming",
+    title=_("Входящие"),
+    description=_("Альбомы из папки входящих — в библиотеку, после одобрения"),
     settings=defaults,
     jobs={"incoming_scan": lambda db, job: incoming.scan(db)},
     every={"incoming_scan": timedelta(minutes=30)},

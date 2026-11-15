@@ -40,7 +40,7 @@ def outbound_subsystems() -> dict[str, str]:
 
 @lru_cache
 def secret_keys() -> frozenset[str]:
-    return frozenset(CORE_SECRET_KEYS).union(*(p.secret_keys for p in plugins.plugins()))
+    return frozenset(CORE_SECRET_KEYS).union(*(p.secret_keys for p in plugins.installed()))
 
 
 def _defaults() -> dict[str, Any]:
@@ -88,13 +88,16 @@ def _defaults() -> dict[str, Any]:
         # web push (VAPID keys made on first start)
         "webpush.public_key": "",
         "webpush.private_key": "",
+        # the plugins switched off on «Плагины» (their names)
+        plugins.DISABLED_KEY: [],
     }
 
 
 @lru_cache
 def defaults() -> dict[str, Any]:
     values = _defaults()
-    for p in plugins.plugins():
+    # a switched-off plugin's settings too: kept as they are, ready when it's on again
+    for p in plugins.installed():
         values.update(p.settings())
     return values
 

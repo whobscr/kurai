@@ -1,6 +1,9 @@
 """«Системные настройки» (admins only): one tab per area (plugins add theirs), users, the apps, jobs, and the
 «Проверить» buttons. Saving a tab only writes the settings; jobs pick them up (the worker re-reads them)."""
 
+import asyncio
+import os
+import signal
 import time
 from typing import Any
 from urllib.parse import urlencode
@@ -8,6 +11,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
+from starlette.background import BackgroundTask
 
 from kurai import accounts, llm, outbound, plugins, settings
 from kurai.audio import analyze as audio_analyze
@@ -27,6 +31,7 @@ CORE_TABS = {
     "gateway": _("Шлюз"),
     "users": _("Пользователи"),
     "apps": _("Приложения"),
+    "plugins": _("Плагины"),
     "jobs": _("Задачи"),
 }
 # «Запустить» on «Задачи»: Kurai's own; plugins add theirs
@@ -123,6 +128,10 @@ async def _tab_data(ctx: Ctx, tab: str) -> dict[str, Any]:
         data["users"] = (await db.execute(select(User).order_by(User.id))).scalars().all()
     if tab == "apps":
         data["apps"] = [("navidrome", "Navidrome")] + [(k, a.label) for k, a in plugins.merged("apps").items()]
+    if tab == "plugins":
+        off = set(await settings.get(db, plugins.DISABLED_KEY))
+        data["plugin_list"] = [(p, p.name not in off) for p in plugins.installed()]
+        data["restarting"] = off != plugins.disabled()
     if tab in plugin_tabs() and plugin_tabs()[tab].data:
         data.update(await plugin_tabs()[tab].data(db))
     if tab == "jobs":
@@ -146,8 +155,28 @@ async def tab_page(request: Request, tab: str, message: str = "", confirm: int |
                   manual_jobs=manual_jobs(), message=message, confirm=confirm, **await _tab_data(ctx, tab))
 
 
+async def _restart_web() -> None:
+    """The web process stops shortly after the answer is sent, and Docker starts it again (restart: unless-stopped)
+    with the plugins switched as saved. The worker notices the change itself."""
+    asyncio.get_running_loop().call_later(1, os.kill, os.getpid(), signal.SIGTERM)
+
+
+async def save_plugins(request: Request, ctx: Ctx) -> RedirectResponse:
+    form = await request.form()
+    off = sorted(p.name for p in plugins.installed() if form.get(f"plugin.{p.name}") != "on")
+    await settings.put(ctx.db, {plugins.DISABLED_KEY: off})
+    await ctx.db.commit()
+    if frozenset(off) == plugins.disabled():
+        return back("plugins", _("Сохранено"))
+    response = back("plugins", _("Сохранено. Kurai перезапускается — обновите страницу через полминуты."))
+    response.background = BackgroundTask(_restart_web)
+    return response
+
+
 @router.post("/{tab}")
 async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
+    if tab == "plugins":
+        return await save_plugins(request, ctx)
     tab_fields = fields(tab)
     if not tab_fields:
         raise HTTPException(404)

@@ -27,7 +27,7 @@ def migrate() -> None:
     with engine.connect() as conn:
         conn.execute(text("select pg_advisory_lock(:k)"), {"k": LOCK})
         try:
-            for location in [MIGRATIONS] + [p.migrations for p in plugins.plugins() if p.migrations]:
+            for location in [MIGRATIONS] + [p.migrations for p in plugins.installed() if p.migrations]:
                 cfg = AlembicConfig()
                 cfg.set_main_option("script_location", str(location))
                 cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))

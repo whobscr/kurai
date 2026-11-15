@@ -6,8 +6,12 @@ The core asks the plugins what they add, at fixed places: settings and secrets, 
 menu, system settings tabs, «Проверить» checks, apps' admin pages behind Kurai's login, templates, docs, Telegram
 handlers (tried before «Спросить»), the share target, and database tables (the plugin's own Alembic history, in its
 own version table, migrated after Kurai's).
+
+An admin can switch an installed plugin off on «Системные настройки → Плагины»: it then adds nothing (its settings, data
+and tables stay, still migrated). The switches are read once at start; the web and the worker restart on a change.
 """
 
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -17,6 +21,9 @@ from pathlib import Path
 from typing import Any
 
 GROUP = "kurai.plugins"
+DISABLED_KEY = "plugins.disabled"  # the setting: names of the plugins switched off
+
+log = logging.getLogger(__name__)
 
 JobHandler = Callable[[Any, Any], Awaitable[dict]]  # (db, job) -> result
 Step = Callable[[Any], Awaitable[dict]]  # (db) -> result
@@ -49,6 +56,8 @@ class App:
 @dataclass(frozen=True)
 class Plugin:
     name: str
+    title: str = ""  # on «Плагины» (the name when empty)
+    description: str = ""  # one line under it
     settings: Callable[[], dict[str, Any]] = dict  # its settings' defaults
     secret_keys: frozenset[str] = frozenset()  # stored encrypted
     outbound: dict[str, str] = field(default_factory=dict)  # gateway subsystem -> label
@@ -71,8 +80,36 @@ class Plugin:
 
 
 @lru_cache
-def plugins() -> tuple[Plugin, ...]:
+def installed() -> tuple[Plugin, ...]:
+    """Every plugin in the environment, switched on or not: for their settings and their migrations."""
     return tuple(ep.load() for ep in sorted(entry_points(group=GROUP), key=lambda ep: ep.name))
+
+
+@lru_cache
+def disabled() -> frozenset[str]:
+    """The plugins switched off, as they were when this process started (read once: the routes, jobs and menu are
+    put together at start)."""
+    from sqlalchemy import create_engine, text
+
+    from kurai.config import get_config
+
+    try:
+        engine = create_engine(get_config().database_url)
+        try:
+            with engine.connect() as conn:
+                value = conn.execute(text("select value from settings where key = :k"), {"k": DISABLED_KEY}).scalar()
+        finally:
+            engine.dispose()
+    except Exception as e:  # before the first migration there's no table: nothing is off
+        log.warning("plugin switches not read (all on): %s", e)
+        return frozenset()
+    return frozenset(value or ())
+
+
+@lru_cache
+def plugins() -> tuple[Plugin, ...]:
+    """The plugins switched on: everything the core asks them about."""
+    return tuple(p for p in installed() if p.name not in disabled())
 
 
 def merged(attr: str) -> dict:

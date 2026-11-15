@@ -136,6 +136,20 @@
 <iframe id="app-frame" class="app-frame" src="/admin/apps/{{ apps[0][0] }}/" title="app"></iframe>
 <p class="small-text">{{ _("Прямой доступ к их API — через SSH с пробросом порта.") }}</p>
 
+{% elif tab == "plugins" %}
+{% if restarting %}<article class="round secondary-container">{{ _("Kurai перезапускается, чтобы включить или выключить плагины. Обновите страницу через полминуты.") }}</article>{% endif %}
+{% if plugin_list %}
+<article class="round">{{ form_start() }}
+  <p class="small-text">{{ _("Выключенный плагин пропадает из меню, настроек и задач; его настройки и данные остаются. После сохранения Kurai перезапустится сам.") }}</p>
+  {% for p, on in plugin_list %}
+  <div class="row switch-row"><div class="max">{{ p.title or p.name }}<div class="small-text">{% if p.description %}{{ p.description }} · {% endif %}{{ p.name }}</div></div>
+    <label class="switch"><input type="checkbox" name="plugin.{{ p.name }}" {{ 'checked' if on }}><span></span></label></div>
+  {% endfor %}
+{{ form_end() }}</article>
+{% else %}
+<article class="round"><p>{{ _("Плагины не установлены.") }}</p></article>
+{% endif %}
+
 {% elif plugin_tab %}
 {% include plugin_tab.template %}
 
