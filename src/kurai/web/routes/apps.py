@@ -20,7 +20,9 @@ router = APIRouter(prefix="/admin/apps")
 PREFIX = "/admin/apps"
 # hop-by-hop headers and the ones the proxy sets itself
 DROP_REQUEST = {"host", "connection", "keep-alive", "transfer-encoding", "te", "upgrade", "content-length",
-                "remote-user", "x-forwarded-for", "x-forwarded-proto", "x-forwarded-host"}
+                "remote-user", "x-forwarded-for", "x-forwarded-proto", "x-forwarded-host", "accept-encoding"}
+# what the proxy unpacks itself: not the browser's list, which has brotli (some apps would answer in it)
+ACCEPT_ENCODING = "gzip, deflate"
 DROP_RESPONSE = {"connection", "keep-alive", "transfer-encoding", "content-encoding", "content-length"}
 
 
@@ -48,6 +50,7 @@ async def proxy(app: str, path: str, request: Request, ctx: Ctx = Depends(admin_
     upstream_path = f"{PREFIX}/{app}/{path}" if target.keep_prefix else f"/{path}"
     url = base.rstrip("/") + upstream_path + (f"?{request.url.query}" if request.url.query else "")
     headers = {k: v for k, v in request.headers.items() if k.lower() not in DROP_REQUEST}
+    headers["Accept-Encoding"] = ACCEPT_ENCODING
     # Kurai's own cookie stays here
     if "cookie" in headers:
         headers["cookie"] = "; ".join(c for c in headers["cookie"].split("; ") if not c.startswith("kurai_session="))

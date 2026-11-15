@@ -272,3 +272,37 @@ async def test_navidrome_is_reached_under_its_url_base_and_kurais_admin_made(db,
         assert len(admins) == 1
     finally:
         await runner.cleanup()
+
+
+# ---------- the apps' pages through Kurai ----------
+
+
+async def test_an_app_is_asked_only_for_encodings_the_proxy_unpacks(client, monkeypatch):
+    """Browsers accept brotli, and some apps use it when asked: the proxy can't unpack it, so it never asks."""
+    import gzip
+
+    from aiohttp import web
+
+    from kurai import plugins
+    from kurai.web.routes import apps
+
+    async def page(request):
+        if "br" in request.headers.get("Accept-Encoding", ""):
+            return web.Response(body=b"not really brotli", headers={"Content-Encoding": "br"})
+        return web.Response(body=gzip.compress(b"<h1>An app</h1>"),
+                            headers={"Content-Encoding": "gzip", "Content-Type": "text/html"})
+
+    upstream = web.Application()
+    upstream.router.add_get("/admin/apps/fake/", page)
+    runner = web.AppRunner(upstream)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    url = f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}"
+    monkeypatch.setattr(apps, "targets", lambda: {"fake": plugins.App("Fake", lambda: url, True)})
+    try:
+        await login(client, "admin", "a-long-password")
+        r = await client.get("/admin/apps/fake/", headers={"Accept-Encoding": "gzip, deflate, br, zstd"})
+        assert r.status_code == 200 and r.text == "<h1>An app</h1>"
+    finally:
+        await runner.cleanup()
