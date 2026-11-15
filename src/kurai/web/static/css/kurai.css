@@ -4,8 +4,51 @@
 
 .logo-rail { width: 2.5rem; height: 2.5rem; margin: .5rem auto; display: block; }
 .logo-big { width: 4.5rem; height: 4.5rem; }
-.page-head { display: flex; align-items: center; gap: .5rem; padding: .5rem 0 1rem; }
-.page-head .max { flex: 1; }
+
+/* ---------- the shell: colour washes behind everything, a stronger menu, each page's band ---------- */
+/* two soft washes (the accent's container colours) so the page is never a flat white or black */
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(55rem 38rem at 100% -10%, color-mix(in srgb, var(--primary-container) 70%, transparent), transparent 70%),
+    radial-gradient(45rem 35rem at -10% 110%, color-mix(in srgb, var(--tertiary-container) 60%, transparent), transparent 70%); }
+nav.left { background: color-mix(in srgb, var(--surface-container) 80%, transparent); }
+nav:is(.left, .bottom) > a.active:not(.button, .chip) > i { background-color: var(--primary) !important;
+  color: var(--on-primary) !important; }
+
+/* the band: the accent running into its second colour (Material's tertiary, made from the same accent), the title on
+   the left, the shapes on the right; one corner left sharp, so it isn't a plain box */
+.hero { position: relative; overflow: hidden; display: flex; align-items: flex-start; gap: .5rem;
+  margin: .75rem 0 1.5rem; padding: 1.5rem 2rem; min-block-size: 7.5rem; border-radius: 2rem 2rem 2rem .5rem;
+  color: var(--on-primary);
+  background: linear-gradient(115deg, var(--primary) 35%, color-mix(in srgb, var(--primary) 45%, var(--tertiary)) 100%); }
+.hero-text { position: relative; z-index: 1; max-inline-size: min(40rem, 62%); }
+.hero h4 { margin: 0; font-weight: 600; letter-spacing: -.01em; }
+.hero .lead { margin: .5rem 0 0; opacity: .9; }
+.hero.tall { min-block-size: 11rem; padding-block: 2rem; }
+.hero.tall h4 { font-size: 2.4rem; }
+.hero-art { position: absolute; inset: 0; pointer-events: none; }
+.hero-art .shape { position: absolute; }
+.hero-art .a1 { inline-size: 13rem; block-size: 13rem; right: -3rem; bottom: -6.5rem; background: var(--tertiary-container); opacity: .9; }
+.hero-art .a2 { inline-size: 7rem; block-size: 7rem; right: 11rem; top: -2.5rem; background: var(--primary-container); opacity: .55; }
+.hero-art .a3 { inline-size: 3.25rem; block-size: 3.25rem; right: 9rem; bottom: 1rem; background: var(--tertiary); opacity: .8; }
+.hero-tools { position: relative; z-index: 1; display: flex; align-items: center; margin-inline-start: auto; }
+.hero-tools form { margin: 0; display: flex; }
+.hero-tools button, .hero-tools i { color: var(--on-primary); }
+/* the shapes' slow turning only for those who don't ask for less motion */
+@media (prefers-reduced-motion: reduce) { .hero-art .shape { animation: none; } }
+@media (max-width: 600px) {
+  .hero { padding: 1.25rem 1.25rem; border-radius: 1.5rem 1.5rem 1.5rem .5rem; }
+  .hero-text { max-inline-size: 100%; }
+  .hero.tall h4 { font-size: 1.9rem; }
+  .hero-art .a1 { inline-size: 8rem; block-size: 8rem; right: -3rem; bottom: -4rem; }
+  .hero-art .a2, .hero-art .a3 { display: none; }
+}
+
+/* a section heading inside a card: a short bar of the second colour before it */
+article > h6, article > form > h6 { display: flex; align-items: center; gap: .6rem; }
+article > h6::before, article > form > h6::before { content: ""; flex: none; inline-size: .3rem; block-size: 1.1em;
+  border-radius: 1rem; background: var(--tertiary); }
+.section-title { margin: 2rem 0 .75rem; font-weight: 600; }
 .foot { display: block; margin: 2rem 0 1rem; opacity: .7; min-block-size: auto; padding: 0; }
 .foot a { display: inline; padding: 0; margin: 0; min-block-size: auto; }
 .narrow { max-width: 32rem; }
@@ -85,3 +128,49 @@
 .field { max-inline-size: 100%; }
 .field > select, .field > input { min-inline-size: 0; max-inline-size: 100%; text-overflow: ellipsis; }
 article > table { display: block; overflow-x: auto; }
+
+/* ---------- «Для вас»: the wave large on the left, the notifications in a narrow column, then the mixes ---------- */
+/* Beer CSS spaces stacked cards with a margin; in these grids the gap does it */
+.split > *, .mixes > * { margin-block: 0 !important; }
+.split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1rem; align-items: stretch; }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+.kicker { display: block; font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  opacity: .8; }
+.feature { position: relative; overflow: hidden; display: flex; align-items: center; gap: 1.5rem; margin: 0;
+  padding: 1.75rem; border-radius: .5rem 2rem 2rem 2rem; min-block-size: 13rem;
+  background: var(--tertiary-container); color: var(--on-tertiary-container); }
+.feature h3 { margin: .25rem 0 .5rem; font-size: 2rem; font-weight: 600; }
+.feature p { margin: 0 0 .75rem; }
+.feature-text { position: relative; z-index: 1; flex: 1; min-inline-size: 0; }
+.feature-cover { flex: none; inline-size: 9rem; block-size: 9rem; background: var(--tertiary); display: flex;
+  align-items: center; justify-content: center; }
+.feature-cover > i { filter: none; color: var(--on-tertiary); font-size: 3.5rem; inline-size: 3.5rem; block-size: 3.5rem; }
+.feature .button { background: var(--tertiary); color: var(--on-tertiary); }
+@media (max-width: 600px) { .feature { flex-direction: column; align-items: flex-start; padding: 1.25rem; }
+  .feature-cover { inline-size: 5.5rem; block-size: 5.5rem; } .feature-cover > i { font-size: 2.25rem; }
+  .feature h3 { font-size: 1.6rem; } }
+
+.notes-col { margin: 0; padding: 1.25rem; border-radius: 2rem 2rem .5rem 2rem;
+  background: var(--surface-container-high); display: flex; flex-direction: column; gap: .5rem; }
+.notes-col h6 { margin: 0 0 .25rem; font-weight: 600; }
+.note { padding: .6rem .75rem; border-radius: 1rem; background: var(--surface-container-low); }
+.note.unread { background: var(--primary-container); color: var(--on-primary-container); }
+.note a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
+
+.mixes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr)); gap: 1rem; }
+.mix { display: flex; gap: 1rem; align-items: flex-start; margin: 0; padding: 1.1rem; border-radius: 1.5rem;
+  background: var(--surface-container-low); transition: transform var(--speed2), box-shadow var(--speed2); }
+.mix:hover { transform: translateY(-2px); box-shadow: var(--elevate2); }
+.mix-text { flex: 1; min-inline-size: 0; }
+.mix h6 { margin: .1rem 0 .25rem; font-weight: 600; }
+.mix p { margin: 0 0 .25rem; }
+.mix .cover { flex: none; inline-size: 4.5rem; block-size: 4.5rem; display: flex; align-items: center;
+  justify-content: center; }
+.mix .cover > i { filter: none; }
+.mix .row .max, .feature .row .max { white-space: nowrap; }
+/* what made the mix picks its colour: the night's mixes the secondary, requests the second accent */
+.mix .cover { background: var(--primary-container); color: var(--on-primary-container); }
+.mix-nightly .cover { background: var(--secondary-container); color: var(--on-secondary-container); }
+.mix-nightly .kicker { color: var(--secondary); }
+.mix-ask .cover { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+.mix-ask .kicker { color: var(--tertiary); }

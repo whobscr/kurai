@@ -3,8 +3,8 @@ notifications and web push."""
 
 import re
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Body, Depends, Form, Request
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 
@@ -55,6 +55,14 @@ async def look(accent: str = Form(""), mode: str = Form("auto"), ctx: Ctx = Depe
     ctx.user.theme_mode = mode if mode in {"light", "dark", "auto"} else "auto"
     await ctx.db.commit()
     return RedirectResponse("/me", 303)
+
+
+@router.post("/mode")
+async def mode(mode: str = Body(embed=True), ctx: Ctx = Depends(user_required)):
+    """The light / dark switch in every page's band (the page already changed; this remembers it)."""
+    ctx.user.theme_mode = mode if mode in {"light", "dark", "auto"} else "auto"
+    await ctx.db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/totp/start")

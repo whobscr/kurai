@@ -189,6 +189,13 @@ async def test_pages_docs_errors_and_pwa(client):
         r = await client.get(path)
         assert r.status_code == 200, (path, r.status_code)
     assert "Плагины не установлены" in (await client.get("/admin/plugins")).text
+    # the band's light / dark switch remembers the choice
+    home = (await client.get("/")).text
+    assert 'id="mode-toggle"' in home and 'class="hero tall"' in home
+    token = csrf_of(home)
+    assert (await client.post("/me/mode", json={"mode": "dark"}, headers={"X-CSRF-Token": token})).status_code == 204
+    assert 'data-mode="dark"' in (await client.get("/")).text
+    await client.post("/me/mode", json={"mode": "auto"}, headers={"X-CSRF-Token": token})
     missing = await client.get("/no/such/page")
     assert missing.status_code == 404 and "<svg" in missing.text and "Такой страницы нет" in missing.text
     manifest = (await client.get("/manifest.webmanifest")).json()

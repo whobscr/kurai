@@ -4,16 +4,26 @@
   const body = document.body;
 
   // ---------- theme: Beer CSS builds the whole Material palette (with readable on-colours) from one colour ----------
+  const isDark = () => body.dataset.mode === "dark"
+    || (body.dataset.mode === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  const modeToggle = document.getElementById("mode-toggle");
   const applyTheme = async () => {
     // both libraries are modules: they may run after this script
     if (typeof ui !== "function" || typeof materialDynamicColors !== "function") return setTimeout(applyTheme, 50);
-    const mode = body.dataset.mode;
-    const dark = mode === "dark" || (mode === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-    ui("mode", dark ? "dark" : "light");
+    ui("mode", isDark() ? "dark" : "light");
     if (body.dataset.accent) await ui("theme", body.dataset.accent);
+    // the switch shows where it leads
+    if (modeToggle) modeToggle.querySelector("i").textContent = isDark() ? "light_mode" : "dark_mode";
   };
   applyTheme();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+  // the band's switch: the other mode at once, remembered for the account («Кабинет» also has «Как в системе»)
+  if (modeToggle) modeToggle.addEventListener("click", () => {
+    body.dataset.mode = isDark() ? "light" : "dark";
+    applyTheme();
+    post("/me/mode", {mode: body.dataset.mode});
+  });
 
   // ---------- tabs that don't fit: the wheel scrolls them sideways (never the page), the active one is in view ----------
   document.querySelectorAll(".tabs").forEach((tabs) => {

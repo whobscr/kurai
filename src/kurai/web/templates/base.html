@@ -34,13 +34,24 @@
     {% endfor %}
   </nav>
   <main class="responsive">
-    <header class="page-head">
-      <h5 class="max">{% block heading %}{% endblock %}</h5>
+    {# the page's band: its title (and a line under it) on the accent, Material's shapes on the right #}
+    <header class="hero {% block hero_class %}{% endblock %}">
+      <div class="hero-text max">
+        <h4>{% block heading %}{% endblock %}</h4>
+        {% block lead %}{% endblock %}
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="shape very-sunny slow-rotate a1"></div><div class="shape sided-cookie12 a2"></div>
+        <div class="shape flower slow-rotate a3"></div>
+      </div>
       {% if user %}
-      <form method="post" action="/logout">
-        <input type="hidden" name="csrf" value="{{ csrf }}">
-        <button class="transparent circle" title="{{ _('Выйти') }}"><i>logout</i></button>
-      </form>
+      <div class="hero-tools">
+        <button type="button" id="mode-toggle" class="transparent circle" title="{{ _('Светлая или тёмная тема') }}"><i>dark_mode</i></button>
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="transparent circle" title="{{ _('Выйти') }}"><i>logout</i></button>
+        </form>
+      </div>
       {% endif %}
     </header>
     {% block content %}{% endblock %}
