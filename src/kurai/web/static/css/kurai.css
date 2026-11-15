@@ -78,3 +78,10 @@
 .art .line-t { fill: none; stroke: var(--tertiary); stroke-linecap: round; }
 .art .line-ink { fill: none; stroke: var(--on-surface); stroke-linecap: round; stroke-linejoin: round; }
 .art .soft { opacity: .45; }
+/* narrow screens: nothing may make the page wider than the window. The tabs scroll inside their strip (and their
+   sideways scrolling never passes on to the page); a field takes its row's width, however long its options; a wide
+   table scrolls inside its card */
+.tabs { contain: inline-size; overscroll-behavior-x: contain; }  /* its width never comes from its tabs */
+.field { max-inline-size: 100%; }
+.field > select, .field > input { min-inline-size: 0; max-inline-size: 100%; text-overflow: ellipsis; }
+article > table { display: block; overflow-x: auto; }

@@ -97,7 +97,7 @@
   {{ text("outbound.dns", _("DNS-сервер (необязательно)"), help=_("IP-адрес, например 10.8.0.1 или 10.8.0.1:53 — для VPN, чей DNS отдаёт адреса внутри туннеля. Не нужен с socks5h.")) }}
   <h6>{{ _("Что ходит через прокси") }}</h6>
   {% for name, label in subsystems.items() %}
-  <div class="row">{{ switch("outbound.via." ~ name, label) }}{{ check(name) }}</div>
+  <div class="row wrap">{{ switch("outbound.via." ~ name, label) }}{{ check(name) }}</div>
   {% endfor %}
   <p class="small-text">{{ _("Navidrome берёт прокси только из переменных окружения (после перезапуска контейнера).") }}</p>
 {{ form_end() }}</article>

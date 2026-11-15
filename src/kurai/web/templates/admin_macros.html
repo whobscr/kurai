@@ -5,8 +5,9 @@
   {% if type == "number" %}step="any"{% endif %}><label>{{ label }}</label>{% if help %}<span class="helper">{{ help }}</span>{% endif %}</div>
 {% endmacro %}
 {% macro secret(key, label) %}
-<div class="field label border round"><input name="{{ key }}" type="password" autocomplete="new-password"
-  placeholder="{{ _('задан — оставьте пустым, чтобы не менять') if values[key] else '' }}"><label>{{ label }}</label></div>
+{# no placeholder: it would sit where the label rests and the two overlap; the state goes under the field #}
+<div class="field label border round"><input name="{{ key }}" type="password" autocomplete="new-password"><label>{{ label }}</label>
+  {% if values[key] %}<span class="helper">{{ _("Задан. Оставьте пустым, чтобы не менять.") }}</span>{% endif %}</div>
 {% endmacro %}
 {% macro switch(key, label, help="") %}
 <div class="row switch-row"><div class="max">{{ label }}{% if help %}<div class="small-text">{{ help }}</div>{% endif %}</div>

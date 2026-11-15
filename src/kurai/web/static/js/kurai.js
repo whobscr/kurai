@@ -15,6 +15,19 @@
   applyTheme();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
+  // ---------- tabs that don't fit: the wheel scrolls them sideways (never the page), the active one is in view ----------
+  document.querySelectorAll(".tabs").forEach((tabs) => {
+    // only the strip moves (scrollIntoView would also shift the page sideways on a narrow screen)
+    const active = tabs.querySelector("a.active");
+    if (active) tabs.scrollLeft = active.offsetLeft - tabs.offsetLeft - (tabs.clientWidth - active.offsetWidth) / 2;
+    tabs.addEventListener("wheel", (e) => {
+      if (tabs.scrollWidth <= tabs.clientWidth) return;
+      e.preventDefault();
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      tabs.scrollLeft += e.deltaMode === 1 ? delta * 40 : delta;  // Firefox counts in lines
+    }, {passive: false});
+  });
+
   // ---------- HTMX requests carry the session's form token ----------
   document.addEventListener("htmx:configRequest", (e) => { e.detail.headers["X-CSRF-Token"] = body.dataset.csrf; });
 
