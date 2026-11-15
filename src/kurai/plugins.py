@@ -69,7 +69,8 @@ class Plugin:
     every: dict[str, timedelta] = field(default_factory=dict)  # recurring jobs, outside the night too
     on_start: tuple[str, ...] = ()  # jobs queued when the worker starts
     nightly: tuple[tuple[str, Step], ...] = ()  # steps of the night's work, after the tastes and mixes
-    manual_jobs: dict[str, str] = field(default_factory=dict)  # kind -> button label on «Задачи»
+    # buttons on «Задачи»: kind -> label, or (label, one line on what it does, shown under the button)
+    manual_jobs: dict[str, str | tuple[str, str]] = field(default_factory=dict)
     router: Any = None  # a FastAPI APIRouter with its pages and actions
     nav: tuple[tuple[str, str, str], ...] = ()  # (path, icon, label) in everyone's menu
     admin_tabs: dict[str, AdminTab] = field(default_factory=dict)

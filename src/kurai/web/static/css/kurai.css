@@ -113,6 +113,11 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .app-stage:fullscreen .app-exit { display: inline-flex !important; position: absolute; right: 1rem; bottom: 1rem;
   box-shadow: var(--elevate2); opacity: .75; }
 .app-stage:fullscreen .app-exit:hover, .app-stage:fullscreen .app-exit:focus-visible { opacity: 1; }
+/* the run-now buttons: a column of equal buttons, each line of text beside its own; on phones the text goes under */
+.manual-job { display: grid; grid-template-columns: 17rem 1fr; align-items: center; gap: .25rem 1rem; margin: .4rem 0; }
+.manual-job button { inline-size: 100%; margin: 0; box-sizing: border-box !important; }  /* Beer CSS sets content-box */
+@media (max-width: 600px) { .manual-job { grid-template-columns: 1fr; margin: .75rem 0; }
+  .manual-job button { inline-size: auto; justify-self: start; } }
 .job-filters { margin-bottom: .75rem; }
 .pager { margin-top: .75rem; }
 .job-result { max-width: 30rem; overflow-wrap: anywhere; }

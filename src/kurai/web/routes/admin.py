@@ -39,8 +39,16 @@ CORE_DOCS = {"general": "/docs/admin/first-run", "models": "/docs/admin/models",
              "gateway": "/docs/admin/gateway", "users": "/docs/admin/users", "apps": "/docs/admin/apps#apps",
              "plugins": "/docs/admin/apps#plugins", "jobs": "/docs/admin/jobs"}
 # «Запустить» on «Задачи»: Kurai's own; plugins add theirs
-CORE_MANUAL_JOBS = {"nightly": _("Ночная работа сейчас"), "sync_library": _("Синхронизировать библиотеку"),
-                    "sync_listens": _("Прослушивания")}
+CORE_MANUAL_JOBS = {
+    "nightly": (_("Ночная работа сейчас"),
+                _("Всё, что обычно делается ночью, сразу: библиотека, вкусы, новые ночные миксы и «Моя волна», ночные "
+                  "шаги плагинов. Долго и нагружает сервер; каждый запуск добавляет миксы.")),
+    "sync_library": (_("Синхронизировать библиотеку"),
+                     _("Забрать список треков из Navidrome: новые появятся, удалённые исчезнут. Само — раз в час.")),
+    "sync_listens": (_("Прослушивания"),
+                     _("Забрать прослушивания, звёзды и оценки всех из Navidrome. Само — раз в 30 минут; вкусы "
+                       "пересчитываются ночью.")),
+}
 
 
 def plugin_tabs() -> dict[str, plugins.AdminTab]:
@@ -59,8 +67,10 @@ def tab_docs(tab: str) -> str:
     return plugin_tabs()[tab].docs if tab in plugin_tabs() else CORE_DOCS.get(tab, "")
 
 
-def manual_jobs() -> dict[str, str]:
-    return {**CORE_MANUAL_JOBS, **plugins.merged("manual_jobs")}
+def manual_jobs() -> dict[str, tuple[str, str]]:
+    """The «Задачи» buttons: kind -> (label, what it does; empty when not said)."""
+    jobs = {**CORE_MANUAL_JOBS, **plugins.merged("manual_jobs")}
+    return {kind: (job, "") if isinstance(job, str) else tuple(job) for kind, job in jobs.items()}
 
 # which settings each tab's form may write, and their types
 FIELDS: dict[str, dict[str, type]] = {

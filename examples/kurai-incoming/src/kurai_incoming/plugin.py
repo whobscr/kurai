@@ -36,7 +36,8 @@ plugin = plugins.Plugin(
     settings=defaults,
     jobs={"incoming_scan": lambda db, job: incoming.scan(db)},
     every={"incoming_scan": timedelta(minutes=30)},
-    manual_jobs={"incoming_scan": _("Проверить входящие")},
+    manual_jobs={"incoming_scan": (_("Проверить входящие"),
+                                   _("Найти новые папки во входящих и перенести одобренные. Само — раз в 30 минут."))},
     router=web.router,
     admin_tabs={
         "incoming": plugins.AdminTab(_("Входящие"), "incoming/admin_incoming.html",

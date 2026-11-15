@@ -388,6 +388,7 @@ async def test_jobs_are_paged_filtered_and_pruned(client, db):
     await login(client, "admin", "a-long-password")
     first = (await client.get("/admin/jobs")).text
     assert "Старее" in first and "Новее" not in first and first.count("<tr>") == 31  # the head and 30 jobs
+    assert "Забрать список треков из Navidrome" in first  # each button says what it does
     second = (await client.get("/admin/jobs", params={"page": 2})).text
     assert "Новее" in second and "Страница 2" in second
     failed = (await client.get("/admin/jobs", params={"status": "failed"})).text
