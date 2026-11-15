@@ -113,11 +113,17 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .app-stage:fullscreen .app-exit { display: inline-flex !important; position: absolute; right: 1rem; bottom: 1rem;
   box-shadow: var(--elevate2); opacity: .75; }
 .app-stage:fullscreen .app-exit:hover, .app-stage:fullscreen .app-exit:focus-visible { opacity: 1; }
-/* the run-now buttons: a column of equal buttons, each line of text beside its own; on phones the text goes under */
-.manual-job { display: grid; grid-template-columns: 17rem 1fr; align-items: center; gap: .25rem 1rem; margin: .4rem 0; }
-.manual-job button { inline-size: 100%; margin: 0; box-sizing: border-box !important; }  /* Beer CSS sets content-box */
-@media (max-width: 600px) { .manual-job { grid-template-columns: 1fr; margin: .75rem 0; }
-  .manual-job button { inline-size: auto; justify-self: start; } }
+/* the run-now buttons: each with an «i» that shows what it does, over the page (on hover, or opened by a tap) */
+.manual-job { display: inline-flex; align-items: center; gap: .1rem; position: relative; margin: 0; }
+.manual-job button { margin: 0; }
+.job-info > summary { list-style: none; cursor: pointer; display: flex; padding: .25rem; border-radius: 50%;
+  color: var(--on-surface-variant); }
+.job-info > summary::-webkit-details-marker { display: none; }
+.job-info > summary:hover, .job-info[open] > summary { color: var(--primary); }
+.job-info-text { display: none; position: absolute; z-index: 5; inset-block-start: calc(100% + .35rem);
+  inset-inline-start: 0; inline-size: min(22rem, 85vw); padding: .75rem 1rem; border-radius: 1rem; opacity: 1;
+  background: var(--surface-container-highest); color: var(--on-surface); box-shadow: var(--elevate2); }
+.job-info[open] .job-info-text { display: block; }
 .job-filters { margin-bottom: .75rem; }
 .pager { margin-top: .75rem; }
 .job-result { max-width: 30rem; overflow-wrap: anywhere; }

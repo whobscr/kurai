@@ -1,12 +1,12 @@
 [project]
 name = "kurai-incoming"
-version = "0.2.20"
+version = "0.2.21"
 description = "An example Kurai plugin: albums put into an «incoming» folder go into the library after an admin's approval"
 requires-python = ">=3.12"
 license = "AGPL-3.0-or-later"
 # a plugin runs inside Kurai's environment: it depends on Kurai (pinned to the versions it was written for) and uses
 # Kurai's libraries (SQLAlchemy, FastAPI, pydantic-settings…) without listing them again
-dependencies = ["kurai>=0.2.20,<0.3"]
+dependencies = ["kurai>=0.2.21,<0.3"]
 
 # how Kurai finds the plugin: the entry point group «kurai.plugins», pointing at a kurai.plugins.Plugin object
 [project.entry-points."kurai.plugins"]

@@ -87,6 +87,30 @@
     document.getElementById("app-exit").addEventListener("click", () => document.exitFullscreen());
   }
 
+  // ---------- «i» beside a run-now button: opened on hover (with a mouse) or by a tap; one at a time, kept inside the
+  // window, closed by a tap elsewhere (a closed <details> shows nothing whatever the CSS, hence the script) ----------
+  const infos = document.querySelectorAll(".job-info");
+  const keepInside = (d) => {
+    const text = d.querySelector(".job-info-text");
+    text.style.insetInlineStart = "0px";
+    const over = text.getBoundingClientRect().right - (window.innerWidth - 12);
+    if (over > 0) text.style.insetInlineStart = `${-over}px`;
+  };
+  infos.forEach((d) => {
+    d.addEventListener("toggle", () => {
+      if (!d.open) return;
+      infos.forEach((other) => { if (other !== d) other.open = false; });
+      keepInside(d);
+    });
+    if (matchMedia("(hover: hover)").matches) {
+      d.addEventListener("mouseenter", () => { d.open = true; });
+      d.addEventListener("mouseleave", () => { d.open = false; });
+    }
+  });
+  if (infos.length) document.addEventListener("click", (e) => {
+    infos.forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+  });
+
   // ---------- the service worker (installable app, push, «Поделиться») and push subscription ----------
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", {scope: "/"});
   const pushButton = document.getElementById("push-enable");

@@ -174,9 +174,14 @@
 {% elif tab == "jobs" %}
 <article class="round manual-jobs">
   <h6>{{ _("Запустить сейчас") }}</h6>
+  <div class="row wrap">
   {% for kind, (label, about) in manual_jobs.items() %}
-  <form method="post" action="/admin/jobs/run/{{ kind }}" class="row manual-job"><input type="hidden" name="csrf" value="{{ csrf }}">
-    <button class="round border small">{{ label }}</button>{% if about %}<span class="small-text max">{{ about }}</span>{% endif %}</form>{% endfor %}
+  <form method="post" action="/admin/jobs/run/{{ kind }}" class="manual-job"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="round border small">{{ label }}</button>
+    {# what it does: on hover, or on a tap (phones) #}
+    {% if about %}<details class="job-info"><summary title="{{ _('Что делает') }}"><i>info</i></summary><div class="job-info-text small-text">{{ about }}</div></details>{% endif %}
+  </form>{% endfor %}
+  </div>
 </article>
 <article class="round">
   <nav class="row wrap job-filters">
