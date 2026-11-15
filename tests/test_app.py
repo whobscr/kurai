@@ -184,8 +184,8 @@ async def test_user_cannot_open_admin_and_totp_flow(client, db):
 
 async def test_pages_docs_errors_and_pwa(client):
     await login(client, "admin", "a-long-password")
-    for path in ("/", "/ask", "/me", "/docs", "/docs/admin/audio", "/docs/user/wave", "/docs/changelog", "/admin/models",
-                 "/admin/gateway", "/admin/users", "/admin/apps", "/admin/plugins", "/admin/jobs"):
+    for path in ("/", "/ask", "/me", "/docs", "/docs/admin/audio", "/docs/user/wave", "/docs/changelog",
+                 "/admin/models", "/admin/gateway", "/admin/users", "/admin/apps", "/admin/plugins", "/admin/jobs"):
         r = await client.get(path)
         assert r.status_code == 200, (path, r.status_code)
     assert "Плагины не установлены" in (await client.get("/admin/plugins")).text
