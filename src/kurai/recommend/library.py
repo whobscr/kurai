@@ -13,6 +13,7 @@ from kurai import llm, security, settings
 from kurai.audio import EFFNET_MODEL
 from kurai.config import get_config
 from kurai.db.models import Listen, Taste, Track, TrackAudio, User
+from kurai.i18n import _
 from kurai.integrations.navidrome import Account, Navidrome, song_fields
 from kurai.recommend.vectors import listen_weight, taste_vector
 
@@ -52,7 +53,9 @@ def track_text(t: Track) -> str:
 
 
 async def sync_library(db: AsyncSession) -> dict:
-    """Every song Navidrome has, upserted; songs it no longer has are removed (with their plays)."""
+    """Every song Navidrome has, upserted; songs it no longer has are removed (with their plays and sound). An empty
+    answer while Kurai knows tracks removes nothing: the music folder is more likely missing (an unmounted disk)
+    than empty."""
     nd, token = await admin_login(db)
     started = datetime.now(UTC)
     count = 0
@@ -63,6 +66,10 @@ async def sync_library(db: AsyncSession) -> dict:
         # a changed text (tags fixed in Navidrome) needs a new embedding
         await db.execute(stmt.on_conflict_do_update(index_elements=[Track.id], set_=changed))
         count += 1
+    if count == 0 and (await db.execute(select(func.count()).select_from(Track))).scalar_one():
+        await db.rollback()
+        raise RuntimeError(_("Navidrome не вернул ни одного трека: библиотека не тронута (папка с музыкой не "
+                             "подключена или идёт пересканирование?)"))
     removed = (await db.execute(delete(Track).where(Track.seen_at < started))).rowcount
     await db.commit()
     return {"tracks": count, "removed": removed}
@@ -101,6 +108,7 @@ async def sync_listens(db: AsyncSession, user: User) -> dict:
     token = await nd.login(account)
     known = set((await db.execute(select(Track.id))).scalars())
     rows = 0
+    active: set[str] = set()
     async for song in nd.songs(token):
         if song["id"] not in known:
             continue
@@ -109,6 +117,7 @@ async def sync_listens(db: AsyncSession, user: User) -> dict:
         rating = int(song.get("rating") or 0)
         if not (play_count or starred or rating):
             continue
+        active.add(song["id"])
         played = song.get("playDate")
         last = datetime.fromisoformat(played.replace("Z", "+00:00")) if played else None
         values = {"user_id": user.id, "track_id": song["id"], "play_count": play_count, "last_played": last,
@@ -118,8 +127,11 @@ async def sync_listens(db: AsyncSession, user: User) -> dict:
             index_elements=[Listen.user_id, Listen.track_id],
             set_={k: stmt.excluded[k] for k in ("play_count", "last_played", "starred", "rating")}))
         rows += 1
+    # a star or a rating taken back on a track never played: it says nothing any more
+    cleared = (await db.execute(delete(Listen).where(Listen.user_id == user.id, Listen.track_id.not_in(active))
+                                .execution_options(synchronize_session=False))).rowcount
     await db.commit()
-    return {"listens": rows}
+    return {"listens": rows, "cleared": cleared}
 
 
 async def build_taste(db: AsyncSession, user: User) -> dict:
@@ -127,7 +139,8 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
     model_name = await settings.get(db, "embed.model")
     rows = (await db.execute(
         select(Listen, Track, TrackAudio.effnet).join(Track, Track.id == Listen.track_id)
-        .outerjoin(TrackAudio, (TrackAudio.track_id == Track.id) & (TrackAudio.effnet_model == EFFNET_MODEL))
+        .outerjoin(TrackAudio, (TrackAudio.track_id == Track.id) & (TrackAudio.effnet_model == EFFNET_MODEL)
+                   & TrackAudio.error.is_(None))
         .where(Listen.user_id == user.id)
     )).all()
     now = datetime.now(UTC)

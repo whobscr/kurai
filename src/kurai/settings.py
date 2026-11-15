@@ -11,22 +11,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kurai import plugins, security
 from kurai.config import get_config
 from kurai.db.models import Setting
+from kurai.i18n import _
 
 # every task that may ask a model; «Модель думает» is on by default for the night ones (time is plentiful, answers are
 # better) and off where a person waits
 LLM_TASKS = {
-    "name_playlist": {"label": "Названия и описания плейлистов", "night": True},
-    "starter_profiles": {"label": "Описания стартовых профилей вкуса", "night": True},
-    "ask": {"label": "Запросы «Спросить»", "night": False},
-    "explain": {"label": "«Почему этот трек»", "night": False},
+    "name_playlist": {"label": _("Названия и описания плейлистов"), "night": True},
+    "starter_profiles": {"label": _("Описания стартовых профилей вкуса"), "night": True},
+    "ask": {"label": _("Запросы «Спросить»"), "night": False},
+    "explain": {"label": _("«Почему этот трек»"), "night": False},
 }
 
 # the subsystems whose outgoing connections can go through the outbound gateway (outbound.py); plugins add theirs
 CORE_SUBSYSTEMS = {
-    "telegram": "Telegram-бот",
-    "llm": "Внешние модели (облачные API)",
-    "webpush": "Push-уведомления",
-    "models": "Загрузка моделей анализа звука",
+    "telegram": _("Telegram-бот"),
+    "llm": _("Внешние модели (облачные API)"),
+    "webpush": _("Push-уведомления"),
+    "models": _("Загрузка моделей анализа звука"),
 }
 
 CORE_SECRET_KEYS = {"llm.api_key", "embed.api_key", "telegram.token", "outbound.password", "navidrome.admin_password",
@@ -128,3 +129,9 @@ async def put(db: AsyncSession, values: dict[str, Any]) -> None:
         stored = security.encrypt(value) if key in secret_keys() and value else value
         await db.execute(insert(Setting).values(key=key, value=stored)
                          .on_conflict_do_update(index_elements=[Setting.key], set_={"value": stored}))
+
+
+async def unreadable(db: AsyncSession) -> list[str]:
+    """The secrets stored but not readable: encrypted with another KURAI_SECRET_KEY."""
+    rows = (await db.execute(select(Setting).where(Setting.key.in_(secret_keys())))).scalars()
+    return [row.key for row in rows if row.value and not security.decrypt(row.value)]

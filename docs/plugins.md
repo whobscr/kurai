@@ -224,8 +224,8 @@ These are the parts meant for plugins. Everything else is internal and may chang
 | `kurai.db.session()` | a database session outside a request: `async with database.session() as db` |
 | `kurai.db.models` | `Base`; reading `User`, `Track`, `Listen`, `Playlist`… (not changing them) |
 | `kurai.jobs.queue` | `enqueue` |
-| `kurai.notify` | `notify(db, user_id, text, link)`, `notify_admins(db, text, link)`: in the app, by push and Telegram |
-| `kurai.outbound` | `session_for(db, subsystem)` for the internet (through the gateway when its box is ticked); `local_session()` for services next to Kurai |
+| `kurai.notify` | `notify(db, user_id, text, link, telegram=True)`, `notify_admins(db, text, link)`: in the app, by push and Telegram; `send_telegram(db, chat_id, text, link)`: to one chat |
+| `kurai.outbound` | `session_for(db, subsystem)` for the internet (through the gateway when its box is ticked); `local_session(timeout)` for services next to Kurai (seconds, or an `aiohttp.ClientTimeout`) |
 | `kurai.web.deps` | `Ctx`, `user_required`, `admin_required` |
 | `kurai.web.templating` | `render` |
 | `kurai.web.routes.admin` | `back` |

@@ -14,6 +14,7 @@ from kurai import db as database
 from kurai import settings
 from kurai.audio import CLAP_MODEL, EFFNET_MODEL
 from kurai.config import get_config
+from kurai.i18n import _
 from kurai.jobs import queue, window
 
 log = logging.getLogger(__name__)
@@ -40,8 +41,8 @@ async def clap_text(body: Texts) -> dict:
 
     async with database.session() as db:
         if not await settings.get(db, "audio.clap"):
-            raise HTTPException(409, "CLAP выключен")
-        await ensure_models(db, Path(get_config().audio_models_dir), clap=True)
+            raise HTTPException(409, _("CLAP выключен"))
+        await ensure_models(db, Path(get_config().audio_models_dir), clap=True, essentia=False)
     vectors = await asyncio.to_thread(shared_analyzer().clap_text, [t[:500] for t in body.texts])
     return {"model": CLAP_MODEL, "vectors": vectors}
 

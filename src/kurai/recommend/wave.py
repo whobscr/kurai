@@ -92,7 +92,7 @@ async def record(db: AsyncSession, events: list[tuple[str, str, bool, int]], now
     queued = []
     for user in touched.values():
         if await due(db, user, now):
-            await queue.enqueue(db, "wave", {"user_id": user.id}, priority=20, dedupe_key=f"wave:{user.id}")
+            await queue.enqueue(db, "wave", user_id=user.id, priority=20, dedupe_key=f"wave:{user.id}")
             queued.append(user.id)
     return queued
 
@@ -159,7 +159,7 @@ async def build(db: AsyncSession, user: User) -> dict:
         just_now = taste_vector(found, weights) if found else None
         queries[space] = playlists.mix_query(j, space, [(just_now, 0.6), (taste.get(space), 0.4)])
     if not any(q is not None for q in queries.values()):
-        return {"skipped": "вкус ещё не известен (мало прослушиваний)"}
+        return {"skipped": _("вкус ещё не известен (мало прослушиваний)")}
     skips: dict[str, int] = {}
     for e in session:
         if e.skipped and (artist := vectors.get(e.track_id, ("", {}))[0]):
@@ -169,7 +169,7 @@ async def build(db: AsyncSession, user: User) -> dict:
                                                   exclude_artists={a for a, n in skips.items() if n >= 2})
             if c.id not in heard]
     if not pool:
-        return {"skipped": "нет подходящих треков"}
+        return {"skipped": _("нет подходящих треков")}
     chosen = order_smoothly(mmr_select(pool, SIZE))
     wave = await _playlist(db, user) or Playlist(user_id=user.id, kind="wave", name=NAME)
     wave.track_ids = [c.id for c in chosen]

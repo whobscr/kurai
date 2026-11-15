@@ -11,8 +11,9 @@ import aiohttp
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from kurai import plugins, settings
+from kurai import outbound, plugins, settings
 from kurai.config import get_config
+from kurai.i18n import _
 from kurai.web.deps import Ctx, LoginRequired, context
 
 router = APIRouter(prefix="/admin/apps")
@@ -31,13 +32,20 @@ def targets() -> dict[str, plugins.App]:
             **plugins.merged("apps")}
 
 
-async def admin_any_method(ctx: Ctx = Depends(context)) -> Ctx:
-    """Admins only, without Kurai's form token: the apps' own pages post to their own APIs (they have their own
-    protection; the session cookie is SameSite=Lax, so other sites can't post with it)."""
+# what a browser says of where a request comes from (Sec-Fetch-Site): from this site, or typed into the address bar
+SAME_SITE = {"same-origin", "none"}
+
+
+async def admin_any_method(request: Request, ctx: Ctx = Depends(context)) -> Ctx:
+    """Admins only, without Kurai's form token: the apps' own pages post to their own APIs. The session cookie is
+    SameSite=Lax, so other sites can't post with it, but a link from another site still brings it along: such a
+    request is refused (the proxy adds the app's admin login, and some apps change things on a GET)."""
     if ctx.user is None or ctx.session is None or ctx.session.pending_totp:
         raise LoginRequired()
     if not ctx.user.is_admin:
         raise HTTPException(403)
+    if request.headers.get("sec-fetch-site", "same-origin") not in SAME_SITE:
+        raise HTTPException(403, _("Приложения открываются только со страниц Kurai"))
     return ctx
 
 
@@ -58,8 +66,7 @@ async def proxy(app: str, path: str, request: Request, ctx: Ctx = Depends(admin_
         headers["Remote-User"] = await settings.get(ctx.db, "navidrome.admin_user")
     if target.headers:
         headers.update(target.headers(base))
-    session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None, sock_read=600),
-                                    auto_decompress=True)
+    session = outbound.local_session(aiohttp.ClientTimeout(total=None, sock_read=600))
     try:
         upstream = await session.request(request.method, url, headers=headers, data=await request.body(),
                                          allow_redirects=False)

@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -41,6 +42,7 @@ class User(Base):
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     totp_secret: Mapped[str | None] = mapped_column(Text)  # encrypted (security.secrets)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger)  # the last code's time step: a code works once
     recovery_codes: Mapped[list] = mapped_column(JSONB, default=list)  # argon2 hashes, one use each
     accent_color: Mapped[str | None] = mapped_column(String(7))  # None: the system's default
     theme_mode: Mapped[str] = mapped_column(String(8), default="auto")  # "light" | "dark" | "auto"
@@ -49,6 +51,7 @@ class User(Base):
     navidrome_password: Mapped[str | None] = mapped_column(Text)
     telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     telegram_link_code: Mapped[str | None] = mapped_column(String(32), unique=True)
+    telegram_link_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the code is valid an hour
     notify_push: Mapped[bool] = mapped_column(Boolean, default=True)
     notify_telegram: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = _now()
@@ -81,6 +84,7 @@ class Track(Base):
     """A track of the library, as Navidrome knows it."""
 
     __tablename__ = "tracks"
+    __table_args__ = (Index("ix_tracks_artist", "artist"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)  # Navidrome's song id
     title: Mapped[str] = mapped_column(Text)
@@ -106,6 +110,11 @@ class TrackAudio(Base):
     a file that couldn't be analysed keeps its error and is skipped until it changes or an admin retries."""
 
     __tablename__ = "track_audio"
+    __table_args__ = (
+        Index("ix_track_audio_effnet", "effnet", postgresql_using="hnsw",
+              postgresql_ops={"effnet": "vector_cosine_ops"}),
+        Index("ix_track_audio_clap", "clap", postgresql_using="hnsw", postgresql_ops={"clap": "vector_cosine_ops"}),
+    )
 
     track_id: Mapped[str] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), primary_key=True)
     size: Mapped[int] = mapped_column(BigInteger, default=0)  # the file's size when analysed
@@ -129,7 +138,7 @@ class Listen(Base):
     """What one user did with one track (Navidrome's play count, last play, star and rating)."""
 
     __tablename__ = "listens"
-    __table_args__ = (UniqueConstraint("user_id", "track_id"),)
+    __table_args__ = (UniqueConstraint("user_id", "track_id"), Index("ix_listens_user", "user_id"))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
@@ -173,6 +182,8 @@ class Job(Base):
     """A unit of background work. The worker takes them by priority; night-only ones wait for the night window."""
 
     __tablename__ = "jobs"
+    __table_args__ = (Index("ix_jobs_queue", "status", "priority", "id"),
+                      Index("ix_jobs_dedupe", "dedupe_key", "status"))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     kind: Mapped[str] = mapped_column(String(48))
@@ -205,6 +216,7 @@ class WaveEvent(Base):
 
 class Notification(Base):
     __tablename__ = "notifications"
+    __table_args__ = (Index("ix_notifications_user", "user_id", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))

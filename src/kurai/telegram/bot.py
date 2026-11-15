@@ -9,12 +9,14 @@ outbound gateway (Telegram is blocked in some countries)."""
 
 import asyncio
 import logging
+import re
+from datetime import UTC, datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import Message
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from kurai import db as database
 from kurai import outbound, plugins, settings
@@ -24,11 +26,41 @@ from kurai.jobs import queue
 
 log = logging.getLogger(__name__)
 
+LINK_VALID = timedelta(hours=1)
+CODE = re.compile(r"^[A-Za-z0-9_-]{8,32}$")
+
+
 async def user_of(chat_id: int) -> User | None:
     """The active Kurai user linked to a chat (for plugins' handlers too)."""
     async with database.session() as db:
         return (await db.execute(select(User).where(User.telegram_chat_id == chat_id,
                                                     User.active.is_(True)))).scalar_one_or_none()
+
+
+async def link(code: str, chat_id: int) -> User | None:
+    """Links the chat to the account whose fresh code this is (from «Личный кабинет → Telegram»); None for an unknown
+    or expired code. A chat linked to another account before moves to this one."""
+    async with database.session() as db:
+        user = (await db.execute(select(User).where(User.telegram_link_code == code,
+                                                    User.active.is_(True)))).scalar_one_or_none()
+        # codes made before 0.2.23 have no time: they're still taken
+        if user is None or (user.telegram_link_at and datetime.now(UTC) - user.telegram_link_at > LINK_VALID):
+            return None
+        await db.execute(update(User).where(User.telegram_chat_id == chat_id, User.id != user.id)
+                         .values(telegram_chat_id=None))
+        user.telegram_chat_id, user.telegram_link_code, user.telegram_link_at = chat_id, None, None
+        await db.commit()
+        return user
+
+
+NOT_LINKED = _("Этот чат не подключён к Kurai. В Kurai откройте «Личный кабинет → Telegram», нажмите «Подключить», "
+               "затем откройте ссылку или пришлите сюда код со страницы.")
+BAD_CODE = _("Код не подошёл или устарел (он действует час). Нажмите «Подключить» в «Личный кабинет → Telegram» ещё "
+             "раз и пришлите новый код.")
+
+
+def _linked(user: User) -> str:
+    return _("Готово, {name}! Пишите, что хотите послушать.").format(name=user.display_name)
 
 
 def build_dispatcher() -> Dispatcher:
@@ -37,16 +69,14 @@ def build_dispatcher() -> Dispatcher:
     @dp.message(CommandStart())
     async def start(message: Message, command: CommandObject) -> None:
         code = (command.args or "").strip()
-        async with database.session() as db:
-            user = (await db.execute(select(User).where(User.telegram_link_code == code))).scalar_one_or_none() \
-                if code else None
-            if user is None:
-                await message.answer(_("Откройте «Личный кабинет → Telegram» в Kurai и нажмите «Подключить»."))
-                return
-            user.telegram_chat_id = message.chat.id
-            user.telegram_link_code = None
-            await db.commit()
-        await message.answer(_("Готово, {name}! Пишите, что хотите послушать.").format(name=user.display_name))
+        if code:
+            user = await link(code, message.chat.id)
+            await message.answer(_linked(user) if user else BAD_CODE)
+            return
+        # a plain /start: some apps don't pass the link's code into a chat that is already open
+        user = await user_of(message.chat.id)
+        await message.answer(_("Этот чат уже подключён, {name}. Пишите, что хотите послушать.").format(
+            name=user.display_name) if user else NOT_LINKED)
 
     for plugin in plugins.plugins():
         if plugin.telegram:
@@ -54,12 +84,18 @@ def build_dispatcher() -> Dispatcher:
 
     @dp.message(F.text)
     async def text(message: Message) -> None:
+        body = message.text.strip()
         user = await user_of(message.chat.id)
         if user is None:
-            await message.answer(_("Этот чат не подключён к Kurai: «Личный кабинет → Telegram»."))
+            linked = await link(body, message.chat.id) if CODE.match(body) else None
+            await message.answer(_linked(linked) if linked else NOT_LINKED)
+            return
+        if body.startswith("/"):
+            await message.answer(_("Таких команд нет: просто напишите, что хотите послушать или о чём спросить."))
             return
         async with database.session() as db:
-            await queue.enqueue(db, "ask", {"text": message.text.strip()[:1000]}, user_id=user.id, priority=10)
+            await queue.enqueue(db, "ask", {"text": body[:1000], "reply_to": message.chat.id}, user_id=user.id,
+                                priority=10)
         await message.answer(_("Работаю над этим — пришлю, когда будет готово."))
 
     return dp
@@ -75,10 +111,13 @@ def current_bot() -> Bot | None:
 
 def session_for(route: outbound.Route) -> AiohttpSession:
     """aiogram's session through the gateway's route. aiogram doesn't know «socks5h://» (it refuses the URL), but
-    always resolves names through a SOCKS proxy itself (rdns), so «socks5://» means the same to it."""
-    if not route.proxy:
-        return AiohttpSession()
-    return AiohttpSession(proxy=route.proxy.replace("socks5h://", "socks5://", 1))
+    always resolves names through a SOCKS proxy itself (rdns), so «socks5://» means the same to it. The gateway's DNS
+    server is given to its connector (aiogram has no option for it)."""
+    session = AiohttpSession(proxy=route.proxy.replace("socks5h://", "socks5://", 1)) if route.proxy \
+        else AiohttpSession()
+    if route.dns:
+        session._connector_init["resolver"] = outbound.resolver(route.dns)
+    return session
 
 
 async def run_bot() -> None:

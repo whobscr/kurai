@@ -12,6 +12,7 @@ import numpy as np
 
 from kurai.audio import CLAP_MODEL, CLAP_REVISION, EFFNET_MODEL
 from kurai.audio.tags import MOOD_HEADS, positive, top
+from kurai.i18n import _
 
 log = logging.getLogger(__name__)
 
@@ -38,10 +39,11 @@ CLAP_RATE = 48000
 EFFNET_RATE = 16000
 
 
-def model_files(models_dir: Path, clap: bool) -> list[tuple[str, Path]]:
-    """(url, local path) of every file the analysis needs; Essentia's models with their metadata (.json)."""
+def model_files(models_dir: Path, clap: bool, essentia: bool = True) -> list[tuple[str, Path]]:
+    """(url, local path) of every file the analysis needs (Essentia's models with their metadata, .json; CLAP's
+    files); `essentia=False`: CLAP's only (a description's vector needs no more)."""
     files = []
-    for path in [EFFNET_PATH, *HEADS.values()]:
+    for path in [EFFNET_PATH, *HEADS.values()] if essentia else []:
         name = path.rsplit("/", 1)[-1]
         files += [(f"{ESSENTIA_URL}{path}.{ext}", models_dir / "essentia" / f"{name}.{ext}") for ext in ("pb", "json")]
     if clap:
@@ -138,7 +140,7 @@ class Analyzer:
             self._essentia()
             x = es.MonoLoader(filename=path, sampleRate=EFFNET_RATE, resampleQuality=4)()
             if len(x) < EFFNET_RATE * 3:
-                raise ValueError("в файле меньше трёх секунд звука")
+                raise ValueError(_("в файле меньше трёх секунд звука"))
             x = _middle(x, EFFNET_RATE, SEGMENT_SECONDS)
             frames = self._effnet(x)
             result.effnet = _unit(np.mean(frames, axis=0)).tolist()
@@ -153,7 +155,7 @@ class Analyzer:
                 else:
                     result.moods[name] = positive(preds, classes, MOOD_HEADS[name])
             result.bpm = round(float(es.PercivalBpmEstimator(sampleRate=EFFNET_RATE)(x)), 1) or None
-            key, scale, _ = es.KeyExtractor(sampleRate=EFFNET_RATE)(x)
+            key, scale, _strength = es.KeyExtractor(sampleRate=EFFNET_RATE)(x)
             result.key = f"{key} {scale}"
         if clap:
             result.clap = self._clap_audio(path)

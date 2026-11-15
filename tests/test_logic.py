@@ -106,8 +106,11 @@ def test_passwords_secrets_totp_recovery():
     import pyotp
 
     secret = security.new_totp_secret()
-    assert security.verify_totp(secret, pyotp.TOTP(secret).now())
-    assert not security.verify_totp(secret, "000000x")
+    step = security.totp_step(secret, pyotp.TOTP(secret).now())
+    assert step is not None
+    assert security.totp_step(secret, pyotp.TOTP(secret).now(), after=step) is None  # a code works once
+    assert security.totp_step(secret, "000000x") is None
+    assert security.looks_like_recovery_code("ABC123-def456") and not security.looks_like_recovery_code("123456")
     codes, hashes = security.new_recovery_codes()
     left = security.use_recovery_code(hashes, codes[0].upper())
     assert left is not None and len(left) == len(hashes) - 1

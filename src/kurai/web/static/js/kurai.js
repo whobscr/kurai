@@ -116,12 +116,13 @@
   const pushButton = document.getElementById("push-enable");
   const b64 = (s) => Uint8Array.from(atob((s + "=".repeat((4 - s.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/")),
     (c) => c.charCodeAt(0));
+  // the texts come from the page (data-*), translated like every other text
   if (pushButton) pushButton.addEventListener("click", async () => {
-    if (!("PushManager" in window)) { pushButton.textContent = "Этот браузер не поддерживает push"; return; }
-    if (await Notification.requestPermission() !== "granted") { pushButton.textContent = "Разрешение не дано"; return; }
+    const say = (what) => { pushButton.textContent = pushButton.dataset[what]; };
+    if (!("PushManager" in window)) return say("unsupported");
+    if (await Notification.requestPermission() !== "granted") return say("denied");
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64(pushButton.dataset.key)});
-    await post("/me/push", sub.toJSON());
-    pushButton.textContent = "Push включён на этом устройстве";
+    say((await post("/me/push", sub.toJSON())).ok ? "done" : "failed");
   });
 })();

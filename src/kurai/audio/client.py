@@ -8,6 +8,7 @@ import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import outbound, settings
+from kurai.i18n import _
 
 log = logging.getLogger(__name__)
 
@@ -15,9 +16,14 @@ log = logging.getLogger(__name__)
 async def _call(db: AsyncSession, method: str, path: str, timeout: float, **kwargs) -> dict:
     url = str(await settings.get(db, "audio.url")).rstrip("/") + path
     async with outbound.local_session(timeout) as s, s.request(method, url, **kwargs) as resp:
-        data = await resp.json(content_type=None)
+        try:
+            data = await resp.json(content_type=None)
+        except ValueError:
+            raise RuntimeError(_("сервис анализа звука: HTTP {status}: {text}").format(
+                status=resp.status, text=(await resp.text())[:200])) from None
         if resp.status >= 400:
-            raise RuntimeError(f"сервис анализа звука: HTTP {resp.status}: {str(data)[:200]}")
+            raise RuntimeError(_("сервис анализа звука: HTTP {status}: {text}").format(status=resp.status,
+                                                                                      text=str(data)[:200]))
         return data
 
 

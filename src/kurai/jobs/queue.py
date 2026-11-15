@@ -8,6 +8,7 @@ from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai.db.models import Job
+from kurai.i18n import _
 
 # lanes: «general» runs one job at a time (syncs, the night's work, plugins' jobs); «interactive» runs what a person
 # waits for (a request to the model, an explanation, «Моя волна»), several at once up to «Параллельные запросы к
@@ -89,3 +90,20 @@ async def prune(db: AsyncSession, days: int = KEEP_DAYS) -> int:
 async def last_done(db: AsyncSession, kind: str) -> datetime | None:
     return (await db.execute(select(Job.finished_at).where(Job.kind == kind, Job.status == "done")
                              .order_by(Job.finished_at.desc()).limit(1))).scalar_one_or_none()
+
+
+async def last_finished(db: AsyncSession, kind: str) -> datetime | None:
+    """When a job of this kind last ended, well or not: the recurring jobs wait their interval after a failure too
+    (a service that is down isn't asked again every few seconds)."""
+    return (await db.execute(select(Job.finished_at).where(Job.kind == kind, Job.status.in_(["done", "failed"]))
+                             .order_by(Job.finished_at.desc()).limit(1))).scalar_one_or_none()
+
+
+async def drop_stale(db: AsyncSession, kind: str, current_key: str) -> None:
+    """A night's job that didn't start before its window ended is dropped when the next night's is made (it would
+    otherwise run next to it)."""
+    await db.execute(update(Job).where(Job.kind == kind, Job.status == "queued", Job.night_only.is_(True),
+                                       Job.dedupe_key != current_key)
+                     .values(status="failed", error=_("не успела начаться за свою ночь"),
+                             finished_at=datetime.now(UTC)))
+    await db.commit()

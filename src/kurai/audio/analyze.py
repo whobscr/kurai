@@ -18,6 +18,7 @@ from kurai import outbound, settings
 from kurai.audio import CLAP_MODEL, EFFNET_MODEL
 from kurai.config import get_config
 from kurai.db.models import Job, Listen, Track, TrackAudio
+from kurai.i18n import _
 from kurai.integrations.navidrome import NavidromeError
 
 log = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ BATCH = 10
 DOWNLOAD_FAILURES = 3  # in a row: Navidrome itself is in trouble, the run stops
 
 _analyzer = None
+_downloading = asyncio.Lock()
 
 
 def shared_analyzer():
@@ -96,12 +98,17 @@ async def retry_failed(db: AsyncSession) -> int:
     return count
 
 
-async def ensure_models(db: AsyncSession, models_dir: Path, clap: bool) -> int:
+async def ensure_models(db: AsyncSession, models_dir: Path, clap: bool, essentia: bool = True) -> int:
     """Downloads the model files that aren't there yet (through the gateway when «Загрузка моделей» is ticked);
-    returns how many were fetched."""
+    returns how many were fetched. One download at a time: the analysis and a description's request may both ask."""
     from kurai.audio.models import model_files
 
-    missing = [(url, path) for url, path in model_files(models_dir, clap) if not path.exists()]
+    async with _downloading:
+        return await _download(db, [(url, path) for url, path in model_files(models_dir, clap, essentia)
+                                    if not path.exists()])
+
+
+async def _download(db: AsyncSession, missing: list[tuple[str, Path]]) -> int:
     if not missing:
         return 0
     async with await outbound.session_for(db, "models", 3600) as s:
@@ -111,7 +118,8 @@ async def ensure_models(db: AsyncSession, models_dir: Path, clap: bool) -> int:
             part = path.with_name(path.name + ".part")
             async with s.get(url) as resp:
                 if resp.status != 200:
-                    raise RuntimeError(f"модель не скачалась: {url}: HTTP {resp.status}")
+                    raise RuntimeError(_("модель не скачалась: {url}: HTTP {status}").format(url=url,
+                                                                                             status=resp.status))
                 with open(part, "wb") as f:
                     async for chunk in resp.content.iter_chunked(1 << 20):
                         f.write(chunk)
@@ -136,12 +144,12 @@ async def run(db: AsyncSession, job: Job) -> dict:
 
     values = await settings.get_all(db)
     if not values["audio.enabled"]:
-        return {"skipped": "анализ звука выключен"}
+        return {"skipped": _("анализ звука выключен")}
     clap = bool(values["audio.clap"])
     limit = job.payload.get("limit")
     until = datetime.fromisoformat(job.payload["until"]) if job.payload.get("until") else None
     if limit and not job.payload.get("manual") and await pending_count(db, clap) > DAYTIME_BACKLOG:
-        return {"skipped": "много неразобранных треков: они проанализируются ночью"}
+        return {"skipped": _("много неразобранных треков: они проанализируются ночью")}
     fetched = await ensure_models(db, Path(get_config().audio_models_dir), clap)
     analyzer = shared_analyzer()
     nd, account = navidrome(), await admin_account(db)
@@ -180,7 +188,7 @@ async def run(db: AsyncSession, job: Job) -> dict:
                 if download_failures >= DOWNLOAD_FAILURES:
                     await db.rollback()
                     raise
-                row.size, row.error = track.size, f"не скачался из Navidrome: {e}"[:500]
+                row.size, row.error = track.size, _("не скачался из Navidrome: {e}").format(e=e)[:500]
                 failed += 1
             except Exception as e:  # an unreadable or odd file: noted, skipped until it changes
                 log.warning("audio analysis of %s failed: %s", track.id, e)

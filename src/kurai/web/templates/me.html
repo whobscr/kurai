@@ -68,8 +68,9 @@
     <p>{{ _("Откройте ссылку на телефоне и нажмите «Старт»:") }}</p>
     <a class="button round" href="https://t.me/{{ bot }}?start={{ user.telegram_link_code }}" target="_blank" rel="noopener">
       <i>send</i><span>t.me/{{ bot }}</span></a>
+    <p class="small-text">{{ _("Если чат с ботом уже был открыт и бот ответил, что чат не подключён, — пришлите ему этот код:") }} <code>{{ user.telegram_link_code }}</code>. {{ _("Код действует час.") }}</p>
   {% elif user.telegram_link_code %}
-    <p>{{ _("Бот сейчас недоступен (не задан токен или нет связи с Telegram). Код для команды /start:") }} <code>{{ user.telegram_link_code }}</code></p>
+    <p>{{ _("Ссылку на бота сейчас не получить (не задан токен или нет связи с Telegram). Пришлите боту этот код:") }} <code>{{ user.telegram_link_code }}</code>. {{ _("Код действует час.") }}</p>
   {% else %}
     <form method="post" action="/me/telegram/link"><input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="round border"><i>link</i><span>{{ _("Подключить") }}</span></button></form>
@@ -83,7 +84,9 @@
     <label class="checkbox"><input type="checkbox" name="push" {{ 'checked' if user.notify_push }}><span>{{ _("Push в браузере и приложении") }}</span></label>
     <label class="checkbox"><input type="checkbox" name="telegram" {{ 'checked' if user.notify_telegram }}><span>{{ _("В Telegram") }}</span></label>
     <div class="row wrap"><button class="round border">{{ _("Сохранить") }}</button>
-      <button type="button" class="round transparent" id="push-enable" data-key="{{ push_key }}">{{ _("Разрешить push на этом устройстве") }}</button></div>
+      <button type="button" class="round transparent" id="push-enable" data-key="{{ push_key }}"
+        data-unsupported="{{ _('Этот браузер не поддерживает push') }}" data-denied="{{ _('Разрешение не дано') }}"
+        data-done="{{ _('Push включён на этом устройстве') }}" data-failed="{{ _('Не удалось включить push') }}">{{ _("Разрешить push на этом устройстве") }}</button></div>
   </form>
 </article>
 {% endblock %}

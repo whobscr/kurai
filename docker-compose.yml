@@ -22,6 +22,8 @@ services:
     container_name: kurai-web
     command: ["kurai", "web"]
     ports: ["${KURAI_BIND:-127.0.0.1}:${KURAI_WEB_PORT:-8095}:${KURAI_WEB_PORT:-8095}"]
+    # a fixed address: Navidrome trusts its login header from this one only
+    networks: {default: {ipv4_address: "${KURAI_WEB_IP:-172.31.95.10}"}}
 
   worker:
     <<: *kurai
@@ -39,9 +41,10 @@ services:
       ND_PORT: ${NAVIDROME_PORT:-4533}
       ND_BASEURL: /admin/apps/navidrome
       ND_SCANSCHEDULE: 1h
-      # Kurai logs its admin in by this header; trusted only from Kurai's address(es)
+      # Kurai logs its admin in by this header; trusted only from the web container's fixed address (not from the
+      # whole Docker range: other containers, and anything reaching the published port from the host, come from it)
       ND_REVERSEPROXYUSERHEADER: Remote-User
-      ND_REVERSEPROXYWHITELIST: ${ND_REVERSEPROXYWHITELIST:-172.16.0.0/12}
+      ND_REVERSEPROXYWHITELIST: ${ND_REVERSEPROXYWHITELIST:-172.31.95.10/32}
       ND_ENABLEINSIGHTSCOLLECTOR: "false"
       # its admin page is shown inside Kurai («Приложения», same origin): Navidrome's default forbids any frame
       ND_HTTPSECURITYHEADERS_CUSTOMFRAMEOPTIONSVALUE: SAMEORIGIN
@@ -113,3 +116,9 @@ services:
       resources:
         reservations:
           devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+
+# Kurai's own network, with a fixed range so the web container's address (KURAI_WEB_IP) is fixed too
+networks:
+  default:
+    ipam:
+      config: [{subnet: "${KURAI_SUBNET:-172.31.95.0/24}"}]

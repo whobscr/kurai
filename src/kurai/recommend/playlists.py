@@ -2,6 +2,7 @@
 трек». Every playlist is written into Navidrome as the user's private playlist, so it appears in any music app."""
 
 import logging
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 from sqlalchemy import func, select
@@ -17,6 +18,8 @@ from kurai.recommend.library import navidrome, user_account
 from kurai.recommend.vectors import Candidate, blend, mmr_select, normalize, order_smoothly
 
 log = logging.getLogger(__name__)
+
+KEEP_MIXES = timedelta(days=14)  # nightly mixes older than this are removed, but the liked ones
 
 NAME_SCHEMA = {
     "type": "object",
@@ -47,7 +50,9 @@ async def taste_of(db: AsyncSession, user: User) -> dict[str, np.ndarray]:
     taste = await db.get(Taste, user.id)
     if taste is None:
         return {}
-    parts = {"text": taste.vector, "sound": taste.audio_vector}
+    # a taste of another embedding model (it changed since the night) can't be compared with the tracks
+    same_model = taste.embedding_model == await settings.get(db, "embed.model")
+    parts = {"text": taste.vector if same_model else None, "sound": taste.audio_vector}
     return {s: np.asarray(v, dtype=np.float32) for s, v in parts.items() if v is not None}
 
 
@@ -99,7 +104,7 @@ async def nightly(db: AsyncSession, user: User, count: int | None = None, size: 
     j = await retrieval.joint(db, await retrieval.space_weights(db, "mix"))
     taste = {s: j.center(s, v) for s, v in (await taste_of(db, user)).items() if s in j.weights}
     if not taste:
-        return {"skipped": "вкус ещё не известен (мало прослушиваний)"}
+        return {"skipped": _("вкус ещё не известен (мало прослушиваний)")}
     count = count or int(await settings.get(db, "playlists.per_night"))
     pool = await retrieval.candidates(db, j, taste, user, exclude_recent=True)
     taste_joint = j.vector(taste)
@@ -123,9 +128,23 @@ async def nightly(db: AsyncSession, user: User, count: int | None = None, size: 
                             track_ids=[c.id for c in chosen])
         db.add(playlist)
         await write(db, user, playlist)
+        await db.commit()  # each mix on its own: one written into Navidrome is kept even if the next one fails
         made.append(name)
-    await db.commit()
     return {"playlists": made}
+
+
+async def remove_old_mixes(db: AsyncSession) -> int:
+    """The nightly mixes older than KEEP_MIXES, from Kurai and the users' Navidrome; a liked one (👍) stays."""
+    before = datetime.now(UTC) - KEEP_MIXES
+    old = (await db.execute(select(Playlist, User).join(User, User.id == Playlist.user_id).where(
+        Playlist.kind == "nightly", Playlist.created_at < before, Playlist.feedback <= 0))).all()
+    for playlist, user in old:
+        account = user_account(user)
+        if playlist.navidrome_id and account is not None:
+            await navidrome().delete_playlist(account, playlist.navidrome_id)
+        await db.delete(playlist)
+        await db.commit()
+    return len(old)
 
 
 async def _library_summary(db: AsyncSession) -> str:

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from sqlalchemy import text
 
-from kurai import __version__, plugins
+from kurai import __version__, outbound, plugins
 from kurai.config import get_config
 from kurai.integrations.navidrome import BASE_PATH
 from kurai.web.deps import Ctx, get_db, user_required
@@ -120,10 +120,14 @@ async def docs(request: Request, section: str = "user", slug: str = "", ctx: Ctx
 async def subsonic(path: str, request: Request):
     base = get_config().navidrome_url.rstrip("/")
     url = f"{base}{BASE_PATH}/rest/{path}" + (f"?{request.url.query}" if request.url.query else "")
-    session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None, sock_read=3600))
-    upstream = await session.request(request.method, url, data=await request.body(),
-                                     headers={k: v for k, v in request.headers.items()
-                                              if k.lower() in ("content-type", "range", "accept")})
+    session = outbound.local_session(aiohttp.ClientTimeout(total=None, sock_read=3600))
+    try:
+        upstream = await session.request(request.method, url, data=await request.body(),
+                                         headers={k: v for k, v in request.headers.items()
+                                                  if k.lower() in ("content-type", "range", "accept")})
+    except aiohttp.ClientError as e:
+        await session.close()
+        raise HTTPException(502, f"Navidrome: {e}") from e
 
     async def body():
         try:

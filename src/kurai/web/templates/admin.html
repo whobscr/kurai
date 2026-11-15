@@ -97,7 +97,7 @@
   <p class="small-text">{{ _("socks5h://host:port (имена разрешает прокси), socks5://… или http://… Пусто — всё напрямую. С галочкой подсистема ходит только через прокси и при его недоступности не обходит его.") }}</p>
   {{ text("outbound.proxy", _("Прокси")) }}
   <div class="row wrap">{{ text("outbound.user", _("Логин прокси")) }}{{ secret("outbound.password", _("Пароль прокси")) }}</div>
-  {{ text("outbound.dns", _("DNS-сервер (необязательно)"), help=_("IP-адрес, например 10.8.0.1 или 10.8.0.1:53 — для VPN, чей DNS отдаёт адреса внутри туннеля. Не нужен с socks5h.")) }}
+  {{ text("outbound.dns", _("DNS-сервер (необязательно)"), help=_("IP-адрес, например 10.8.0.1 или 10.8.0.1:53 — для VPN, чей DNS отдаёт адреса внутри туннеля. Не нужен с socks5h. Claude и push-уведомления его не используют (их библиотеки берут DNS системы): для них — socks5h.")) }}
   <h6>{{ _("Что ходит через прокси") }}</h6>
   {% for name, label in subsystems.items() %}
   <div class="row wrap">{{ switch("outbound.via." ~ name, label) }}{{ check(name) }}</div>

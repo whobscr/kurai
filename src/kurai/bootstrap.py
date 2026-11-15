@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from kurai import db as database
 from kurai import security, settings
 from kurai.db.models import User
+from kurai.i18n import _
 from kurai.recommend import library
 
 log = logging.getLogger(__name__)
@@ -33,14 +34,18 @@ async def bootstrap() -> None:
         # a fresh installation has no admin (the last one can't be demoted or disabled)
         if (await db.execute(select(func.count()).select_from(User).where(User.role == "admin"))).scalar_one() == 0:
             username, password = DEFAULT_ADMIN
-            db.add(User(username=username, display_name="Администратор", password_hash=security.hash_password(password),
-                        role="admin", must_change_password=True))
+            db.add(User(username=username, display_name=_("Администратор"),
+                        password_hash=security.hash_password(password), role="admin", must_change_password=True))
             log.info("created the first admin: %s / %s (to be changed at the first login)", username, password)
         values = await settings.get_all(db)
-        if not values["webpush.private_key"]:
+        # a secret that can't be read is never replaced: with the right KURAI_SECRET_KEY back it works again
+        locked = set(await settings.unreadable(db))
+        if locked:
+            log.error("stored secrets can't be decrypted (KURAI_SECRET_KEY changed?): %s", ", ".join(sorted(locked)))
+        if not values["webpush.private_key"] and "webpush.private_key" not in locked:
             public, private = _vapid_keys()
             await settings.put(db, {"webpush.public_key": public, "webpush.private_key": private})
-        if not values["navidrome.admin_password"]:
+        if not values["navidrome.admin_password"] and "navidrome.admin_password" not in locked:
             await settings.put(db, {"navidrome.admin_password": security.random_token(24)})
         await db.commit()
         try:

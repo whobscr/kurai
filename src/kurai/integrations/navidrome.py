@@ -13,6 +13,7 @@ from typing import Any
 import aiohttp
 
 from kurai import outbound
+from kurai.i18n import _
 
 PAGE = 500
 CLIENT = "kurai"
@@ -32,6 +33,12 @@ class NavidromeError(Exception):
 TOKEN_SECONDS = 30 * 60
 LOGIN_WAITS = (10, 20, 30)
 _tokens: dict[tuple[str, str, str], tuple[str, float]] = {}  # (base URL, user, password's hash) -> (token, until)
+
+
+def _forget(token: str) -> None:
+    for key, (known, _until) in list(_tokens.items()):
+        if known == token:
+            del _tokens[key]
 
 
 @dataclass
@@ -54,14 +61,17 @@ class Navidrome:
                     s.request(method, self.base_url + path, headers=headers, **kwargs) as resp:
                 # the status first: some errors (429) come as plain text, not JSON
                 if resp.status >= 400:
+                    if resp.status == 401 and token:  # e.g. Navidrome's sessions were reset: log in again
+                        _forget(token)
                     raise NavidromeError(f"Navidrome {path}: HTTP {resp.status}: {(await resp.text())[:200]}",
                                          resp.status)
                 try:
                     return await resp.json(content_type=None), dict(resp.headers)
                 except ValueError as e:
-                    raise NavidromeError(f"Navidrome {path}: не JSON: {(await resp.text())[:200]}") from e
+                    raise NavidromeError(_("Navidrome {path}: не JSON: {text}").format(
+                        path=path, text=(await resp.text())[:200])) from e
         except aiohttp.ClientError as e:
-            raise NavidromeError(f"Navidrome не отвечает: {e}") from e
+            raise NavidromeError(_("Navidrome не отвечает: {e}").format(e=e)) from e
 
     async def login(self, account: Account) -> str:
         """A token of the account: a remembered one while it's fresh, else a login (waiting out Navidrome's limit)."""
@@ -108,18 +118,20 @@ class Navidrome:
 
     async def songs(self, token: str, sort: str = "title", order: str = "ASC",
                     limit: int | None = None) -> AsyncIterator[dict]:
-        """The library's songs, with the token's user's play count, last play, star and rating."""
+        """The library's songs, with the token's user's play count, last play, star and rating: page by page until
+        a short page (not by the total in a header, which may be missing)."""
         start = 0
-        while True:
+        while limit is None or start < limit:
             end = start + PAGE if limit is None else min(start + PAGE, limit)
-            page, headers = await self._json("GET", f"/api/song?_start={start}&_end={end}&_sort={sort}&_order={order}",
-                                             token)
+            page, _headers = await self._json(
+                "GET", f"/api/song?_start={start}&_end={end}&_sort={sort}&_order={order}", token)
+            if not isinstance(page, list):
+                raise NavidromeError(_("Navidrome /api/song: неожиданный ответ: {page}").format(page=str(page)[:200]))
             for song in page:
                 yield song
-            start = end
-            total = int(headers.get("X-Total-Count", headers.get("x-total-count", 0)) or 0)
-            if not page or start >= total or (limit is not None and start >= limit):
+            if len(page) < end - start:
                 return
+            start = end
 
     # ---------- Subsonic API (as the user) ----------
 
@@ -130,11 +142,16 @@ class Navidrome:
         try:
             async with outbound.local_session() as s, \
                     s.post(f"{self.base_url}/rest/{method}", data=auth + params) as resp:
-                data = (await resp.json(content_type=None)).get("subsonic-response", {})
+                try:
+                    body = await resp.json(content_type=None)
+                except ValueError:
+                    raise NavidromeError(_("Navidrome {method}: HTTP {status}: {text}").format(
+                        method=method, status=resp.status, text=(await resp.text())[:200]), resp.status) from None
         except aiohttp.ClientError as e:
-            raise NavidromeError(f"Navidrome не отвечает: {e}") from e
+            raise NavidromeError(_("Navidrome не отвечает: {e}").format(e=e)) from e
+        data = body.get("subsonic-response", {}) if isinstance(body, dict) else {}
         if data.get("status") != "ok":
-            raise NavidromeError(f"Navidrome {method}: {data.get('error', {}).get('message', data)}")
+            raise NavidromeError(f"Navidrome {method}: {data.get('error', {}).get('message', body)}")
         return data
 
     async def save_playlist(self, account: Account, name: str, track_ids: list[str],
@@ -148,6 +165,14 @@ class Navidrome:
         await self._subsonic(account, "updatePlaylist", [("playlistId", new_id), ("public", "false"),
                                                            ("comment", comment)])
         return new_id
+
+    async def delete_playlist(self, account: Account, playlist_id: str) -> None:
+        """One of the user's playlists; one already gone counts as deleted."""
+        try:
+            await self._subsonic(account, "deletePlaylist", [("id", playlist_id)])
+        except NavidromeError as e:
+            if "not found" not in str(e).lower():
+                raise
 
     async def now_playing(self, account: Account) -> list[dict]:
         """What every user is playing right now, by player: [{"id", "username", "playerId", "duration", …}] (the
@@ -170,10 +195,7 @@ class Navidrome:
                     async for chunk in resp.content.iter_chunked(1 << 20):
                         f.write(chunk)
         except aiohttp.ClientError as e:
-            raise NavidromeError(f"Navidrome не отвечает: {e}") from e
-
-    async def start_scan(self, account: Account) -> None:
-        await self._subsonic(account, "startScan", [])
+            raise NavidromeError(_("Navidrome не отвечает: {e}").format(e=e)) from e
 
 
 def song_fields(song: dict) -> dict[str, Any]:

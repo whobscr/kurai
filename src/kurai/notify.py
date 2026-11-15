@@ -3,6 +3,7 @@ them on. Delivery problems are logged, never raised: a notification must not fai
 
 import json
 import logging
+from urllib.parse import urlsplit
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,14 +15,15 @@ from kurai.db.models import Notification, PushSubscription, User
 log = logging.getLogger(__name__)
 
 
-async def notify(db: AsyncSession, user_id: int, text: str, link: str = "") -> None:
+async def notify(db: AsyncSession, user_id: int, text: str, link: str = "", telegram: bool = True) -> None:
+    """`telegram=False`: not to Telegram (e.g. the answer goes to the chat that asked anyway)."""
     db.add(Notification(user_id=user_id, text=text, link=link))
     await db.commit()
     user = await db.get(User, user_id)
     if user is None:
         return
     values = await settings.get_all(db)
-    if user.notify_telegram and user.telegram_chat_id and values["telegram.enabled"] and values["telegram.token"]:
+    if telegram and user.notify_telegram and user.telegram_chat_id and _telegram_on(values):
         await _telegram(values, user.telegram_chat_id, text, link)
     if user.notify_push and values["webpush.private_key"]:
         await _push(db, values, user_id, text, link)
@@ -30,6 +32,17 @@ async def notify(db: AsyncSession, user_id: int, text: str, link: str = "") -> N
 async def notify_admins(db: AsyncSession, text: str, link: str = "") -> None:
     for admin in (await db.execute(select(User).where(User.role == "admin", User.active.is_(True)))).scalars():
         await notify(db, admin.id, text, link)
+
+
+async def send_telegram(db: AsyncSession, chat_id: int, text: str, link: str = "") -> None:
+    """A message to one Telegram chat (e.g. the answer to what was asked in it), whatever the user's switches."""
+    values = await settings.get_all(db)
+    if _telegram_on(values):
+        await _telegram(values, chat_id, text, link)
+
+
+def _telegram_on(values: dict) -> bool:
+    return bool(values["telegram.enabled"] and values["telegram.token"])
 
 
 async def _telegram(values: dict, chat_id: int, text: str, link: str) -> None:
@@ -51,22 +64,23 @@ async def _push(db: AsyncSession, values: dict, user_id: int, text: str, link: s
     from pywebpush import WebPushException, webpush
 
     route = outbound.route_from(values, "webpush")
-    session = requests.Session()
-    if route.proxy:
-        session.proxies = {"https": route.proxy, "http": route.proxy}
     payload = json.dumps({"title": "Kurai", "body": text, "url": link or "/"})
-    for sub in (await db.execute(select(PushSubscription).where(PushSubscription.user_id == user_id))).scalars().all():
-        try:
-            await asyncio.to_thread(
-                webpush, {"endpoint": sub.endpoint, "keys": sub.keys}, payload,
-                vapid_private_key=values["webpush.private_key"],
-                vapid_claims={"sub": f"mailto:kurai@{get_config().base_url.split('://')[-1]}"},
-                requests_session=session, timeout=20)
-        except WebPushException as e:
-            if e.response is not None and e.response.status_code in (404, 410):  # the browser dropped it
-                await db.execute(delete(PushSubscription).where(PushSubscription.endpoint == sub.endpoint))
-                await db.commit()
-            else:
+    subject = f"mailto:kurai@{urlsplit(get_config().base_url).hostname or 'localhost'}"
+    subs = (await db.execute(select(PushSubscription).where(PushSubscription.user_id == user_id))).scalars().all()
+    with requests.Session() as session:
+        if route.proxy:
+            session.proxies = {"https": route.proxy, "http": route.proxy}
+        for sub in subs:
+            try:
+                await asyncio.to_thread(
+                    webpush, {"endpoint": sub.endpoint, "keys": sub.keys}, payload,
+                    vapid_private_key=values["webpush.private_key"], vapid_claims={"sub": subject},
+                    requests_session=session, timeout=20)
+            except WebPushException as e:
+                if e.response is not None and e.response.status_code in (404, 410):  # the browser dropped it
+                    await db.execute(delete(PushSubscription).where(PushSubscription.endpoint == sub.endpoint))
+                    await db.commit()
+                else:
+                    log.warning("web push: %s", e)
+            except Exception as e:
                 log.warning("web push: %s", e)
-        except Exception as e:
-            log.warning("web push: %s", e)

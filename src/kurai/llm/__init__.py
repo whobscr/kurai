@@ -15,8 +15,10 @@ from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kurai import db as database
 from kurai import settings
 from kurai.db.models import LlmCall
+from kurai.i18n import _
 
 
 class ModelError(Exception):
@@ -63,7 +65,7 @@ def parse_json(text: str) -> Any:
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        raise ModelError(f"Модель ответила не JSON: {text[:200]}") from e
+        raise ModelError(_("Модель ответила не JSON: {text}").format(text=text[:200])) from e
 
 
 async def text_model(db: AsyncSession) -> TextModel:
@@ -83,7 +85,7 @@ async def complete(db: AsyncSession, task: str, system: str, prompt: str, schema
     """One text request for a task (settings.LLM_TASKS), with that task's thinking switch; timed and recorded."""
     values = await settings.get_all(db)
     if not values["llm.enabled"]:
-        raise ModelError("Модель выключена в системных настройках")
+        raise ModelError(_("Модель выключена в системных настройках"))
     from kurai.llm.providers import make_text_model
 
     model = make_text_model(values)
@@ -95,9 +97,11 @@ async def complete(db: AsyncSession, task: str, system: str, prompt: str, schema
         ok = True
         return answer
     finally:
-        db.add(LlmCall(task=task, provider=values["llm.provider"], model=model.name, thinking=think,
-                       seconds=time.monotonic() - started, ok=ok))
-        await db.commit()
+        # in its own session: the caller's (with its unfinished work) is left as it is
+        async with database.session() as own:
+            own.add(LlmCall(task=task, provider=values["llm.provider"], model=model.name, thinking=think,
+                            seconds=time.monotonic() - started, ok=ok))
+            await own.commit()
 
 
 async def complete_json(db: AsyncSession, task: str, system: str, prompt: str, schema: dict,

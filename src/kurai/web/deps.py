@@ -11,10 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import db as database
 from kurai import security
+from kurai.accounts import SESSION_DAYS
 from kurai.db.models import Session, User
 
 COOKIE = "kurai_session"
-SESSION_DAYS = 30
 
 
 class LoginRequired(Exception):
@@ -54,7 +54,13 @@ async def context(request: Request, db: AsyncSession = Depends(get_db)) -> Ctx:
     if datetime.now(UTC) - session.last_seen > timedelta(minutes=5):
         session.last_seen = datetime.now(UTC)
         await db.commit()
+        request.state.renew_cookie = token  # the cookie lives as long as the session (app.py sets it again)
     return Ctx(db, session, user)
+
+
+def set_session_cookie(response, token: str, request: Request) -> None:
+    response.set_cookie(COOKIE, token, max_age=SESSION_DAYS * 86400, httponly=True, samesite="lax",
+                        secure=request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https")
 
 
 async def check_csrf(request: Request, ctx: Ctx) -> None:

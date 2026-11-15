@@ -216,9 +216,11 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
     try:
         for key, kind in tab_fields.items():
             raw = form.get(key)
-            # secrets are shown as empty fields: an empty field keeps the stored value
+            # secrets are shown as empty fields: an empty field keeps the stored value, «Очистить» removes it
             if key in settings.secret_keys() and not raw:
-                continue  # an empty secret field keeps the stored value
+                if form.get(f"{key}.clear") == "on":
+                    values[key] = ""
+                continue
             values[key] = _coerce(kind, str(raw) if raw is not None else None)
     except ValueError:
         return back(tab, _("Неверное значение"))
@@ -237,8 +239,7 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
                 await queue.enqueue(ctx.db, kind, priority=10, dedupe_key=kind)
     if plugin_tab and plugin_tab.after_save:
         await plugin_tab.after_save(ctx.db, values, before)
-    if tab == "models" and values.get("embed.model") != before["embed.model"]:
-        await queue.enqueue(ctx.db, "embed_new", priority=60, night_only=True, dedupe_key="reembed")
+    # a new embedding model: the night's work embeds the library again (vectors of the old model aren't used)
     return back(tab, _("Сохранено"))
 
 
@@ -249,6 +250,15 @@ CHECK_URLS = {"telegram": "https://api.telegram.org", "llm": "https://api.anthro
               "webpush": "https://fcm.googleapis.com", "models": "https://huggingface.co"}
 
 
+async def _check_url(db, what: str) -> str:
+    """The cloud model's own server when one is set (a local one isn't reached through the gateway)."""
+    if what == "llm":
+        values = await settings.get_all(db)
+        if values["llm.provider"] != "anthropic" and not outbound.is_local_url(values["llm.base_url"]):
+            return values["llm.base_url"]
+    return CHECK_URLS[what]
+
+
 @router.post("/check/{what}")
 async def check(what: str, ctx: Ctx = Depends(admin_required)):
     """One small request through the real path; the answer's time or the error's text."""
@@ -257,11 +267,12 @@ async def check(what: str, ctx: Ctx = Depends(admin_required)):
         if what in plugins.merged("checks"):
             detail = await plugins.merged("checks")[what](ctx.db)
         elif what == "llm":
-            answer = await llm.complete(ctx.db, "explain", "Answer with one word.", "Say OK", max_tokens=50)
+            # its own task: the check's timing mustn't change the «usually takes» of real requests
+            answer = await llm.complete(ctx.db, "check", "Answer with one word.", "Say OK", max_tokens=50)
             detail = answer[:80]
         elif what == "embed":
             vectors = await (await llm.embed_model(ctx.db)).embed(["проверка"])
-            detail = f"{len(vectors[0])} измерений"
+            detail = _("{n} измерений").format(n=len(vectors[0]))
         elif what == "audio":
             health = await audio_client.health(ctx.db)
             detail = _("сервис отвечает, потоков: {n}").format(n=health["threads"])
@@ -269,7 +280,7 @@ async def check(what: str, ctx: Ctx = Depends(admin_required)):
                 vectors = await audio_client.clap_vectors(ctx.db, ["calm piano at night"])
                 detail += _("; CLAP: {d} измерений").format(d=len(vectors[0]))
         elif what in CHECK_URLS:
-            url = CHECK_URLS[what]
+            url = await _check_url(ctx.db, what)
             async with await outbound.session_for(ctx.db, what, 20) as s, s.get(url) as resp:
                 detail = f"HTTP {resp.status}"
         else:
@@ -325,6 +336,7 @@ async def user_action(user_id: int, action: str, password: str = Form(""), ctx: 
             await accounts.set_password(ctx.db, user, password)
             user.must_change_password = True
             await ctx.db.commit()
+            await accounts.end_sessions(ctx.db, user.id, except_id=ctx.session.id)
         elif action == "reset-2fa":
             user.totp_enabled, user.totp_secret, user.recovery_codes = False, None, []
             await ctx.db.commit()
@@ -333,6 +345,10 @@ async def user_action(user_id: int, action: str, password: str = Form(""), ctx: 
         message = _("Сделано")
     except accounts.AccountError as e:
         message = str(e)
+    except HTTPException:
+        raise
+    except Exception as e:  # Navidrome unreachable: nothing changed
+        message = _("Navidrome: {e}").format(e=e)
     return back("users", message)
 
 

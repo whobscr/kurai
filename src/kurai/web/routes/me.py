@@ -2,13 +2,15 @@
 notifications and web push."""
 
 import re
+from datetime import UTC, datetime
+from typing import Any
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Body, Depends, Form, Request
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
-from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 
-from kurai import security, settings
+from kurai import outbound, security, settings
 from kurai.db.models import PushSubscription
 from kurai.i18n import _
 from kurai.web.deps import Ctx, user_required
@@ -31,8 +33,6 @@ async def _page(request: Request, ctx: Ctx, **values):
 
 async def _bot_username(ctx: Ctx) -> str | None:
     """The bot's @name for the t.me link (asked from Telegram through the gateway)."""
-    from kurai import outbound
-
     values = await settings.get_all(ctx.db)
     if not values["telegram.token"]:
         return None
@@ -77,11 +77,13 @@ async def totp_start(request: Request, ctx: Ctx = Depends(user_required)):
 @router.post("/totp/confirm")
 async def totp_confirm(request: Request, code: str = Form(""), ctx: Ctx = Depends(user_required)):
     secret = security.decrypt(ctx.user.totp_secret)
-    if not security.verify_totp(secret, code):
+    step = security.totp_step(secret, code)
+    if step is None:
         return await _page(request, ctx, message=_("Код не подошёл — попробуйте ещё раз."),
                            totp_setup={"secret": secret, "uri": security.totp_uri(secret, ctx.user.username)})
     codes, hashes = security.new_recovery_codes()
     ctx.user.totp_enabled = True
+    ctx.user.totp_last_step = step
     ctx.user.recovery_codes = hashes
     await ctx.db.commit()
     return await _page(request, ctx, new_codes=codes, message=_("Двухфакторный вход включён."))
@@ -101,14 +103,14 @@ async def totp_disable(request: Request, password: str = Form(""), ctx: Ctx = De
 @router.post("/telegram/link")
 async def telegram_link(request: Request, ctx: Ctx = Depends(user_required)):
     ctx.user.telegram_link_code = security.random_token(12)[:16]
+    ctx.user.telegram_link_at = datetime.now(UTC)
     await ctx.db.commit()
     return await _page(request, ctx)
 
 
 @router.post("/telegram/unlink")
 async def telegram_unlink(ctx: Ctx = Depends(user_required)):
-    ctx.user.telegram_chat_id = None
-    ctx.user.telegram_link_code = None
+    ctx.user.telegram_chat_id = ctx.user.telegram_link_code = ctx.user.telegram_link_at = None
     await ctx.db.commit()
     return RedirectResponse("/me", 303)
 
@@ -121,21 +123,31 @@ async def notifications(push: str = Form(""), telegram: str = Form(""), ctx: Ctx
     return RedirectResponse("/me", 303)
 
 
+def _subscription(sub: Any) -> tuple[str, dict] | None:
+    """A browser's push subscription: an https address of a push service on the internet and its two keys (anything
+    else would make Kurai post to an address of the user's choice, local services too)."""
+    if not isinstance(sub, dict) or not isinstance(sub.get("keys"), dict):
+        return None
+    endpoint, keys = str(sub.get("endpoint", "")), sub["keys"]
+    if urlsplit(endpoint).scheme != "https" or outbound.is_local_url(endpoint):
+        return None
+    if not all(isinstance(keys.get(k), str) and keys[k] for k in ("p256dh", "auth")):
+        return None
+    return endpoint, {"p256dh": keys["p256dh"], "auth": keys["auth"]}
+
+
 @router.post("/push")
 async def push_subscribe(request: Request, ctx: Ctx = Depends(user_required)):
-    """The browser's push subscription (sent by sw-register.js)."""
-    sub = await request.json()
-    stmt = insert(PushSubscription).values(endpoint=sub["endpoint"], user_id=ctx.user.id, keys=sub["keys"])
+    """The browser's push subscription (sent by kurai.js)."""
+    try:
+        parsed = _subscription(await request.json())
+    except ValueError:
+        parsed = None
+    if parsed is None:
+        raise HTTPException(400, _("Не подписка на push"))
+    endpoint, keys = parsed
+    stmt = insert(PushSubscription).values(endpoint=endpoint, user_id=ctx.user.id, keys=keys)
     await ctx.db.execute(stmt.on_conflict_do_update(index_elements=[PushSubscription.endpoint],
-                                                    set_={"user_id": ctx.user.id, "keys": sub["keys"]}))
-    await ctx.db.commit()
-    return {"ok": True}
-
-
-@router.post("/push/delete")
-async def push_unsubscribe(request: Request, ctx: Ctx = Depends(user_required)):
-    sub = await request.json()
-    await ctx.db.execute(delete(PushSubscription).where(PushSubscription.endpoint == sub.get("endpoint", ""),
-                                                        PushSubscription.user_id == ctx.user.id))
+                                                    set_={"user_id": ctx.user.id, "keys": keys}))
     await ctx.db.commit()
     return {"ok": True}

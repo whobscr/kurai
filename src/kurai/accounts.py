@@ -2,15 +2,18 @@
 username and password, so the music apps log in with the same credentials; Kurai keeps that password encrypted to
 write the user's private playlists."""
 
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import security
-from kurai.db.models import User
+from kurai.db.models import Session, User
 from kurai.i18n import _
 from kurai.recommend.library import admin_login
 
 MIN_PASSWORD = 8
+SESSION_DAYS = 30  # a session unused this long ends (the cookie lives as long)
 
 
 class AccountError(Exception):
@@ -35,7 +38,12 @@ async def create_user(db: AsyncSession, username: str, display_name: str, passwo
     user.navidrome_id = await nd.create_user(token, username, user.display_name, password)
     user.navidrome_password = security.encrypt(password)
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:  # e.g. the same name added at the same moment: the music account goes too
+        await db.rollback()
+        await nd.delete_user(token, user.navidrome_id)
+        raise
     return user
 
 
@@ -51,6 +59,23 @@ async def set_password(db: AsyncSession, user: User, password: str) -> None:
     user.password_hash = security.hash_password(password)
     user.must_change_password = False
     await db.commit()
+
+
+async def end_sessions(db: AsyncSession, user_id: int, except_id: str | None = None) -> None:
+    """Logs the user out everywhere (but the session `except_id`), e.g. after a password change."""
+    query = delete(Session).where(Session.user_id == user_id)
+    if except_id:
+        query = query.where(Session.id != except_id)
+    await db.execute(query)
+    await db.commit()
+
+
+async def prune_sessions(db: AsyncSession) -> int:
+    """Removes the sessions unused for longer than a session lives (the night's work does it)."""
+    before = datetime.now(UTC) - timedelta(days=SESSION_DAYS)
+    removed = (await db.execute(delete(Session).where(Session.last_seen < before))).rowcount
+    await db.commit()
+    return removed
 
 
 async def remaining_admins(db: AsyncSession, except_id: int) -> int:

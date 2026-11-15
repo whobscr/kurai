@@ -72,7 +72,9 @@ CLAP is Apache 2.0. They are downloaded at run time, not shipped in the image.
 Send everything to Kurai's web port. For music apps, `/rest/` can go straight to Navidrome
 (`http://127.0.0.1:4533/admin/apps/navidrome/rest/`) so streams don't pass through Python; Kurai also forwards
 `/rest/` itself for setups without that. **Clear the `Remote-User` header** on every request coming in from outside:
-Navidrome trusts it from local addresses (Kurai uses it to log its admin into Navidrome's own pages).
+Navidrome trusts it from Kurai's web container (Kurai uses it to log its admin into Navidrome's own pages). That
+container has a fixed address in Kurai's network (`KURAI_SUBNET`, `KURAI_WEB_IP`), and Navidrome trusts only it
+(`ND_REVERSEPROXYWHITELIST`).
 
 nginx example:
 
@@ -93,8 +95,9 @@ server {
 
 Kurai runs in Compose's network. A proxy you configure in Kurai's gateway must be reachable **from the containers**
 (not a SOCKS5 that listens only on the host's 127.0.0.1). If yours does, run the services in the host's network with a
-`docker-compose.override.yml` (`network_mode: host` and `ports: !reset []` per service) and point the `KURAI_*_URL`
-variables at `127.0.0.1`.
+`docker-compose.override.yml` (`network_mode: host` and `ports: !reset []` per service, and `networks: !reset {}` for
+`web`), point the `KURAI_*_URL` variables at `127.0.0.1` and set `ND_REVERSEPROXYWHITELIST=127.0.0.1/32` (every
+process on the host is then trusted with Navidrome's login header: keep Navidrome's port closed to the network).
 
 ### Plugins
 

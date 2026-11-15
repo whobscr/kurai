@@ -11,15 +11,16 @@ from starlette.exceptions import HTTPException
 
 from kurai import db as database
 from kurai import plugins, settings
-from kurai.web.deps import LoginRequired, PasswordChangeRequired, context
+from kurai.i18n import _
+from kurai.web.deps import LoginRequired, PasswordChangeRequired, context, set_session_cookie
 from kurai.web.routes import admin, apps, auth, main, me, misc
 from kurai.web.templating import ROOT, doodle, render
 
 ERRORS = {
-    403: "Сюда нельзя",
-    404: "Такой страницы нет",
-    500: "Что-то сломалось",
-    502: "Сервис не отвечает",
+    403: _("Сюда нельзя"),
+    404: _("Такой страницы нет"),
+    500: _("Что-то сломалось"),
+    502: _("Сервис не отвечает"),
 }
 
 
@@ -43,6 +44,15 @@ def create_app() -> FastAPI:
     for plugin in plugins.plugins():
         if plugin.router is not None:
             app.include_router(plugin.router)
+
+    @app.middleware("http")
+    async def renew_cookie(request: Request, call_next):
+        """A session in use keeps its cookie as long as itself (deps.context marks when it was seen again)."""
+        response = await call_next(request)
+        token = getattr(request.state, "renew_cookie", None)
+        if token and "set-cookie" not in response.headers:
+            set_session_cookie(response, token, request)
+        return response
 
     @app.exception_handler(LoginRequired)
     async def to_login(request: Request, exc: LoginRequired):
@@ -77,10 +87,10 @@ async def _error_page(request: Request, status: int, detail: str):
         async with database.session() as db:
             ctx = await context(request, db)
             return render(request, "error.html", ctx, status_code=status, status=status,
-                          title=ERRORS.get(status, "Ошибка"), detail=detail, doodle=doodle())
+                          title=ERRORS.get(status, _("Ошибка")), detail=detail, doodle=doodle())
     except Exception:
         return render(request, "error.html", None, status_code=status, status=status,
-                      title=ERRORS.get(status, "Ошибка"), detail="", doodle=doodle())
+                      title=ERRORS.get(status, _("Ошибка")), detail="", doodle=doodle())
 
 
 app = create_app()

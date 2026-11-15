@@ -29,9 +29,10 @@ def _valid(space: str, text_model: str):
     """The rows whose vector in this space is there and comes from the current model."""
     if space == "text":
         return [Track.embedding.is_not(None), Track.embedding_model == text_model]
+    # a file whose analysis failed may still hold the vectors of the file before it: not used
     if space == "sound":
-        return [TrackAudio.effnet.is_not(None), TrackAudio.effnet_model == EFFNET_MODEL]
-    return [TrackAudio.clap.is_not(None), TrackAudio.clap_model == CLAP_MODEL]
+        return [TrackAudio.effnet.is_not(None), TrackAudio.effnet_model == EFFNET_MODEL, TrackAudio.error.is_(None)]
+    return [TrackAudio.clap.is_not(None), TrackAudio.clap_model == CLAP_MODEL, TrackAudio.error.is_(None)]
 
 
 def _from():
@@ -120,8 +121,8 @@ async def track_vectors(db: AsyncSession, ids: Collection[str]) -> dict[str, tup
     text_model = await settings.get(db, "embed.model")
     rows = (await db.execute(_from().add_columns(
         Track.id, Track.artist, Track.embedding, Track.embedding_model, TrackAudio.effnet, TrackAudio.effnet_model,
-        TrackAudio.clap, TrackAudio.clap_model).where(Track.id.in_(list(ids))))).all()
+        TrackAudio.clap, TrackAudio.clap_model, TrackAudio.error).where(Track.id.in_(list(ids))))).all()
     return {tid: (artist, {"text": emb if emb_model == text_model else None,
-                           "sound": effnet if effnet_model == EFFNET_MODEL else None,
-                           "clap": clap if clap_model == CLAP_MODEL else None})
-            for tid, artist, emb, emb_model, effnet, effnet_model, clap, clap_model in rows}
+                           "sound": effnet if effnet_model == EFFNET_MODEL and not error else None,
+                           "clap": clap if clap_model == CLAP_MODEL and not error else None})
+            for tid, artist, emb, emb_model, effnet, effnet_model, clap, clap_model, error in rows}

@@ -33,7 +33,8 @@ def _with_credentials(url: str, user: str, password: str) -> str:
     if not user:
         return url
     parts = urlsplit(url)
-    netloc = f"{quote(user, safe='')}:{quote(password, safe='')}@{parts.hostname}"
+    host = f"[{parts.hostname}]" if ":" in (parts.hostname or "") else parts.hostname  # an IPv6 address
+    netloc = f"{quote(user, safe='')}:{quote(password, safe='')}@{host}"
     if parts.port:
         netloc += f":{parts.port}"
     return parts._replace(netloc=netloc).geturl()
@@ -64,7 +65,7 @@ def parse_dns(dns: str) -> tuple[str, int | None]:
     return host, int(port) if port else None
 
 
-def _resolver(dns: str) -> aiohttp.abc.AbstractResolver:
+def resolver(dns: str) -> aiohttp.abc.AbstractResolver:
     host, port = parse_dns(dns)
     kwargs: dict[str, Any] = {"nameservers": [host]}
     if port:
@@ -75,17 +76,17 @@ def _resolver(dns: str) -> aiohttp.abc.AbstractResolver:
 
 def session_for_route(route: Route, timeout: float = 60) -> aiohttp.ClientSession:
     client_timeout = aiohttp.ClientTimeout(total=timeout)
-    resolver = _resolver(route.dns) if route.dns else None
+    dns = resolver(route.dns) if route.dns else None
     if route.proxy:
         scheme = urlsplit(route.proxy).scheme
         if scheme.startswith("socks"):
             # socks5h: the proxy resolves names (rdns); socks5: they're resolved here
             url = route.proxy.replace("socks5h://", "socks5://", 1)
-            connector = ProxyConnector.from_url(url, rdns=scheme == "socks5h", resolver=resolver)
+            connector = ProxyConnector.from_url(url, rdns=scheme == "socks5h", resolver=dns)
             return aiohttp.ClientSession(connector=connector, timeout=client_timeout)
-        connector = aiohttp.TCPConnector(resolver=resolver) if resolver else None
+        connector = aiohttp.TCPConnector(resolver=dns) if dns else None
         return aiohttp.ClientSession(connector=connector, timeout=client_timeout, proxy=route.proxy)
-    connector = aiohttp.TCPConnector(resolver=resolver) if resolver else None
+    connector = aiohttp.TCPConnector(resolver=dns) if dns else None
     return aiohttp.ClientSession(connector=connector, timeout=client_timeout)
 
 
@@ -94,9 +95,12 @@ async def session_for(db, subsystem: str, timeout: float = 60) -> aiohttp.Client
     return session_for_route(route_from(await settings.get_all(db), subsystem), timeout)
 
 
-def local_session(timeout: float = 60) -> aiohttp.ClientSession:
-    """For the services next to Kurai (Navidrome, the local models, the apps of plugins): never proxied."""
-    return aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout))
+def local_session(timeout: float | aiohttp.ClientTimeout = 60) -> aiohttp.ClientSession:
+    """For the services next to Kurai (Navidrome, the local models, the apps of plugins): never proxied. `timeout`:
+    seconds in all, or aiohttp's ClientTimeout (e.g. only between reads, for a stream)."""
+    if not isinstance(timeout, aiohttp.ClientTimeout):
+        timeout = aiohttp.ClientTimeout(total=timeout)
+    return aiohttp.ClientSession(timeout=timeout)
 
 
 def is_local_url(url: str) -> bool:

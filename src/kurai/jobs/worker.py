@@ -5,12 +5,13 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
+from kurai import accounts, plugins, settings
 from kurai import db as database
-from kurai import plugins, settings
 from kurai.audio import analyze as audio_analyze
 from kurai.db.models import Job, User
+from kurai.i18n import _
 from kurai.jobs import queue, window
-from kurai.notify import notify
+from kurai.notify import notify, send_telegram
 from kurai.recommend import library, playlists, wave
 
 log = logging.getLogger(__name__)
@@ -25,24 +26,52 @@ DAYTIME_EMBED_LIMIT = 200
 AUDIO_EVERY = timedelta(minutes=30)
 
 
+class PartialFailure(Exception):
+    """Some parts of a job failed, the others were done: the job is marked failed with what it did kept."""
+
+    def __init__(self, failed: list[str], result: dict):
+        super().__init__("; ".join(failed))
+        self.result = result
+
+
 async def _nightly(db, job: Job) -> dict:
     """The night's work, in order: the library, its vectors, each user's listens, taste and mixes, then the plugins'
-    steps (e.g. finding new music)."""
+    steps (e.g. finding new music). A part that fails is noted and the rest goes on; the job fails at the end, naming
+    the failed parts."""
     result: dict = {}
-    result["library"] = await library.sync_library(db)
-    result["embeddings"] = await library.embed_tracks(db)
-    for user in await library.active_users(db):
-        result[f"user {user.username}"] = {
-            "listens": await library.sync_listens(db, user),
-            "taste": await library.build_taste(db, user),
-            "playlists": await playlists.nightly(db, user),
-        }
-        if await settings.get(db, "wave.enabled"):  # a fresh wave for the new day, from the new taste
-            result[f"user {user.username}"]["wave"] = await wave.build(db, user)
+    failed: list[str] = []
+
+    async def step(name: str, run) -> None:
+        try:
+            result[name] = await run()
+        except Exception as e:
+            log.exception("night step %s failed", name)
+            await db.rollback()
+            failed.append(f"{name}: {str(e) or e.__class__.__name__}")
+
+    await step("library", lambda: library.sync_library(db))
+    await step("embeddings", lambda: library.embed_tracks(db))
+    wave_on = await settings.get(db, "wave.enabled")
+    # ids, not the users themselves: a rollback after one user's failure expires every loaded object
+    for user_id, username in [(u.id, u.username) for u in await library.active_users(db)]:
+        async def for_user(user_id: int = user_id) -> dict:
+            user = await db.get(User, user_id)
+            out = {"listens": await library.sync_listens(db, user),
+                   "taste": await library.build_taste(db, user),
+                   "playlists": await playlists.nightly(db, user)}
+            if wave_on:  # a fresh wave for the new day, from the new taste
+                out["wave"] = await wave.build(db, user)
+            return out
+
+        await step(f"user {username}", for_user)
     for plugin in plugins.plugins():
-        for name, step in plugin.nightly:
-            result[name] = await step(db)
-    result["old_jobs_removed"] = await queue.prune(db)
+        for name, plugin_step in plugin.nightly:
+            await step(name, lambda plugin_step=plugin_step: plugin_step(db))
+    await step("old_mixes_removed", lambda: playlists.remove_old_mixes(db))
+    await step("old_sessions_removed", lambda: accounts.prune_sessions(db))
+    await step("old_jobs_removed", lambda: queue.prune(db))
+    if failed:
+        raise PartialFailure(failed, result)
     return result
 
 
@@ -50,33 +79,41 @@ async def _sync_listens(db, job: Job) -> dict:
     """Each user's plays on their own: one that fails (their Navidrome account) doesn't hold back the others; the job
     fails at the end, naming them."""
     result, failed = {}, []
-    for user in await library.active_users(db):
+    for user_id, username in [(u.id, u.username) for u in await library.active_users(db)]:
         try:
-            result[user.username] = await library.sync_listens(db, user)
+            result[username] = await library.sync_listens(db, await db.get(User, user_id))
         except Exception as e:
             await db.rollback()
-            failed.append(f"{user.username}: {e}")
+            failed.append(f"{username}: {str(e) or e.__class__.__name__}")
     if failed:
-        raise RuntimeError("; ".join(failed) + (f" (остальные: {result})" if result else ""))
+        raise PartialFailure(failed, result)
     return result
 
 
 async def _embed_new(db, job: Job) -> dict:
     if await library.pending_embeddings(db) > DAYTIME_EMBED_LIMIT:
-        return {"skipped": "много новых треков: проиндексируются ночью"}
+        return {"skipped": _("много новых треков: проиндексируются ночью")}
     return await library.embed_tracks(db)
 
 
 async def _ask(db, job: Job) -> dict:
+    """A request from the web or from Telegram; one from Telegram (`reply_to`: its chat) is answered there."""
     user = await db.get(User, job.user_id)
+    chat = job.payload.get("reply_to")
     result = await playlists.ask(db, user, job.payload["text"])
     if "playlist_id" in result:
-        await notify(db, user.id, f"Плейлист «{result['name']}» готов — он уже в вашем плеере", "/")
+        text = _("Плейлист «{name}» готов — он уже в вашем плеере").format(name=result["name"])
+        await notify(db, user.id, text, "/", telegram=not chat)
+        if chat:
+            await send_telegram(db, chat, text, "/")
+    elif chat and result.get("answer"):
+        await send_telegram(db, chat, result["answer"])
     return result
 
 
 async def _wave(db, job: Job) -> dict:
-    return await wave.build(db, await db.get(User, job.payload["user_id"]))
+    # jobs queued before 0.2.23 have the user in the payload only
+    return await wave.build(db, await db.get(User, job.user_id or job.payload["user_id"]))
 
 
 async def _explain(db, job: Job) -> dict:
@@ -102,20 +139,25 @@ def handlers() -> dict:
 async def run_one(job_id: int) -> None:
     async with database.session() as db:
         job = await db.get(Job, job_id)
-        handler = handlers().get(job.kind)
+        kind = job.kind  # kept: a handler's rollback expires the job object
+        handler = handlers().get(kind)
         try:
             if handler is None:
-                raise ValueError(f"неизвестная задача {job.kind}")
+                raise ValueError(_("неизвестная задача {kind}").format(kind=kind))
             result = await handler(db, job)
             await queue.finish(db, job, result if isinstance(result, dict) else {"result": result})
         except Exception as e:  # a job's failure is recorded for the admin page, the worker goes on
-            log.exception("job %s (%s) failed", job.id, job.kind)
+            log.exception("job %s (%s) failed", job_id, kind)
             await db.rollback()
             job = await db.get(Job, job_id)
             message = str(e) or e.__class__.__name__
-            await queue.finish(db, job, error=message[:2000])
-            if job.kind in queue.INTERACTIVE and job.user_id:
-                await notify(db, job.user_id, f"Не получилось: {message[:300]}", "/ask")
+            await queue.finish(db, job, e.result if isinstance(e, PartialFailure) else None, error=message[:2000])
+            if job.kind == "ask" and job.user_id:  # the person waits for it (the wave and explanations don't say)
+                text = _("Не получилось: {message}").format(message=message[:300])
+                chat = job.payload.get("reply_to")
+                await notify(db, job.user_id, text, "/ask", telegram=not chat)
+                if chat:
+                    await send_telegram(db, chat, text)
 
 
 async def schedule(now: datetime) -> bool:
@@ -124,10 +166,11 @@ async def schedule(now: datetime) -> bool:
         values = await settings.get_all(db)
         night = window.current(now, values["night.start"], values["night.end"])
         if night:
-            await queue.enqueue(db, "nightly", night_only=True, priority=60,
-                                dedupe_key=f"nightly:{night[0].date().isoformat()}", once=True)
+            key = f"nightly:{night[0].date().isoformat()}"
+            await queue.drop_stale(db, "nightly", key)
+            await queue.enqueue(db, "nightly", night_only=True, priority=60, dedupe_key=key, once=True)
         for kind, every in {**EVERY, **plugins.every()}.items():
-            last = await queue.last_done(db, kind)
+            last = await queue.last_finished(db, kind)
             if last is None or now - last >= every:
                 await queue.enqueue(db, kind, priority=40, dedupe_key=kind)
         if values["audio.enabled"]:
@@ -138,10 +181,12 @@ async def schedule(now: datetime) -> bool:
 async def _schedule_audio(db, now: datetime, night: tuple[datetime, datetime] | None) -> None:
     """At night: one run until the window ends; by day: a small run every half hour for the new imports."""
     if night:
+        key = f"analyze_audio:{night[0].date().isoformat()}"
+        await queue.drop_stale(db, "analyze_audio", key)
         await queue.enqueue(db, "analyze_audio", {"until": night[1].isoformat()}, night_only=True, priority=60,
-                            dedupe_key=f"analyze_audio:{night[0].date().isoformat()}", once=True)
+                            dedupe_key=key, once=True)
         return
-    last = await queue.last_done(db, "analyze_audio")
+    last = await queue.last_finished(db, "analyze_audio")
     if last is None or now - last >= AUDIO_EVERY:
         await queue.enqueue(db, "analyze_audio", {"limit": audio_analyze.DAYTIME_LIMIT}, priority=40,
                             dedupe_key="analyze_audio")

@@ -2,7 +2,10 @@
 
 import base64
 import hashlib
+import hmac
+import re
 import secrets
+import time
 
 import pyotp
 from argon2 import PasswordHasher
@@ -70,9 +73,52 @@ def totp_uri(secret: str, username: str) -> str:
     return pyotp.TOTP(secret).provisioning_uri(name=username, issuer_name=TOTP_ISSUER)
 
 
-def verify_totp(secret: str, code: str) -> bool:
+def totp_step(secret: str, code: str, after: int | None = None) -> int | None:
+    """The time step of a valid code (the current one, or the one before or after, for a clock that is a little
+    off), or None. A step not later than `after` (the last code used) doesn't count: a code works once."""
     code = code.replace(" ", "")
-    return bool(secret) and code.isdigit() and pyotp.TOTP(secret).verify(code, valid_window=1)
+    if not secret or not (code.isdigit() and len(code) == 6):
+        return None
+    totp = pyotp.TOTP(secret)
+    now = int(time.time()) // totp.interval
+    for step in (now, now - 1, now + 1):
+        if (after is None or step > after) and hmac.compare_digest(totp.at(step * totp.interval), code):
+            return step
+    return None
+
+
+def looks_like_recovery_code(code: str) -> bool:
+    """«abc123-def456»: only these are checked against the (slow to compare) stored hashes."""
+    return bool(re.fullmatch(r"[0-9a-f]{6}-[0-9a-f]{6}", code.strip().lower()))
+
+
+class Throttle:
+    """At most `limit` failures per key within `window` seconds (in this process's memory: a restart forgets)."""
+
+    def __init__(self, limit: int, window: float):
+        self.limit, self.window = limit, window
+        self._failures: dict[str, list[float]] = {}
+
+    def _recent(self, key: str) -> list[float]:
+        now = time.monotonic()
+        recent = [t for t in self._failures.get(key, []) if now - t < self.window]
+        if recent:
+            self._failures[key] = recent
+        else:
+            self._failures.pop(key, None)
+        return recent
+
+    def blocked(self, key: str) -> bool:
+        return len(self._recent(key)) >= self.limit
+
+    def fail(self, key: str) -> None:
+        self._failures.setdefault(key, []).append(time.monotonic())
+        if len(self._failures) > 10_000:  # forget the stale keys now and then
+            for k in list(self._failures):
+                self._recent(k)
+
+    def clear(self, key: str) -> None:
+        self._failures.pop(key, None)
 
 
 def new_recovery_codes() -> tuple[list[str], list[str]]:

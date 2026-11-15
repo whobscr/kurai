@@ -7,6 +7,7 @@ from typing import Any
 import aiohttp
 
 from kurai import outbound
+from kurai.i18n import _
 from kurai.llm import ModelError, TextRequest, strip_thinking
 
 ANTHROPIC_DEFAULT_MODEL = "claude-opus-5-5"
@@ -20,7 +21,22 @@ def _route(values: dict[str, Any], base_url: str) -> outbound.Route:
 
 
 def _http_error(name: str, e: Exception) -> ModelError:
-    return ModelError(f"{name}: нет ответа ({e.__class__.__name__}: {e})")
+    return ModelError(_("{name}: нет ответа ({kind}: {e})").format(name=name, kind=e.__class__.__name__, e=e))
+
+
+async def _read(name: str, resp: aiohttp.ClientResponse) -> dict[str, Any]:
+    """The answer's JSON; an error page (a proxy's HTML, a plain-text 502) is reported as it is."""
+    try:
+        data = await resp.json(content_type=None)
+    except ValueError:
+        raise ModelError(_("{name}: HTTP {status}, не JSON: {text}").format(
+            name=name, status=resp.status, text=(await resp.text())[:300])) from None
+    if resp.status >= 400:
+        raise ModelError(_("{name}: HTTP {status}: {data}").format(name=name, status=resp.status,
+                                                                   data=str(data)[:300]))
+    if not isinstance(data, dict):
+        raise ModelError(_("{name}: неожиданный ответ: {data}").format(name=name, data=str(data)[:300]))
+    return data
 
 
 class OpenAICompatible:
@@ -57,10 +73,7 @@ class OpenAICompatible:
         try:
             async with outbound.session_for_route(self.route, self.timeout) as s, \
                     s.post(self.base_url + path, json=body, headers=self._headers()) as resp:
-                data = await resp.json(content_type=None)
-                if resp.status >= 400:
-                    raise ModelError(f"{self.name}: HTTP {resp.status}: {str(data)[:300]}")
-                return data
+                return await _read(self.name, resp)
         except (aiohttp.ClientError, TimeoutError) as e:
             raise _http_error(self.name, e) from e
 
@@ -68,14 +81,15 @@ class OpenAICompatible:
         data = await self._post("/chat/completions", self._body(request))
         choice = (data.get("choices") or [{}])[0]
         if choice.get("finish_reason") == "length":
-            raise ModelError(f"{self.name}: ответ оборван (не хватило max_tokens)")
+            raise ModelError(_("{name}: ответ оборван (не хватило max_tokens)").format(name=self.name))
         return strip_thinking(choice.get("message", {}).get("content") or "")
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         data = await self._post("/embeddings", {"model": self.name, "input": texts})
         items = sorted(data.get("data", []), key=lambda d: d.get("index", 0))
         if len(items) != len(texts):
-            raise ModelError(f"{self.name}: {len(items)} векторов на {len(texts)} текстов")
+            raise ModelError(_("{name}: {n} векторов на {m} текстов").format(name=self.name, n=len(items),
+                                                                            m=len(texts)))
         return [d["embedding"] for d in items]
 
 
@@ -92,10 +106,7 @@ class Ollama:
         try:
             async with outbound.session_for_route(self.route, self.timeout) as s, \
                     s.post(self.base_url + path, json=body) as resp:
-                data = await resp.json(content_type=None)
-                if resp.status >= 400:
-                    raise ModelError(f"{self.name}: HTTP {resp.status}: {str(data)[:300]}")
-                return data
+                return await _read(self.name, resp)
         except (aiohttp.ClientError, TimeoutError) as e:
             raise _http_error(self.name, e) from e
 
@@ -116,7 +127,8 @@ class Ollama:
         data = await self._post("/api/embed", {"model": self.name, "input": texts})
         vectors = data.get("embeddings") or []
         if len(vectors) != len(texts):
-            raise ModelError(f"{self.name}: {len(vectors)} векторов на {len(texts)} текстов")
+            raise ModelError(_("{name}: {n} векторов на {m} текстов").format(name=self.name, n=len(vectors),
+                                                                            m=len(texts)))
         return vectors
 
 
@@ -157,17 +169,20 @@ class Anthropic:
                     fallbacks="default",
                 )
         except anthropic.AuthenticationError as e:
-            raise ModelError("Claude: неверный API-ключ") from e
+            raise ModelError(_("Claude: неверный API-ключ")) from e
         except anthropic.RateLimitError as e:
-            raise ModelError("Claude: превышен лимит запросов, попробуйте позже") from e
+            raise ModelError(_("Claude: превышен лимит запросов, попробуйте позже")) from e
         except anthropic.APIStatusError as e:
-            raise ModelError(f"Claude: HTTP {e.status_code}: {e.message}") from e
+            raise ModelError(_("Claude: HTTP {status}: {message}").format(status=e.status_code,
+                                                                          message=e.message)) from e
         except anthropic.APIConnectionError as e:
-            raise ModelError(f"Claude: нет соединения ({e})") from e
+            raise ModelError(_("Claude: нет соединения ({e})").format(e=e)) from e
+        except ImportError as e:  # a proxy kind the HTTP client can't use
+            raise ModelError(_("Claude: прокси не поддерживается ({e})").format(e=e)) from e
         if response.stop_reason == "refusal":
-            raise ModelError("Claude отказался отвечать на этот запрос")
+            raise ModelError(_("Claude отказался отвечать на этот запрос"))
         if response.stop_reason == "max_tokens":
-            raise ModelError("Claude: ответ оборван (не хватило max_tokens)")
+            raise ModelError(_("Claude: ответ оборван (не хватило max_tokens)"))
         return "".join(b.text for b in response.content if b.type == "text").strip()
 
 
