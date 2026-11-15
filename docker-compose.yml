@@ -43,6 +43,8 @@ services:
       ND_REVERSEPROXYUSERHEADER: Remote-User
       ND_REVERSEPROXYWHITELIST: ${ND_REVERSEPROXYWHITELIST:-172.16.0.0/12}
       ND_ENABLEINSIGHTSCOLLECTOR: "false"
+      # its admin page is shown inside Kurai («Приложения», same origin): Navidrome's default forbids any frame
+      ND_HTTPSECURITYHEADERS_CUSTOMFRAMEOPTIONSVALUE: SAMEORIGIN
     volumes:
       - ${KURAI_DIR:?set KURAI_DIR in .env}/config/navidrome:/data
       - ${KURAI_DIR}/data/music:/music:ro
