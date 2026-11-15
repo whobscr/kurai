@@ -6,4 +6,4 @@
 6. No secrets, hostnames or other details of a particular server in the repo: they belong in `.env` (`.env.example` shows the names) or in the database settings.
 7. The license is AGPL-3.0; a new dependency must be compatible with it.
 8. The product name is written **Kurai**, with a capital K, everywhere people read it: the UI, page titles, the in-app docs and changelog, the Telegram bot, `README.md`. Lowercase `kurai` only in identifiers: the repo, package, image, file and variable names.
-9. Optional parts live in plugins (`src/kurai/plugins.py`): the core never imports a plugin and knows nothing of what a plugin does; a new kind of extension is a new field of `Plugin`, used through the registry.
+9. Optional parts live in plugins (`src/kurai/plugins.py`): the core never imports a plugin and knows nothing of what a plugin does; a new kind of extension is a new field of `Plugin`, used through the registry. A change to the plugin interface updates `docs/plugins.md` and `examples/kurai-incoming` (its tests run in CI) in the same commit, and the changelog says it.

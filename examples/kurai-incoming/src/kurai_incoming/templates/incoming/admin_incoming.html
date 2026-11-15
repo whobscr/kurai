@@ -1,0 +1,21 @@
+{# A system settings tab: included into Kurai's admin page. The macros build the form; its fields are the AdminTab's
+   `fields`, saved by Kurai itself (POST /admin/incoming). #}
+{% from "admin_macros.html" import text, switch, check, form_start as _form_start, form_end with context %}
+{% macro form_start() %}{{ _form_start(tab) }}{% endmacro %}
+<article class="round">{{ form_start() }}
+  <h6>{{ _("Папка входящих") }}</h6>
+  <p class="small-text">{{ _("Положите туда альбом папкой «Исполнитель - Альбом»: Kurai заметит его в течение получаса, а после одобрения перенесёт в библиотеку.") }}</p>
+  {{ text("incoming.dir", _("Папка (как её видят контейнеры Kurai)")) }}
+  {{ switch("incoming.auto_approve", _("Переносить без одобрения")) }}
+  <div class="row">{{ check("incoming", _("Проверить папку")) }}</div>
+{{ form_end() }}</article>
+<article class="round">
+  {% if not albums %}<p>{{ _("Пока ничего.") }}</p>{% endif %}
+  {% for a in albums %}
+  <div class="row"><div class="max"><b>{{ a.artist or "?" }} — {{ a.title }}</b>
+      <div class="small-text">{{ a.files }} {{ _("файлов") }} · {{ (a.size / 1048576) | round(1) }} {{ _("МБ") }} · {{ a.status }}{% if a.note %} · {{ a.note }}{% endif %}</div></div>
+    {% if a.status == "new" %}{% for v, icon in (("approve", "check"), ("reject", "close")) %}
+    <form method="post" action="/admin/incoming/{{ a.id }}/{{ v }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="circle {{ '' if v == 'approve' else 'border' }}"><i>{{ icon }}</i></button></form>{% endfor %}{% endif %}
+  </div>{% endfor %}
+</article>

@@ -1,0 +1,12 @@
+# Next to Kurai's docker-compose.yml, with this folder as ./kurai-incoming, and in Kurai's .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.incoming.yml
+# The web app and the worker run Kurai's image with the plugin (built here from the same Kurai version) and see the
+# data folder, where incoming/ and the library music/ are.
+services:
+  web:
+    image: kurai-incoming:${KURAI_VERSION:-latest}
+    build: {context: ./kurai-incoming, args: {KURAI_VERSION: "${KURAI_VERSION:-latest}"}}
+    volumes: ["${KURAI_DIR}/data:/data"]
+  worker:
+    image: kurai-incoming:${KURAI_VERSION:-latest}
+    volumes: ["${KURAI_DIR}/data:/data"]

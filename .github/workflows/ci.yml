@@ -23,5 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --frozen
-      - run: uv run ruff check src tests
+      - run: uv run ruff check src tests examples
       - run: uv run pytest -q
+      - name: the example plugin, inside Kurai
+        run: uv sync && uv run pytest -q
+        working-directory: examples/kurai-incoming

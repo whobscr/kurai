@@ -100,7 +100,8 @@ variables at `127.0.0.1`.
 
 Optional parts can come as plugins: Python packages with a `kurai.plugins` entry point, installed into Kurai's image.
 A plugin adds settings, jobs, steps of the night's work, pages, system settings tabs, checks, admin apps, docs,
-Telegram handlers and its own tables; `src/kurai/plugins.py` describes each hook.
+Telegram handlers and its own tables. How to write one: [docs/plugins.md](docs/plugins.md), with a working example in
+[examples/kurai-incoming](examples/kurai-incoming).
 
 ## Backups
 

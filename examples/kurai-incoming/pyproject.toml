@@ -1,0 +1,30 @@
+[project]
+name = "kurai-incoming"
+version = "0.2.2"
+description = "An example Kurai plugin: albums put into an «incoming» folder go into the library after an admin's approval"
+requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
+# a plugin runs inside Kurai's environment: it depends on Kurai (pinned to the versions it was written for) and uses
+# Kurai's libraries (SQLAlchemy, FastAPI, pydantic-settings…) without listing them again
+dependencies = ["kurai>=0.2.2,<0.3"]
+
+# how Kurai finds the plugin: the entry point group «kurai.plugins», pointing at a kurai.plugins.Plugin object
+[project.entry-points."kurai.plugins"]
+incoming = "kurai_incoming.plugin:plugin"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+# while developing next to a Kurai checkout; a release installs Kurai from its image instead
+kurai = { path = "../..", editable = true }
+
+[dependency-groups]
+dev = ["httpx>=0.28.1", "pytest>=9.2.0", "pytest-asyncio>=1.5.0"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
