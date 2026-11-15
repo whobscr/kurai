@@ -46,5 +46,5 @@ async def bootstrap() -> None:
         try:
             if await library.navidrome().ensure_admin(await library.admin_account(db)):
                 log.info("created Kurai's admin account in Navidrome")
-        except Exception as e:  # Navidrome may still be starting: the hourly setup tries again
+        except Exception as e:  # Navidrome may still be starting: the library sync and account changes try again
             log.warning("Navidrome's admin account not ready: %s", e)

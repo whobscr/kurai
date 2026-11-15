@@ -29,6 +29,15 @@ async def admin_account(db: AsyncSession) -> Account:
     return Account(await settings.get(db, "navidrome.admin_user"), await settings.get(db, "navidrome.admin_password"))
 
 
+async def admin_login(db: AsyncSession) -> tuple[Navidrome, str]:
+    """Navidrome and a token of Kurai's admin account there, the account made first when it's missing (Navidrome was
+    still starting when Kurai did, or it came up empty)."""
+    nd = navidrome()
+    account = await admin_account(db)
+    await nd.ensure_admin(account)
+    return nd, await nd.login(account)
+
+
 def user_account(user: User) -> Account | None:
     password = security.decrypt(user.navidrome_password)
     return Account(user.username, password) if password else None
@@ -44,8 +53,7 @@ def track_text(t: Track) -> str:
 
 async def sync_library(db: AsyncSession) -> dict:
     """Every song Navidrome has, upserted; songs it no longer has are removed (with their plays)."""
-    nd = navidrome()
-    token = await nd.login(await admin_account(db))
+    nd, token = await admin_login(db)
     started = datetime.now(UTC)
     count = 0
     async for song in nd.songs(token):

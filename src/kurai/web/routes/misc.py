@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 from kurai import __version__, plugins
 from kurai.config import get_config
+from kurai.integrations.navidrome import BASE_PATH
 from kurai.web.deps import Ctx, get_db, user_required
 from kurai.web.templating import ROOT, render
 
@@ -118,7 +119,7 @@ async def docs(request: Request, section: str = "user", slug: str = "", ctx: Ctx
 @router.api_route("/rest/{path:path}", methods=["GET", "POST"])
 async def subsonic(path: str, request: Request):
     base = get_config().navidrome_url.rstrip("/")
-    url = f"{base}/admin/apps/navidrome/rest/{path}" + (f"?{request.url.query}" if request.url.query else "")
+    url = f"{base}{BASE_PATH}/rest/{path}" + (f"?{request.url.query}" if request.url.query else "")
     session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None, sock_read=3600))
     upstream = await session.request(request.method, url, data=await request.body(),
                                      headers={k: v for k, v in request.headers.items()

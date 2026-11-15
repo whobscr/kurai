@@ -63,12 +63,11 @@ class FakeNavidrome:
 @pytest.fixture
 def navidrome(monkeypatch):
     fake = FakeNavidrome()
-    import kurai.accounts
     import kurai.bootstrap
     import kurai.recommend.library
     import kurai.recommend.playlists
 
-    for module in (kurai.recommend.library, kurai.accounts, kurai.recommend.playlists):
+    for module in (kurai.recommend.library, kurai.recommend.playlists):
         monkeypatch.setattr(module, "navidrome", lambda: fake)
     monkeypatch.setattr(kurai.bootstrap.library, "navidrome", lambda: fake)
     return fake

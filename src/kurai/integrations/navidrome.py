@@ -14,6 +14,9 @@ from kurai import outbound
 
 PAGE = 500
 CLIENT = "kurai"
+# Navidrome's URL base (ND_BASEURL in docker-compose.yml): it lives under the path the «Приложения» tab shows it at, so
+# every API of it is under this path too
+BASE_PATH = "/admin/apps/navidrome"
 
 
 class NavidromeError(Exception):
@@ -28,7 +31,8 @@ class Account:
 
 class Navidrome:
     def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
+        """`base_url`: Navidrome's address (KURAI_NAVIDROME_URL), without its URL base."""
+        self.base_url = base_url.rstrip("/") + BASE_PATH
 
     # ---------- native API ----------
 

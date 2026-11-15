@@ -227,3 +227,48 @@ async def test_audio_tab_saves_checks_and_starts_a_run(client, db):
     await settings.put(db, {"audio.enabled": False, "audio.url": "http://audio:8097"})
     await db.execute(Job.__table__.delete().where(Job.kind == "analyze_audio"))
     await db.commit()
+
+
+# ---------- Navidrome over HTTP ----------
+
+
+async def test_navidrome_is_reached_under_its_url_base_and_kurais_admin_made(db, monkeypatch):
+    """A real HTTP server that answers only under Navidrome's URL base, as Navidrome with ND_BASEURL does: Kurai's
+    admin account is made when missing, then used."""
+    from aiohttp import web
+
+    from kurai.integrations.navidrome import BASE_PATH, Navidrome
+    from kurai.recommend import library
+
+    admins: dict[str, str] = {}
+
+    async def login(request):
+        body = await request.json()
+        if admins.get(body["username"]) != body["password"]:
+            return web.json_response({"error": "Invalid username or password"}, status=401)
+        return web.json_response({"token": "tok-" + body["username"]})
+
+    async def create_admin(request):
+        body = await request.json()
+        if admins:
+            return web.json_response({"error": "already has an admin"}, status=403)
+        admins[body["username"]] = body["password"]
+        return web.json_response({"id": "1"})
+
+    app = web.Application()
+    app.router.add_post(f"{BASE_PATH}/auth/login", login)
+    app.router.add_post(f"{BASE_PATH}/auth/createAdmin", create_admin)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    try:
+        monkeypatch.setattr(library, "navidrome", lambda: Navidrome(f"http://127.0.0.1:{port}"))
+        nd, token = await library.admin_login(db)
+        assert token == f"tok-{await settings.get(db, 'navidrome.admin_user')}"
+        assert list(admins) == [await settings.get(db, "navidrome.admin_user")]
+        await library.admin_login(db)  # the second time it only logs in
+        assert len(admins) == 1
+    finally:
+        await runner.cleanup()
