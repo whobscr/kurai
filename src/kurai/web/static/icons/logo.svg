@@ -1,13 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kurai">
-  <!-- Kurai: a kurai (the Bashkir reed flute) across a rounded tile. Fixed colours: an icon is shown
-       outside the page's theme (tabs, home screens). -->
-  <rect width="512" height="512" rx="128" fill="#eaddff"/>
-  <g transform="rotate(-45 256 256)">
-    <rect x="58" y="226" width="396" height="60" rx="30" fill="#6750a4"/>
-    <rect x="402" y="226" width="52" height="60" rx="26" fill="#4f378b"/>
-    <circle cx="150" cy="256" r="12" fill="#eaddff"/>
-    <circle cx="206" cy="256" r="12" fill="#eaddff"/>
-    <circle cx="262" cy="256" r="12" fill="#eaddff"/>
-    <circle cx="318" cy="256" r="12" fill="#eaddff"/>
-  </g>
+  <!-- Kurai: two kurais (the Bashkir reed flute) crossed like an X, mouthpieces up, on nothing (transparent). Fixed
+       colours: an icon is shown outside the page's theme (tabs, home screens), so they read on light and dark. The
+       lower flute has a gap where the upper one crosses it, so they stay two. -->
+  <defs>
+    <g id="flute">
+      <rect x="40" y="226" width="432" height="60" rx="30" fill="#6750a4"/>
+      <rect x="414" y="226" width="58" height="60" rx="29" fill="#4f378b"/>
+      <circle cx="104" cy="256" r="11" fill="#eaddff"/>
+      <circle cx="152" cy="256" r="11" fill="#eaddff"/>
+      <circle cx="342" cy="256" r="11" fill="#eaddff"/>
+      <circle cx="390" cy="256" r="11" fill="#eaddff"/>
+    </g>
+    <mask id="gap" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <rect x="28" y="210" width="456" height="92" rx="46" fill="#000" transform="rotate(-135 256 256)"/>
+    </mask>
+  </defs>
+  <g mask="url(#gap)"><use href="#flute" transform="rotate(-45 256 256)"/></g>
+  <use href="#flute" transform="rotate(-135 256 256)"/>
 </svg>
