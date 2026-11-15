@@ -171,3 +171,39 @@ def test_wave_watcher_tells_plays_from_skips():
     assert w.update(t0 + timedelta(seconds=60), [{**entry, "id": "c"}, {**entry, "playerId": "2", "id": "x"}]) == []
     assert w.update(t0 + timedelta(seconds=45 + 200), [{**entry, "id": "d"}]) == [("ann", "c", False, 200)]
     assert ("ann", "2") not in w.playing  # that app stopped
+
+
+def test_the_bot_goes_through_a_socks5h_proxy():
+    """aiogram refuses «socks5h://» (the worker crashed on it at every start); the bot gets «socks5://», which it
+    resolves through the proxy anyway."""
+    from aiohttp_socks import ProxyConnector
+
+    from kurai.telegram.bot import session_for
+
+    session = session_for(outbound.Route("socks5h://user:pw@10.0.0.2:1080", None))
+    assert session._connector_type is ProxyConnector and session._connector_init["rdns"] is True
+    assert session._connector_init["host"] == "10.0.0.2" and session._connector_init["username"] == "user"
+    assert session_for(outbound.Route(None, None)).proxy is None
+
+
+async def test_a_failing_bot_never_stops_the_worker(monkeypatch):
+    import asyncio
+
+    from kurai.telegram import bot
+
+    calls = []
+
+    async def broken():
+        calls.append(1)
+        if len(calls) < 3:
+            raise ValueError("Invalid scheme component: socks5h")
+        raise asyncio.CancelledError  # the test's way out
+
+    async def no_wait(seconds):
+        pass
+
+    monkeypatch.setattr(bot, "_run_bot", broken)
+    monkeypatch.setattr(bot.asyncio, "sleep", no_wait)
+    with pytest.raises(asyncio.CancelledError):
+        await bot.run_bot()
+    assert len(calls) == 3  # tried again after each failure instead of raising

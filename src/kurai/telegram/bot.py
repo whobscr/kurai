@@ -73,7 +73,26 @@ def current_bot() -> Bot | None:
     return _bot
 
 
+def session_for(route: outbound.Route) -> AiohttpSession:
+    """aiogram's session through the gateway's route. aiogram doesn't know «socks5h://» (it refuses the URL), but
+    always resolves names through a SOCKS proxy itself (rdns), so «socks5://» means the same to it."""
+    if not route.proxy:
+        return AiohttpSession()
+    return AiohttpSession(proxy=route.proxy.replace("socks5h://", "socks5://", 1))
+
+
 async def run_bot() -> None:
+    """The bot, kept going: whatever goes wrong with it (Telegram, the proxy, a bad setting) is logged and tried again
+    in a minute, and never stops the worker it runs in (the jobs go on)."""
+    while True:
+        try:
+            await _run_bot()
+        except Exception:
+            log.exception("telegram bot failed; trying again in a minute")
+            await asyncio.sleep(60)
+
+
+async def _run_bot() -> None:
     """Polls Telegram while the bot is on; restarts on a change of its token or the gateway's settings."""
     global _bot
     while True:
@@ -84,7 +103,7 @@ async def run_bot() -> None:
             continue
         route = outbound.route_from(values, "telegram")
         signature = (values["telegram.token"], route)
-        session = AiohttpSession(proxy=route.proxy) if route.proxy else AiohttpSession()
+        session = session_for(route)
         _bot = Bot(values["telegram.token"], session=session)
         dp = build_dispatcher()
         polling = asyncio.create_task(dp.start_polling(_bot, handle_signals=False))
