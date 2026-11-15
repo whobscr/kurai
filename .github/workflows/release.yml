@@ -1,4 +1,5 @@
-# A tag v1.2.3 builds the images and pushes them to ghcr.io/<owner>/kurai:1.2.3 and kurai-audio:1.2.3 (and :latest)
+# A tag v1.2.3 builds the images and pushes them to ghcr.io/<owner>/kurai:1.2.3 and kurai-audio:1.2.3 (and :latest);
+# their build cache is kept as :buildcache next to them
 name: release
 on:
   push:
@@ -38,5 +39,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          # the build cache in the registry (a «buildcache» tag), not GitHub's Actions cache: that one is kept per tag,
+          # and every release is a new tag, so each release rebuilt the library layers from scratch; rebuilt, they got
+          # new digests, and every server downloaded them again (~0.7 GB) though no library had changed
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:buildcache,mode=max
