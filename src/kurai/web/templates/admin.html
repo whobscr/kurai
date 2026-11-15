@@ -78,7 +78,7 @@
   {% set a = audio %}
   <p>{{ _("Треков в библиотеке: {t}. По звуку разобрано: {s}, с описанием (CLAP): {c}. Ждут: {p}. Не получилось: {f}.").format(t=a.total, s=a.sound, c=a.clap, p=a.pending, f=a.failed) }}</p>
   {% if a.per_track %}<p class="small-text">{{ _("В среднем {s} с на трек: ночного окна хватает примерно на {n} треков.").format(s=a.per_track, n=((night_seconds / a.per_track) | int)) }}</p>{% endif %}
-  {% if a.last_job %}<p class="small-text">{{ _("Последний запуск") }} {{ a.last_job.finished_at | local }}: {{ a.last_job.error or (a.last_job.result | tojson) }}</p>{% endif %}
+  {% if a.last_job %}<p class="small-text">{{ _("Последний запуск") }} {{ a.last_job.finished_at | local }}: {{ a.last_job.error or (a.last_job.result | readable) }}</p>{% endif %}
   <div class="row wrap">
     <form method="post" action="/admin/audio/run"><input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="round border"><i>graphic_eq</i><span>{{ _("Разобрать 100 треков сейчас") }}</span></button></form>
@@ -187,7 +187,7 @@
     <thead><tr><th>#</th><th>{{ _("Задача") }}</th><th>{{ _("Состояние") }}</th><th>{{ _("Когда") }}</th><th>{{ _("Итог") }}</th></tr></thead>
     <tbody>{% for j in jobs %}<tr><td>{{ j.id }}</td><td>{{ j.kind }}{% if j.night_only %} 🌙{% endif %}</td><td>{{ j.status }}</td>
       <td class="small-text">{{ (j.finished_at or j.started_at or j.created_at) | local }}</td>
-      <td class="small-text job-result">{{ j.error or (j.result | tojson if j.result else "") }}</td></tr>
+      <td class="small-text job-result">{{ j.error or (j.result | readable if j.result else "") }}</td></tr>
     {% else %}<tr><td colspan="5">{{ _("Нет задач.") }}</td></tr>{% endfor %}</tbody>
   </table>
   {% set q = '&status=' ~ jobs_status if jobs_status else '' %}

@@ -1,9 +1,11 @@
 """Jinja2 templates with what every page needs: `_()`, the user, the theme, the CSRF token, the art pools."""
 
 import functools
+import json
 import random
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import jinja2
 import segno
@@ -45,6 +47,15 @@ def local(moment: datetime, fmt: str = "%d.%m %H:%M") -> str:
 
 
 templates.env.filters["local"] = local
+
+
+def readable(value: Any) -> str:
+    """A job's result as text: JSON with its letters as they are (tojson writes Cyrillic as \\uXXXX escapes); the page
+    escapes it like any text."""
+    return json.dumps(value, ensure_ascii=False)
+
+
+templates.env.filters["readable"] = readable
 
 
 @functools.cache

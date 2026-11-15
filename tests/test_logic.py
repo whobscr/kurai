@@ -207,3 +207,11 @@ async def test_a_failing_bot_never_stops_the_worker(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         await bot.run_bot()
     assert len(calls) == 3  # tried again after each failure instead of raising
+
+
+def test_job_results_read_as_written():
+    """Cyrillic as letters, not \\uXXXX; still escaped as HTML by the page."""
+    from kurai.web.templating import templates
+
+    html = templates.env.from_string("{{ r | readable }}").render(r={"skipped": "вкус ещё не известен", "x": "<b>"})
+    assert "вкус ещё не известен" in html and "\\u0432" not in html and "&lt;b&gt;" in html
