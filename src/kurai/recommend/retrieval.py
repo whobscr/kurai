@@ -2,7 +2,9 @@
 Discogs-EffNet, "sound") and CLAP's space of sound and words ("clap"). Each space with a query proposes its nearest
 tracks; every proposed track is then scored in all active spaces at once (vectors.Joint)."""
 
+from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import numpy as np
 from pgvector.sqlalchemy import Vector
@@ -104,15 +106,22 @@ async def candidates(db: AsyncSession, j: Joint, queries: dict[str, np.ndarray],
         ids.update((await db.execute(stmt)).scalars())
     if not ids:
         return []
-    rows = (await db.execute(_from().add_columns(
-        Track.id, Track.artist, Track.embedding, Track.embedding_model, TrackAudio.effnet, TrackAudio.effnet_model,
-        TrackAudio.clap, TrackAudio.clap_model).where(Track.id.in_(ids)))).all()
     query = j.vector(queries)
     out = []
-    for tid, artist, emb, emb_model, effnet, effnet_model, clap, clap_model in rows:
-        vector = j.item({"text": emb if emb_model == text_model else None,
-                         "sound": effnet if effnet_model == EFFNET_MODEL else None,
-                         "clap": clap if clap_model == CLAP_MODEL else None})
+    for tid, (artist, raw) in (await track_vectors(db, ids)).items():
+        vector = j.item(raw)
         out.append(Candidate(tid, artist, vector, float(np.dot(vector, query))))
     out.sort(key=lambda c: -c.relevance)
     return out
+
+
+async def track_vectors(db: AsyncSession, ids: Collection[str]) -> dict[str, tuple[str, dict[str, Any]]]:
+    """The tracks' artist and raw vectors by space (those of the current models only)."""
+    text_model = await settings.get(db, "embed.model")
+    rows = (await db.execute(_from().add_columns(
+        Track.id, Track.artist, Track.embedding, Track.embedding_model, TrackAudio.effnet, TrackAudio.effnet_model,
+        TrackAudio.clap, TrackAudio.clap_model).where(Track.id.in_(list(ids))))).all()
+    return {tid: (artist, {"text": emb if emb_model == text_model else None,
+                           "sound": effnet if effnet_model == EFFNET_MODEL else None,
+                           "clap": clap if clap_model == CLAP_MODEL else None})
+            for tid, artist, emb, emb_model, effnet, effnet_model, clap, clap_model in rows}

@@ -11,7 +11,7 @@ from kurai.audio import analyze as audio_analyze
 from kurai.db.models import Job, User
 from kurai.jobs import queue, window
 from kurai.notify import notify
-from kurai.recommend import library, playlists
+from kurai.recommend import library, playlists, wave
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +37,8 @@ async def _nightly(db, job: Job) -> dict:
             "taste": await library.build_taste(db, user),
             "playlists": await playlists.nightly(db, user),
         }
+        if await settings.get(db, "wave.enabled"):  # a fresh wave for the new day, from the new taste
+            result[f"user {user.username}"]["wave"] = await wave.build(db, user)
     for plugin in plugins.plugins():
         for name, step in plugin.nightly:
             result[name] = await step(db)
@@ -61,6 +63,10 @@ async def _ask(db, job: Job) -> dict:
     return result
 
 
+async def _wave(db, job: Job) -> dict:
+    return await wave.build(db, await db.get(User, job.payload["user_id"]))
+
+
 async def _explain(db, job: Job) -> dict:
     return {"text": await playlists.explain(db, await db.get(User, job.user_id), job.payload["track_id"])}
 
@@ -72,6 +78,7 @@ HANDLERS = {
     "sync_listens": _sync_listens,
     "ask": _ask,
     "explain": _explain,
+    "wave": _wave,
     "analyze_audio": audio_analyze.run,  # taken only by the audio container's lane
 }
 
@@ -177,7 +184,8 @@ async def main() -> None:
 
     # the scheduler returns when the plugins' switches change: the worker then stops, and Docker starts it again
     # (restart: unless-stopped); a job cut short is queued again at start
-    tasks = [asyncio.create_task(c) for c in (scheduler(state), lane(False, state), lane(True, state), run_bot())]
+    tasks = [asyncio.create_task(c) for c in (scheduler(state), lane(False, state), lane(True, state), run_bot(),
+                                              wave.watch())]
     done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     for task in pending:
         task.cancel()

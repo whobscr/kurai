@@ -189,6 +189,20 @@ class Job(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class WaveEvent(Base):
+    """What a user just did with a track, seen live in Navidrome's «now playing» («Моя волна» follows it): played on
+    or skipped."""
+
+    __tablename__ = "wave_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    track_id: Mapped[str] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"))
+    skipped: Mapped[bool] = mapped_column(Boolean)
+    seconds: Mapped[int] = mapped_column(Integer)  # how long it played
+    at: Mapped[datetime] = _now()
+
+
 class Notification(Base):
     __tablename__ = "notifications"
 

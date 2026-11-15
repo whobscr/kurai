@@ -57,7 +57,7 @@ def manual_jobs() -> dict[str, str]:
 # which settings each tab's form may write, and their types
 FIELDS: dict[str, dict[str, type]] = {
     "general": {"ui.default_accent": str, "night.start": str, "night.end": str, "playlists.per_night": int,
-                "telegram.enabled": bool, "telegram.token": str},
+                "wave.enabled": bool, "telegram.enabled": bool, "telegram.token": str},
     "models": {"llm.enabled": bool, "llm.provider": str, "llm.server_type": str, "llm.base_url": str,
                "llm.api_key": str, "llm.model": str, "llm.timeout": int, "llm.parallel": int,
                "embed.provider": str, "embed.base_url": str, "embed.api_key": str, "embed.model": str,

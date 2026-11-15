@@ -120,6 +120,12 @@ class Navidrome:
                                                            ("comment", comment)])
         return new_id
 
+    async def now_playing(self, account: Account) -> list[dict]:
+        """What every user is playing right now, by player: [{"id", "username", "playerId", "duration", …}] (the
+        apps report it as they start a track)."""
+        data = await self._subsonic(account, "getNowPlaying", [])
+        return (data.get("nowPlaying") or {}).get("entry") or []
+
     async def download(self, account: Account, song_id: str, dest: str) -> None:
         """The song's original file (Subsonic «download»), streamed to `dest`."""
         salt = secrets.token_hex(6)

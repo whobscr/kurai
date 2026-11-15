@@ -88,6 +88,8 @@ def _defaults() -> dict[str, Any]:
         # web push (VAPID keys made on first start)
         "webpush.public_key": "",
         "webpush.private_key": "",
+        # «Моя волна»: a playlist that follows what each user is listening to (Navidrome's «now playing»)
+        "wave.enabled": True,
         # the plugins switched off on «Плагины» (their names)
         plugins.DISABLED_KEY: [],
     }

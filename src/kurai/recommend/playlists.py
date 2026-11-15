@@ -42,7 +42,7 @@ PLAN_SCHEMA = {
 }
 
 
-async def _taste(db: AsyncSession, user: User) -> dict[str, np.ndarray]:
+async def taste_of(db: AsyncSession, user: User) -> dict[str, np.ndarray]:
     """The user's taste in each space it's known in (not centred)."""
     taste = await db.get(Taste, user.id)
     if taste is None:
@@ -70,7 +70,8 @@ async def _durations(db: AsyncSession, ids: list[str]) -> dict[str, int]:
     return dict((await db.execute(select(Track.id, Track.duration).where(Track.id.in_(ids)))).all())
 
 
-async def _write(db: AsyncSession, user: User, playlist: Playlist) -> None:
+async def write(db: AsyncSession, user: User, playlist: Playlist) -> None:
+    """Into Navidrome as the user's private playlist (the same one again when it has its id)."""
     account = user_account(user)
     if account is None:
         return
@@ -96,7 +97,7 @@ async def _name(db: AsyncSession, artists: list[str], hint: str) -> tuple[str, s
 async def nightly(db: AsyncSession, user: User, count: int | None = None, size: int = 30) -> dict:
     """The night's mixes for one user: different corners of their taste, each a varied, smoothly ordered set."""
     j = await retrieval.joint(db, await retrieval.space_weights(db, "mix"))
-    taste = {s: j.center(s, v) for s, v in (await _taste(db, user)).items() if s in j.weights}
+    taste = {s: j.center(s, v) for s, v in (await taste_of(db, user)).items() if s in j.weights}
     if not taste:
         return {"skipped": "вкус ещё не известен (мало прослушиваний)"}
     count = count or int(await settings.get(db, "playlists.per_night"))
@@ -121,7 +122,7 @@ async def nightly(db: AsyncSession, user: User, count: int | None = None, size: 
         playlist = Playlist(user_id=user.id, kind="nightly", name=name, description=description,
                             track_ids=[c.id for c in chosen])
         db.add(playlist)
-        await _write(db, user, playlist)
+        await write(db, user, playlist)
         made.append(name)
     await db.commit()
     return {"playlists": made}
@@ -136,7 +137,7 @@ async def _library_summary(db: AsyncSession) -> str:
             + ", ".join(f"{a} ({n})" for a, n in top))
 
 
-def _mix(j, space: str, parts: list[tuple[np.ndarray | None, float]]) -> np.ndarray | None:
+def mix_query(j, space: str, parts: list[tuple[np.ndarray | None, float]]) -> np.ndarray | None:
     """A query in one space from several directions, each centred first."""
     return blend([(j.center(space, v) if v is not None else None, w) for v, w in parts])
 
@@ -160,19 +161,19 @@ async def ask(db: AsyncSession, user: User, text: str) -> dict:
     if plan["intent"] == "answer":
         return {"answer": plan["answer"]}
     j = await retrieval.joint(db, await retrieval.space_weights(db, "ask"))
-    taste = await _taste(db, user)
+    taste = await taste_of(db, user)
     seeds = await retrieval.seeds(db, j, plan["seed_artists"])
     queries: dict[str, np.ndarray | None] = {}
     if "text" in j.weights:
         embedder = await llm.embed_model(db)
         mood = np.asarray((await embedder.embed([plan["mood_text"] or text]))[0], dtype=np.float32)
-        queries["text"] = _mix(j, "text", [(normalize(mood), 0.6), (seeds.get("text"), 0.25),
+        queries["text"] = mix_query(j, "text", [(normalize(mood), 0.6), (seeds.get("text"), 0.25),
                                            (taste.get("text"), 0.15)])
     if "clap" in j.weights:
         described = await audio_client.clap_text(db, plan.get("sound_en") or plan["mood_text"] or text)
-        queries["clap"] = _mix(j, "clap", [(described, 0.75), (seeds.get("clap"), 0.25)])
+        queries["clap"] = mix_query(j, "clap", [(described, 0.75), (seeds.get("clap"), 0.25)])
     if "sound" in j.weights:
-        queries["sound"] = _mix(j, "sound", [(seeds.get("sound"), 0.6), (taste.get("sound"), 0.4)])
+        queries["sound"] = mix_query(j, "sound", [(seeds.get("sound"), 0.6), (taste.get("sound"), 0.4)])
     candidates = await retrieval.candidates(db, j, queries, user, exclude_artists=set(plan["exclude_artists"]))
     if not candidates:
         return {"answer": _("В библиотеке пока нет подходящих треков с векторами (идёт индексация?).")}
@@ -182,7 +183,7 @@ async def ask(db: AsyncSession, user: User, text: str) -> dict:
     playlist = Playlist(user_id=user.id, kind="ask", name=plan["name"][:80] or _("По запросу"),
                         description=text[:300], track_ids=[c.id for c in chosen])
     db.add(playlist)
-    await _write(db, user, playlist)
+    await write(db, user, playlist)
     await db.commit()
     return {"playlist_id": playlist.id, "name": playlist.name, "tracks": len(chosen)}
 

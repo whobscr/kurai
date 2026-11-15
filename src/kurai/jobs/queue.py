@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kurai.db.models import Job
 
 # lanes: «general» runs one job at a time (syncs, the night's work, plugins' jobs); «interactive» runs what a person
-# waits for (a request to the model, an explanation), several at once up to «Параллельные запросы к модели»; «audio» is
-# the audio container's (kurai.audio), so the main worker never takes its jobs
-INTERACTIVE = {"ask", "explain"}
+# waits for (a request to the model, an explanation, «Моя волна»), several at once up to «Параллельные запросы к
+# модели»; «audio» is the audio container's (kurai.audio), so the main worker never takes its jobs
+INTERACTIVE = {"ask", "explain", "wave"}
 AUDIO = {"analyze_audio"}
 LANES = {"interactive": INTERACTIVE, "audio": AUDIO}
 

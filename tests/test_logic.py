@@ -155,3 +155,19 @@ def test_times_are_shown_in_the_servers_time_zone(monkeypatch):
     finally:
         monkeypatch.delenv("TZ")
         time.tzset()
+
+
+def test_wave_watcher_tells_plays_from_skips():
+    from kurai.recommend.wave import Watcher
+
+    w = Watcher()
+    t0 = datetime(2026, 11, 15, 20, 0, tzinfo=UTC)
+    entry = {"username": "ann", "playerId": "1", "duration": 240}
+    # already playing when the watching began: how long it played is unknown, so it gives no event
+    assert w.update(t0, [{**entry, "id": "a"}]) == []
+    assert w.update(t0 + timedelta(seconds=30), [{**entry, "id": "b"}]) == []
+    assert w.update(t0 + timedelta(seconds=45), [{**entry, "id": "c"}]) == [("ann", "b", True, 15)]  # skipped
+    # another app of hers is followed apart
+    assert w.update(t0 + timedelta(seconds=60), [{**entry, "id": "c"}, {**entry, "playerId": "2", "id": "x"}]) == []
+    assert w.update(t0 + timedelta(seconds=45 + 200), [{**entry, "id": "d"}]) == [("ann", "c", False, 200)]
+    assert ("ann", "2") not in w.playing  # that app stopped

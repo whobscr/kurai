@@ -6,7 +6,7 @@ import httpx
 import numpy as np
 import pyotp
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from kurai import settings
 from kurai.db.models import Job, Playlist, Setting, Track, User
@@ -184,7 +184,7 @@ async def test_user_cannot_open_admin_and_totp_flow(client, db):
 
 async def test_pages_docs_errors_and_pwa(client):
     await login(client, "admin", "a-long-password")
-    for path in ("/", "/ask", "/me", "/docs", "/docs/admin/audio", "/docs/changelog", "/admin/models",
+    for path in ("/", "/ask", "/me", "/docs", "/docs/admin/audio", "/docs/user/wave", "/docs/changelog", "/admin/models",
                  "/admin/gateway", "/admin/users", "/admin/apps", "/admin/plugins", "/admin/jobs"):
         r = await client.get(path)
         assert r.status_code == 200, (path, r.status_code)
@@ -311,3 +311,55 @@ async def test_an_app_is_asked_only_for_encodings_the_proxy_unpacks(client, monk
         assert r.status_code == 200 and r.text == "<h1>An app</h1>"
     finally:
         await runner.cleanup()
+
+
+# ---------- «Моя волна» ----------
+
+
+async def test_wave_follows_plays_and_skips(db, navidrome):
+    from datetime import UTC, datetime, timedelta
+
+    from kurai import security
+    from kurai.db.models import WaveEvent
+    from kurai.recommend import wave
+
+    model_name = await settings.get(db, "embed.model")
+    rng = np.random.default_rng(7)
+    calm, loud = np.eye(8)[0] * 5, np.eye(8)[1] * 5
+    for i in range(24):
+        base = calm if i < 12 else loud
+        db.add(Track(id=f"w{i}", title=f"Wave {i}", artist=f"Wave artist {i}", album="W", duration=200,
+                     embedding=(base + 0.1 * rng.normal(size=8)).tolist(), embedding_model=model_name))
+    user = User(username="wava", display_name="Wava", password_hash="x", navidrome_id="nd-wava",
+                navidrome_password=security.encrypt("pw"))
+    db.add(user)
+    await db.commit()
+
+    now = datetime.now(UTC)
+    # she plays two calm tracks on and skips two loud ones: the first wave is due at once
+    events = [("wava", "w0", False, 190), ("wava", "w1", False, 200), ("wava", "w12", True, 10),
+              ("wava", "w13", True, 8), ("someone", "w2", False, 200), ("wava", "unknown", False, 100)]
+    assert await wave.record(db, events, now) == [user.id]
+    stored = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars().all()
+    assert len(stored) == 4  # not other people's, not unknown tracks
+    job = (await db.execute(select(Job).where(Job.dedupe_key == f"wave:{user.id}"))).scalar_one()
+    assert job.kind == "wave" and job.status == "queued"
+
+    result = await wave.build(db, user)
+    assert result["played"] == 2 and result["skips"] == 2
+    playlist = (await db.execute(select(Playlist).where(Playlist.user_id == user.id,
+                                                        Playlist.kind == "wave"))).scalar_one()
+    calm_ids = {f"w{i}" for i in range(12)}
+    assert playlist.name == "Моя волна" and set(playlist.track_ids[:3]) <= calm_ids  # near what she played on
+    assert not {"w0", "w1", "w12", "w13"} & set(playlist.track_ids)  # nothing she just heard
+    assert navidrome.playlists[playlist.navidrome_id][1] == playlist.track_ids
+
+    # the same playlist next time, and not more often than every few minutes
+    job.status = "done"
+    await db.commit()
+    assert not await wave.due(db, user, now + timedelta(minutes=1))
+    await wave.record(db, [("wava", "w2", True, 5)], now + timedelta(minutes=5))
+    assert await wave.due(db, user, now + timedelta(minutes=5))  # a skip after the gap
+    await wave.build(db, user)
+    assert (await db.execute(select(func.count()).select_from(Playlist).where(
+        Playlist.user_id == user.id, Playlist.kind == "wave"))).scalar_one() == 1
