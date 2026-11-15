@@ -47,7 +47,18 @@ async def _nightly(db, job: Job) -> dict:
 
 
 async def _sync_listens(db, job: Job) -> dict:
-    return {u.username: await library.sync_listens(db, u) for u in await library.active_users(db)}
+    """Each user's plays on their own: one that fails (their Navidrome account) doesn't hold back the others; the job
+    fails at the end, naming them."""
+    result, failed = {}, []
+    for user in await library.active_users(db):
+        try:
+            result[user.username] = await library.sync_listens(db, user)
+        except Exception as e:
+            await db.rollback()
+            failed.append(f"{user.username}: {e}")
+    if failed:
+        raise RuntimeError("; ".join(failed) + (f" (остальные: {result})" if result else ""))
+    return result
 
 
 async def _embed_new(db, job: Job) -> dict:

@@ -408,3 +408,47 @@ async def test_every_settings_tab_links_its_help_page(client):
         path, _, anchor = link.partition("#")
         page = await client.get(path)
         assert page.status_code == 200 and (not anchor or f'id="{anchor}"' in page.text), link
+
+
+async def test_navidromes_login_limit_is_waited_out_and_logins_are_reused(monkeypatch):
+    """Navidrome answers «429 Too Many Requests» (plain text) to logins beyond its limit: Kurai waits and tries again,
+    never takes it for a missing account, and reuses a login instead of logging in for every job."""
+    from aiohttp import web
+
+    from kurai.integrations import navidrome as nd_module
+    from kurai.integrations.navidrome import BASE_PATH, Account, Navidrome, NavidromeError
+
+    calls = {"login": 0, "createAdmin": 0}
+
+    async def login(request):
+        calls["login"] += 1
+        if calls["login"] <= 2:
+            return web.Response(status=429, text="Too Many Requests")
+        return web.json_response({"token": "tok"})
+
+    async def limited(request):
+        return web.Response(status=429, text="Too Many Requests")
+
+    async def create_admin(request):
+        calls["createAdmin"] += 1
+        return web.json_response({"error": "already has an admin"}, status=403)
+
+    app = web.Application()
+    app.router.add_post(f"{BASE_PATH}/auth/login", login)
+    app.router.add_post(f"{BASE_PATH}/auth/createAdmin", create_admin)
+    app.router.add_get(f"{BASE_PATH}/api/limited", limited)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    monkeypatch.setattr(nd_module, "LOGIN_WAITS", (0, 0, 0))
+    try:
+        nd = Navidrome(f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}")
+        account = Account("kurai", "pw")
+        assert await nd.ensure_admin(account) is False  # it exists: the limit was waited out, nothing created
+        assert calls == {"login": 3, "createAdmin": 0}
+        assert await nd.login(account) == "tok" and calls["login"] == 3  # reused, no new login
+        with pytest.raises(NavidromeError, match="HTTP 429: Too Many Requests"):  # a plain-text error, as it is
+            await nd._json("GET", "/api/limited")
+    finally:
+        await runner.cleanup()

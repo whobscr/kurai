@@ -2,8 +2,10 @@
 private playlists. Navidrome's native API (/auth, /api) for accounts and the library; the Subsonic API (/rest) for
 playlists, written as the user (Navidrome makes the logged-in user a playlist's owner) and private (public=false)."""
 
+import asyncio
 import hashlib
 import secrets
+import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -20,7 +22,16 @@ BASE_PATH = "/admin/apps/navidrome"
 
 
 class NavidromeError(Exception):
-    pass
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status  # Navidrome's HTTP status; None when it didn't answer
+
+
+# Navidrome limits logins (a few per 20 s, against password guessing) and answers more with «429 Too Many Requests»:
+# a login is remembered for a while per account and reused, and one that hits the limit waits and tries again
+TOKEN_SECONDS = 30 * 60
+LOGIN_WAITS = (10, 20, 30)
+_tokens: dict[tuple[str, str, str], tuple[str, float]] = {}  # (base URL, user, password's hash) -> (token, until)
 
 
 @dataclass
@@ -41,16 +52,33 @@ class Navidrome:
         try:
             async with outbound.local_session() as s, \
                     s.request(method, self.base_url + path, headers=headers, **kwargs) as resp:
-                data = await resp.json(content_type=None)
+                # the status first: some errors (429) come as plain text, not JSON
                 if resp.status >= 400:
-                    raise NavidromeError(f"Navidrome {path}: HTTP {resp.status}: {str(data)[:200]}")
-                return data, dict(resp.headers)
+                    raise NavidromeError(f"Navidrome {path}: HTTP {resp.status}: {(await resp.text())[:200]}",
+                                         resp.status)
+                try:
+                    return await resp.json(content_type=None), dict(resp.headers)
+                except ValueError as e:
+                    raise NavidromeError(f"Navidrome {path}: не JSON: {(await resp.text())[:200]}") from e
         except aiohttp.ClientError as e:
             raise NavidromeError(f"Navidrome не отвечает: {e}") from e
 
     async def login(self, account: Account) -> str:
-        data, _ = await self._json("POST", "/auth/login",
-                                   json={"username": account.username, "password": account.password})
+        """A token of the account: a remembered one while it's fresh, else a login (waiting out Navidrome's limit)."""
+        key = (self.base_url, account.username, hashlib.sha256(account.password.encode()).hexdigest())
+        token, until = _tokens.get(key, ("", 0.0))
+        if token and until > time.monotonic():
+            return token
+        for attempt in range(len(LOGIN_WAITS) + 1):
+            try:
+                data, _ = await self._json("POST", "/auth/login",
+                                           json={"username": account.username, "password": account.password})
+                break
+            except NavidromeError as e:
+                if e.status != 429 or attempt == len(LOGIN_WAITS):
+                    raise
+                await asyncio.sleep(LOGIN_WAITS[attempt])
+        _tokens[key] = (data["token"], time.monotonic() + TOKEN_SECONDS)
         return data["token"]
 
     async def ensure_admin(self, account: Account) -> bool:
@@ -59,8 +87,9 @@ class Navidrome:
         try:
             await self.login(account)
             return False
-        except NavidromeError:
-            pass
+        except NavidromeError as e:
+            if e.status != 401:  # only «wrong login» means the account is missing (not a limit or an outage)
+                raise
         await self._json("POST", "/auth/createAdmin", json={"username": account.username,
                                                              "password": account.password})
         return True
