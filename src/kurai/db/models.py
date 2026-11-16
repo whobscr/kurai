@@ -182,7 +182,7 @@ class Playlist(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    kind: Mapped[str] = mapped_column(String(16))  # "nightly" | "ask" | "starter"
+    kind: Mapped[str] = mapped_column(String(16))  # "wave" | "nightly" | "ask" | "starter" | "saved" (the user's own)
     name: Mapped[str] = mapped_column(Text)
     description: Mapped[str] = mapped_column(Text, default="")
     track_ids: Mapped[list] = mapped_column(JSONB, default=list)

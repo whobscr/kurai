@@ -90,6 +90,7 @@
     <div class="player-bottom">
       <div class="player-rate">{{ rate_buttons("") }}
         <button type="button" class="circle transparent player-repeat" id="player-repeat" title="{{ _('Повтор') }} (R)" aria-pressed="false"><i>repeat</i></button>
+        <button type="button" class="circle transparent" id="player-queue-open" title="{{ _('Очередь') }} (Q)" aria-haspopup="dialog"><i>queue_music</i></button>
         <a class="button circle transparent" href="/history" title="{{ _('История') }}"><i>history</i></a>
         <button type="button" class="circle transparent player-keys-open" title="{{ _('Клавиши') }} (?)"><i>keyboard</i></button></div>
       <div class="player-progress">
@@ -102,11 +103,34 @@
       data-pending="{{ _('Собираю волну по вашему вкусу…') }}" data-updated="{{ _('Волна обновилась в {t} — по тому, что вы слушаете') }}"
       data-now="{{ _('Сейчас: {track}') }}" data-error="{{ _('Не получилось включить:') }}" data-wave="{{ _('Моя волна') }}"
       data-repeat-off="{{ _('Повтор выключен') }}" data-repeat-all="{{ _('Повтор плейлиста') }}" data-repeat-one="{{ _('Повтор трека') }}"
-      data-volume="{{ _('Громкость {n}%') }}" data-muted="{{ _('Звук выключен') }}"></audio>
+      data-volume="{{ _('Громкость {n}%') }}" data-muted="{{ _('Звук выключен') }}"
+      data-queue="{{ _('Очередь') }}" data-added="{{ _('В очереди: +{n}') }}" data-next="{{ _('Далее — добавленное вами') }}"
+      data-then="{{ _('Потом — «{name}»') }}" data-after="{{ _('Когда закончится — «Моя волна»') }}"
+      data-saved="{{ _('Сохранено: «{name}» в «Плейлистах»') }}" data-remove="{{ _('Убрать из очереди') }}"></audio>
   </footer>
   {# what went wrong with a ♥ or 👎, and what a key did (player.js) #}
   <div class="snackbar error" id="player-error"></div>
   <div class="snackbar" id="player-note"></div>
+  {# the player's list (player.js), from the bar's button or Q: what plays, what you added, what comes after; a track
+     plays on a tap, ✕ takes it out; «Сохранить» keeps it as a playlist of yours #}
+  <dialog class="player-queue" id="player-queue" aria-labelledby="player-queue-title">
+    <header class="row">
+      <div class="max"><h5 id="player-queue-title">{{ _("Очередь") }}</h5>
+        <span class="small-text" id="player-queue-source"></span></div>
+      <button type="button" class="circle transparent" id="player-queue-close" title="{{ _('Свернуть') }}"><i>expand_more</i></button>
+    </header>
+    <form class="row player-queue-save" id="player-queue-save">
+      <div class="field label border round small max"><input name="name" maxlength="100" required>
+        <label>{{ _("Название") }}</label></div>
+      <button class="round"><i>bookmark_add</i><span>{{ _("Сохранить") }}</span></button>
+    </form>
+    <div class="row player-queue-tools">
+      <span class="small-text max" id="player-queue-what"></span>
+      <button type="button" class="round border small" id="player-queue-clear"><i>clear_all</i><span>{{ _("Очистить") }}</span></button>
+    </div>
+    <ol class="player-queue-list" id="player-queue-list"></ol>
+    <p class="small-text player-queue-empty" id="player-queue-empty">{{ _("Пусто. Найдите музыку в «Музыке» и нажмите «В очередь» — или включите «Мою волну».") }}</p>
+  </dialog>
   {# the keys (player.js, kurai.js); opened by «?» or the bar's button #}
   <dialog class="player-keys" id="player-keys">
     <h6>{{ _("Клавиши") }}</h6>
@@ -118,6 +142,7 @@
                             ("↑ / ↓", _("громкость")), ("M", _("выключить / включить звук")),
                             ("L", _("♥ — нравится")), ("D", _("👎 — не нравится, пропустить")),
                             ("R", _("повтор: выключен → плейлист → трек")),
+                            ("Q", _("очередь")),
                             ("Enter", _("отправить форму (в многострочном поле — тоже; новая строка — Shift+Enter)")),
                             ("?", _("эта подсказка"))) %}
       <tr><td><kbd>{{ keys }}</kbd></td><td>{{ what }}</td></tr>{% endfor %}

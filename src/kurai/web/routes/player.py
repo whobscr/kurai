@@ -16,7 +16,7 @@ from kurai.db.models import Job, Listen, Playlist, Track
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER, Account, NavidromeError
 from kurai.jobs import queue as jobs
-from kurai.recommend import library, mixing, search, wave
+from kurai.recommend import library, mixing, playlists, search, wave
 from kurai.web import upstream
 from kurai.web.deps import Ctx, user_required
 from kurai.web.routes.misc import MEDIA_HEADERS
@@ -24,6 +24,8 @@ from kurai.web.routes.misc import MEDIA_HEADERS
 router = APIRouter(prefix="/player")
 HISTORY = 100  # the tracks of «История» the player plays on through
 RATINGS = ("like", "dislike", "none")  # ♥, 👎, neither
+SAVED_MAX = 2000  # tracks in a saved player's list
+NAME_MAX = 100
 log = logging.getLogger(__name__)
 COVER_SIZE = "600"
 
@@ -183,3 +185,23 @@ async def rate(track_id: str = Body(), value: str = Body(), ctx: Ctx = Depends(u
         log.warning("rate: %s", e)
         raise HTTPException(502, _("Navidrome не сохранил оценку: {e}").format(e=e)) from e
     return {"liked": listen.starred, "disliked": listen.rating in (1, 2)}
+
+
+@router.post("/save")
+async def save(name: str = Body(), track_ids: list[str] = Body(), ctx: Ctx = Depends(user_required)):
+    """The player's list saved under the user's name for it: a playlist of their own (in «Плейлисты» and Navidrome,
+    never removed by itself), with the tracks Kurai knows, in its order."""
+    name = name.strip()[:NAME_MAX]
+    ids = list(dict.fromkeys(track_ids))[:SAVED_MAX]
+    known = set((await ctx.db.execute(select(Track.id).where(Track.id.in_(ids)))).scalars()) if ids else set()
+    ids = [i for i in ids if i in known]
+    if not name or not ids:
+        raise HTTPException(422, _("Нужны название и хотя бы один трек"))
+    playlist = Playlist(user_id=ctx.user.id, kind="saved", name=name, track_ids=ids)
+    ctx.db.add(playlist)
+    try:
+        await playlists.write(ctx.db, ctx.user, playlist)
+    except NavidromeError as e:  # kept in Kurai: it plays here; music apps don't see it
+        log.warning("save playlist: %s", e)
+    await ctx.db.commit()
+    return {"id": playlist.id, "name": playlist.name, "tracks": len(ids)}

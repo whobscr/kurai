@@ -1035,3 +1035,35 @@ async def test_a_playlist_is_removed_and_its_rating_taken_back(client, db, navid
     ids = (mix.id, wave.id)
     db.expire_all()
     assert await db.get(Playlist, ids[0]) is None and await db.get(Playlist, ids[1]) is not None
+
+
+async def test_the_players_list_is_saved_as_the_users_own_playlist(client, db, navidrome):
+    """«Сохранить» in the player's list: a playlist of the user's own (known tracks, in order, no repeats), in
+    «Плейлисты» and Navidrome, never removed by the keeping days; the search offers «В очередь» for each result."""
+    from kurai import security
+    from kurai.recommend import playlists
+
+    db.add_all([Track(id=f"q{i}", title=f"Queued {i}", artist="Queue band", album="Q", album_id="al-q", duration=200)
+                for i in range(3)])
+    una = User(username="una", display_name="Уна", password_hash=security.hash_password("una-password"),
+               navidrome_id="nd-una", navidrome_password=security.encrypt("nd"))
+    db.add(una)
+    await db.commit()
+    await login(client, "una", "una-password")
+    page = (await client.get("/music", params={"q": "queue band"})).text
+    assert 'data-add="artist:Queue band"' in page and 'data-add="album:al-q"' in page
+    assert 'id="player-queue"' in page and 'id="player-queue-open"' in page  # the bar's list, on every page
+    form = {"X-CSRF-Token": csrf_of(page)}
+
+    r = await client.post("/player/save", json={"name": "  Моё  ", "track_ids": ["q2", "gone", "q0", "q2"]},
+                          headers=form)
+    assert r.status_code == 200 and r.json()["tracks"] == 2
+    saved = await db.get(Playlist, r.json()["id"])
+    assert (saved.kind, saved.name, saved.track_ids) == ("saved", "Моё", ["q2", "q0"])
+    assert navidrome.playlists[saved.navidrome_id] == ("Моё", ["q2", "q0"])
+    assert (await client.post("/player/save", json={"name": " ", "track_ids": ["q1"]}, headers=form)).status_code == 422
+    assert (await client.post("/player/save", json={"name": "x", "track_ids": ["gone"]},
+                              headers=form)).status_code == 422
+    home = (await client.get("/")).text
+    assert "Мой плейлист" in home and f'data-play="{saved.id}"' in home
+    assert saved.kind not in playlists.KEEP_DAYS  # never removed by itself

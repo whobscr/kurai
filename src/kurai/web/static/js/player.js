@@ -4,8 +4,11 @@
 // (asking after each report and every half a minute), without a gap. Buttons with data-play="wave" or a playlist's id
 // start it (data-start: from that track of it, as in «История»), or pause and resume what they started; data-play
 // "artist:…", "album:…" or "track:…" is a set chosen in the library search: played to its end, then on into the wave,
-// and a skip of what was chosen isn't told as one (a 👎 is). ♥ and 👎
-// (data-rate, data-track) rate a track. Repeat (off, the playlist, the track; the wave has no end, so no playlist
+// and a skip of what was chosen isn't told as one (a 👎 is). data-add (the same values) puts a set into the player's
+// list instead: the end of a chosen set, or right after the current track of the wave or a playlist (it plays next,
+// then they go on). The list («Очередь», from the bar or Q) shows what plays and what comes; a track plays on a tap,
+// ✕ takes it out, «Сохранить» keeps it as the user's own playlist. The list is kept on this device (a reload finds it
+// paused where it was). ♥ and 👎 (data-rate, data-track) rate a track. Repeat (off, the playlist, the track; the wave has no end, so no playlist
 // repeat there), the previous track, the volume and the keys (the «Клавиши» dialog lists them) are the player's too.
 // The phone's lock screen and headphones control it as well (Media Session).
 (() => {
@@ -14,7 +17,8 @@
   if (!bar || !audio) return;
   const els = {cover: $("player-cover"), title: $("player-title"), artist: $("player-artist"), source: $("player-source"),
     toggle: $("player-toggle"), next: $("player-next"), prev: $("player-prev"), seek: $("player-seek"),
-    time: $("player-time"), duration: $("player-duration"), repeat: $("player-repeat"), keys: $("player-keys")};
+    time: $("player-time"), duration: $("player-duration"), repeat: $("player-repeat"), keys: $("player-keys"),
+    queue: $("player-queue"), queueList: $("player-queue-list")};
   const store = {  // per-device remembering; private windows may refuse it
     get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
     set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* not remembered */ } },
@@ -26,8 +30,8 @@
     body: JSON.stringify(data)});
   const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-  let source = null;  // {which: "wave", a playlist's id or a chosen set, name, version, chosen}
-  let tracks = [], index = 0;
+  let source = null;  // {which: "wave", a playlist's id, a chosen set or "queue", name, version, chosen}
+  let tracks = [], index = 0;  // a track the user put in the list has `added`
   let played = 0, lastTime = 0;  // seconds the current track really played (seeking doesn't count)
   let failures = 0;
   const heard = new Set();  // this session's tracks: a new version of the wave doesn't bring them back
@@ -107,13 +111,14 @@
     }
   }
 
-  function playCurrent() {
+  // `autoplay` false: the track only made ready (a list restored, or filled while nothing played)
+  function playCurrent(autoplay = true) {
     const t = current();
     if (!t) return;
     heard.add(t.id);
     played = 0; lastTime = 0;
     audio.src = `/player/stream/${encodeURIComponent(t.id)}`;
-    audio.play().catch(() => {});  // a refused autoplay leaves the bar paused, ready for a tap
+    if (autoplay) audio.play().catch(() => {});  // a refused autoplay leaves the bar paused, ready for a tap
     bar.hidden = false;
     els.cover.src = `/player/cover/${encodeURIComponent(t.id)}`;
     els.title.textContent = t.title;
@@ -129,6 +134,8 @@
       navigator.mediaSession.metadata = new MediaMetadata({title: t.title, artist: t.artist, album: t.album,
         artwork: [{src: els.cover.src, sizes: "600x600"}]});
     }
+    keep();
+    showQueue();
   }
 
   // the current track gave way (next, the end, another source, the page closed): played on or skipped, told to the
@@ -139,7 +146,7 @@
     if (!t || (played < 1 && !disliked)) return;
     const seconds = Math.round(played);
     played = 0;
-    post("/player/event", {track_id: t.id, seconds, disliked, chosen: source.chosen}, true)
+    post("/player/event", {track_id: t.id, seconds, disliked, chosen: !!(t.added || source.chosen)}, true)
       .then((r) => (r.ok ? r.json() : {}))
       .then((r) => { if (r.rebuilding && isWave()) followRebuild(); })
       .catch(() => {});
@@ -202,8 +209,12 @@
         const data = await fetchQueue("wave");
         if (!data || !data.tracks || data.version === source.version) return false;
         const now = current();
-        const upcoming = data.tracks.filter((t) => !heard.has(t.id) && (!now || t.id !== now.id));
-        tracks = tracks.slice(0, index + 1).concat(upcoming);
+        const pending = tracks.slice(index + 1).filter((t) => t.added);  // what the user put in plays first
+        const upcoming = data.tracks.filter((t) => !heard.has(t.id) && (!now || t.id !== now.id)
+          && !pending.some((p) => p.id === t.id));
+        tracks = tracks.slice(0, index + 1).concat(pending, upcoming);
+        keep();
+        showQueue();
         source.version = data.version;
         setStatus("wave", say("updated", {t: new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}));
         return true;
@@ -225,11 +236,182 @@
   }
   setInterval(() => { if (isWave() && !audio.paused) refresh(); }, 30000);
 
+  // ---------- the list: kept on this device, filled from the search, shown in «Очередь», saved as a playlist ----------
+  const KEEP = "kurai.player";
+  let keptAt = 0;
+  function keep() {
+    if (!source || !tracks.length) { store.set(KEEP, ""); return; }
+    store.set(KEEP, JSON.stringify({source, tracks, index, position: Math.floor(audio.currentTime || 0)}));
+  }
+  function restore() {
+    let saved = null;
+    try { saved = JSON.parse(store.get(KEEP) || "null"); } catch { /* a broken one is forgotten */ }
+    if (!saved || !saved.source || !Array.isArray(saved.tracks) || !saved.tracks.length) return;
+    ({source, tracks} = saved);
+    index = Math.min(Math.max(0, saved.index | 0), tracks.length - 1);
+    playCurrent(false);
+    if (saved.position > 0) {
+      audio.addEventListener("loadedmetadata", () => { audio.currentTime = saved.position; lastTime = saved.position; },
+        {once: true});
+    }
+  }
+
+  // a chosen set (or the list itself) gets them at its end; the wave or a playlist right after the current track and
+  // what was added before, then goes on; nothing in the player: the list is made of them, ready, not playing
+  function add(items) {
+    const fresh = items.map((t) => ({...t, added: true}));
+    if (!fresh.length) return;
+    if (!source || !current()) {
+      source = {which: "queue", name: say("queue"), version: "", chosen: true};
+      tracks = fresh; index = 0;
+      playCurrent(false);
+    } else if (source.chosen) {
+      tracks = tracks.concat(fresh);
+      source.which = "queue"; source.name = say("queue");
+      els.source.querySelector("span").textContent = source.name;
+    } else {
+      let at = index + 1;
+      while (at < tracks.length && tracks[at].added) at += 1;
+      tracks.splice(at, 0, ...fresh);
+    }
+    note(say("added", {n: fresh.length}));
+    keep();
+    showQueue();
+    syncButtons();
+  }
+
+  // what the list shows: a chosen list whole (the heard ones dimmed), else from the current track: the added ones,
+  // then the wave's or the playlist's next
+  function showQueue() {
+    if (!els.queue) return;
+    const list = els.queueList;
+    list.replaceChildren();
+    $("player-queue-empty").hidden = !!tracks.length;
+    $("player-queue-source").textContent = source ? source.name : "";
+    $("player-queue-what").textContent = !source ? "" : source.chosen ? say("after")
+      : say("then", {name: source.name});
+    const from = source && source.chosen ? 0 : index;
+    let heading = "";
+    tracks.forEach((t, i) => {
+      if (i < from) return;
+      const part = i <= index || source.chosen ? "" : t.added ? say("next") : say("then", {name: source.name});
+      if (part && part !== heading) {
+        const h = document.createElement("li");
+        h.className = "player-queue-part small-text";
+        h.textContent = heading = part;
+        list.append(h);
+      }
+      const li = document.createElement("li");
+      li.className = `player-queue-item${i === index ? " current" : i < index ? " heard" : ""}`;
+      const play = document.createElement("button");
+      play.type = "button"; play.className = "player-queue-play"; play.dataset.jump = String(i);
+      const title = document.createElement("b"), who = document.createElement("span");
+      title.textContent = t.title;
+      who.className = "small-text"; who.textContent = t.artist + (t.album ? ` · ${t.album}` : "");
+      play.append(title, who);
+      const remove = document.createElement("button");
+      remove.type = "button"; remove.className = "circle transparent small"; remove.dataset.remove = String(i);
+      remove.title = say("remove");
+      remove.setAttribute("aria-label", say("remove"));
+      remove.innerHTML = "<i>close</i>";
+      li.append(play, remove);
+      list.append(li);
+    });
+    const now = list.querySelector(".current");
+    if (now && els.queue.open) now.scrollIntoView({block: "nearest"});
+  }
+
+  function jump(i) {
+    if (i === index || !tracks[i]) return;
+    report();
+    index = i;
+    playCurrent();
+  }
+
+  // out of the list; the one playing gives way to the next (the list ending: the player stops)
+  function remove(i) {
+    if (!tracks[i]) return;
+    if (i !== index) {
+      tracks.splice(i, 1);
+      if (i < index) index -= 1;
+      keep(); showQueue();
+      return;
+    }
+    const wasPlaying = !audio.paused;
+    report();
+    tracks.splice(i, 1);
+    if (!tracks.length) { clear(); return; }
+    index = Math.min(index, tracks.length - 1);
+    playCurrent(wasPlaying);
+  }
+
+  // «Очистить»: a chosen list is emptied and the player stops; the wave or a playlist only loses what was added
+  function clear() {
+    if (source && !source.chosen) {
+      tracks = tracks.filter((t, i) => i <= index || !t.added);
+      keep(); showQueue();
+      return;
+    }
+    report();
+    audio.pause();
+    audio.removeAttribute("src");
+    source = null; tracks = []; index = 0;
+    bar.hidden = true;
+    keep(); showQueue(); syncButtons();
+  }
+
+  // «Сохранить»: a chosen list whole; of the wave or a playlist, the current track and what was added
+  async function saveQueue(form) {
+    const name = form.elements.name.value.trim();
+    const picked = !source ? [] : source.chosen ? tracks
+      : tracks.filter((t, i) => i === index || (i > index && t.added));
+    if (!name || !picked.length) return;
+    try {
+      const response = await post("/player/save", {name, track_ids: picked.map((t) => t.id)});
+      const answer = await response.json();
+      if (!response.ok) throw new Error(answer.detail || response.status);
+      form.reset();
+      note(say("saved", {name: answer.name}));
+    } catch (e) {
+      const toast = $("player-error");
+      toast.textContent = String(e.message || e);
+      if (typeof ui === "function") ui("#player-error");
+    }
+  }
+
+  const openQueue = () => { if (els.queue && !els.queue.open) { showQueue(); els.queue.showModal(); } };
+  if (els.queue) {
+    $("player-queue-open").addEventListener("click", openQueue);
+    $("player-queue-close").addEventListener("click", () => els.queue.close());
+    $("player-queue-clear").addEventListener("click", clear);
+    els.queue.addEventListener("click", (e) => {
+      if (e.target === els.queue) { els.queue.close(); return; }  // the backdrop
+      const jumpTo = e.target.closest("[data-jump]"), out = e.target.closest("[data-remove]");
+      if (jumpTo) jump(Number(jumpTo.dataset.jump));
+      if (out) remove(Number(out.dataset.remove));
+    });
+    // its own submit, before kurai.js would take it as a page's form
+    $("player-queue-save").addEventListener("submit", (e) => { e.preventDefault(); saveQueue(e.target); });
+  }
+  document.addEventListener("click", async (e) => {
+    const button = e.target.closest("[data-add]");
+    if (!button || button.disabled) return;
+    try {
+      const data = await fetchQueue(button.dataset.add);
+      if (data && data.tracks) add(data.tracks);
+    } catch (err) {
+      const toast = $("player-error");
+      toast.textContent = String(err.message || err);
+      if (typeof ui === "function") ui("#player-error");
+    }
+  });
+
   // ---------- the audio element ----------
   audio.addEventListener("timeupdate", () => {
     const t = audio.currentTime;
     if (!audio.paused && t > lastTime && t - lastTime < 2) played += t - lastTime;
     lastTime = t;
+    if (Math.abs(t - keptAt) >= 10) { keptAt = t; keep(); }  // where it is, now and then (a reload resumes there)
     const d = audio.duration || (current() && current().duration) || 0;
     els.time.textContent = clock(t);
     if (d && document.activeElement !== els.seek) els.seek.value = String(Math.round((t / d) * 100));
@@ -338,14 +520,17 @@
       ArrowUp: () => setVolume(audio.volume + 0.1), ArrowDown: () => setVolume(audio.volume - 0.1),
       KeyM: () => { audio.muted = !audio.muted; note(audio.muted ? audio.dataset.muted : say("volume", {n: Math.round(audio.volume * 100)})); },
       KeyL: () => rateCurrent("like"), KeyD: () => rateCurrent("dislike"), KeyR: cycleRepeat,
+      KeyQ: openQueue,
     };
     const action = keys[e.code];
     // with nothing playing, only «play» means anything: the arrows still scroll the page
-    if (!action || (!playing && !["Space", "KeyK"].includes(e.code))) return;
+    if (!action || (!playing && !["Space", "KeyK", "KeyQ"].includes(e.code))) return;
     if (e.code === "Space" && e.target.closest && e.target.closest("button, a, summary")) e.target.blur();
     e.preventDefault();
     action();
   });
   document.addEventListener("kurai:page", syncButtons);
-  window.addEventListener("pagehide", report);
+  window.addEventListener("pagehide", () => { report(); keep(); });
+  audio.addEventListener("pause", keep);
+  restore();
 })();

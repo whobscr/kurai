@@ -21,7 +21,7 @@
     </div>
   </form>
   {% if not q %}
-  <p class="small-text">{{ _("Поиск по музыке, которая уже есть в библиотеке. У исполнителя — все его альбомы и кнопка «Слушать всё» (сначала самые популярные треки), у альбома и трека — своя кнопка. Когда найденное доиграет, дальше играет «Моя волна».") }}</p>
+  <p class="small-text">{{ _("Поиск по музыке, которая уже есть в библиотеке. У исполнителя — все его альбомы и кнопка «Слушать всё» (сначала самые популярные треки), у альбома и трека — своя кнопка. ▶ включает сразу, вместо очереди плеера; кнопка «В очередь» добавляет в её конец (а если играет волна или плейлист — следующим). Когда очередь доиграет, дальше играет «Моя волна».") }}</p>
   {% elif not found %}
   <p>{{ _("В библиотеке ничего не нашлось по запросу «{q}».").format(q=q) }}
     {% for href, label in music_tabs %}<a class="link" href="{{ href }}?q={{ q | urlencode }}">{{ _("Поискать во вкладке «{tab}»").format(tab=label) }}</a>{% endfor %}</p>
@@ -38,6 +38,10 @@
   <img src="/player/cover/{{ cover }}" alt="" loading="lazy">
   <i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
 {% endmacro %}
+{# into the player's list, after what's there (player.js); ▶ plays it at once instead, the list replaced #}
+{% macro add_button(which, label) %}
+<button type="button" class="circle transparent" data-add="{{ which }}" title="{{ _('В очередь') }}" aria-label="{{ _('В очередь: {name}').format(name=label) }}"><i>playlist_add</i></button>
+{% endmacro %}
 {% macro album_row(a, with_artist) %}
 <div class="history-row music-row">
   {{ play_cover("album:" ~ a.id, a.cover, _("Слушать альбом")) }}
@@ -46,6 +50,7 @@
     <b>{{ a.title }}</b>
     <span class="small-text">{% if with_artist %}{{ a.artist }} · {% endif %}{% if a.year %}{{ a.year }} · {% endif %}{{ _("треков: {n}").format(n=a.tracks) }}</span>
   </div>
+  <div class="history-rate">{{ add_button("album:" ~ a.id, a.title) }}</div>
 </div>
 {% endmacro %}
 
@@ -60,6 +65,7 @@
       <h6>{{ artist.name }}</h6>
       <span class="small-text">{{ _("альбомов в библиотеке: {n}").format(n=artist.albums | length) }} · {{ _("«Слушать всё» — сначала самые популярные треки") }}</span>
     </div>
+    {{ add_button("artist:" ~ artist.name, artist.name) }}
   </div>
   {% for a in artist.albums %}{{ album_row(a, false) }}{% endfor %}
 </article>
@@ -82,7 +88,7 @@
       <b>{{ t.title }}</b>
       <span class="small-text">{{ t.artist }}{% if t.album %} · {{ t.album }}{% endif %}</span>
     </div>
-    <div class="history-rate">{{ rate_buttons(t.id, listen and listen.starred, listen and listen.rating in (1, 2)) }}</div>
+    <div class="history-rate">{{ add_button("track:" ~ t.id, t.title) }}{{ rate_buttons(t.id, listen and listen.starred, listen and listen.rating in (1, 2)) }}</div>
   </div>
   {% endfor %}
 </article>

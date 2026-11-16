@@ -4,7 +4,8 @@
 {% block content %}
 {# each mix gets a cover shape of its own (by its number) and a colour by what made it #}
 {% set shapes = ["sided-cookie9", "sunny", "flower", "burst", "gem", "puffy", "soft-boom", "sided-cookie6", "clamshell", "pentagon"] %}
-{% set kinds = {"ask": ("auto_awesome", _("По просьбе")), "nightly": ("nights_stay", _("Ночной микс"))} %}
+{% set kinds = {"ask": ("auto_awesome", _("По просьбе")), "nightly": ("nights_stay", _("Ночной микс")),
+                 "saved": ("bookmark", _("Мой плейлист"))} %}
 {# 👍 and 👎; the one on, pressed again, is taken back. `sheet`: in the «Плейлисты» sheet (it opens again after) #}
 {% macro rate(p, sheet=false) %}
   {% for value, icon in ((1, "thumb_up"), (-1, "thumb_down")) %}
