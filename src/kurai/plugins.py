@@ -55,6 +55,7 @@ class App:
     # whether its page works inside the tab's frame; one that expects to be the whole page (its scripts break in a
     # frame) is offered in a new tab instead, still behind Kurai's login
     frame: bool = True
+    about: str = ""  # what it is for and what it does here, behind the «i» beside it
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ class Plugin:
     template_globals: dict[str, Any] = field(default_factory=dict)
     docs: Path | None = None  # <section>/NN-slug.md files, shown with Kurai's own
     telegram: Callable[[Any], None] | None = None  # (aiogram Dispatcher) -> registers its handlers
+    telegram_help: str = ""  # a line on what its handlers do, in the bot's /help
     share_path: str | None = None  # «Поделиться» opens this, "{q}" replaced by the shared text
     migrations: Path | None = None  # an Alembic script folder (with env.py)
 

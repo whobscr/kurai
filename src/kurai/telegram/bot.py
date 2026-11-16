@@ -1,7 +1,8 @@
 """The Telegram bot: the same features as the web app without installing anything.
 
 - /start <code>: links the chat to a Kurai account (the code comes from the personal cabinet; no password in a chat)
-- plugins' handlers (e.g. ordering albums), tried first
+- /help (or «помощь»): what the bot can do, with the plugins' lines
+- plugins' handlers, tried first
 - any other text: «Спросить» (a playlist or an answer, sent back when ready)
 
 It runs inside the worker, restarts itself when its token or the gateway's settings change, and goes through the
@@ -14,8 +15,8 @@ from datetime import UTC, datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.filters import CommandObject, CommandStart
-from aiogram.types import Message
+from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.types import BotCommand, Message
 from sqlalchemy import select, update
 
 from kurai import db as database
@@ -59,8 +60,24 @@ BAD_CODE = _("Код не подошёл или устарел (он дейст�
              "раз и пришлите новый код.")
 
 
+HELP_WORDS = {"помощь", "справка", "help", "что ты умеешь", "что ты умеешь?"}
+
+
+def help_text() -> str:
+    """What the bot can do: Kurai's own lines, then each plugin's."""
+    lines = [_("Что умеет бот Kurai:"),
+             _("• Напишите, что хотите послушать, — например «спокойное на вечер, как Bonobo». Подборка появится "
+               "в вашем музыкальном приложении, а сюда придёт сообщение."),
+             _("• Задайте вопрос о своей музыке — например «кого я слушаю чаще всего?» — бот ответит здесь."),
+             _("• Сюда приходят уведомления о готовых подборках (их включают в «Личный кабинет → Уведомления»).")]
+    lines += [f"• {p.telegram_help}" for p in plugins.plugins() if p.telegram_help]
+    lines.append(_("/help — эта справка. Подробнее — в веб-приложении Kurai, раздел «Справка → Telegram»."))
+    return "\n".join(lines)
+
+
 def _linked(user: User) -> str:
-    return _("Готово, {name}! Пишите, что хотите послушать.").format(name=user.display_name)
+    return _("Готово, {name}! Пишите, что хотите послушать, или /help — что умеет бот.").format(
+        name=user.display_name)
 
 
 def build_dispatcher() -> Dispatcher:
@@ -75,8 +92,14 @@ def build_dispatcher() -> Dispatcher:
             return
         # a plain /start: some apps don't pass the link's code into a chat that is already open
         user = await user_of(message.chat.id)
-        await message.answer(_("Этот чат уже подключён, {name}. Пишите, что хотите послушать.").format(
-            name=user.display_name) if user else NOT_LINKED)
+        await message.answer(_("Этот чат уже подключён, {name}. Пишите, что хотите послушать, или /help — что умеет "
+                               "бот.").format(name=user.display_name) if user else NOT_LINKED)
+
+    @dp.message(Command("help"))
+    @dp.message(F.text.func(lambda t: t.strip().lower() in HELP_WORDS))
+    async def help_(message: Message) -> None:
+        user = await user_of(message.chat.id)
+        await message.answer(help_text() if user else NOT_LINKED)
 
     for plugin in plugins.plugins():
         if plugin.telegram:
@@ -91,7 +114,8 @@ def build_dispatcher() -> Dispatcher:
             await message.answer(_linked(linked) if linked else NOT_LINKED)
             return
         if body.startswith("/"):
-            await message.answer(_("Таких команд нет: просто напишите, что хотите послушать или о чём спросить."))
+            await message.answer(_("Такой команды нет. /help — что умеет бот; а просто текст — это просьба о "
+                                   "музыке или вопрос."))
             return
         async with database.session() as db:
             await queue.enqueue(db, "ask", {"text": body[:1000], "reply_to": message.chat.id}, user_id=user.id,
@@ -145,6 +169,10 @@ async def _run_bot() -> None:
         session = session_for(route)
         _bot = Bot(values["telegram.token"], session=session)
         dp = build_dispatcher()
+        try:  # the command menu beside the chat's input field
+            await _bot.set_my_commands([BotCommand(command="help", description=_("Что умеет бот"))])
+        except Exception as e:
+            log.warning("telegram commands menu: %s", e)
         polling = asyncio.create_task(dp.start_polling(_bot, handle_signals=False))
         try:
             while not polling.done():

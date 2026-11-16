@@ -5,7 +5,7 @@ from pathlib import Path
 
 from kurai import plugins, settings
 from kurai.i18n import _
-from kurai_incoming import incoming, web
+from kurai_incoming import incoming, telegram, web
 
 ROOT = Path(__file__).parent
 
@@ -47,5 +47,7 @@ plugin = plugins.Plugin(
     checks={"incoming": check},
     templates=ROOT / "templates",
     docs=ROOT / "docs" / "ru",
+    telegram=telegram.register,
+    telegram_help=telegram.HELP,
     migrations=ROOT / "migrations",
 )

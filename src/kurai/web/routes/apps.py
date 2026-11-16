@@ -28,8 +28,14 @@ DROP_RESPONSE = {"connection", "keep-alive", "transfer-encoding", "content-encod
 
 
 def targets() -> dict[str, plugins.App]:
-    return {"navidrome": plugins.App("Navidrome", lambda: get_config().navidrome_url, True),
-            **plugins.merged("apps")}
+    return {"navidrome": plugins.App(
+        "Navidrome", lambda: get_config().navidrome_url, True,
+        about=_("Музыкальный сервер, на котором стоит Kurai: хранит и сканирует библиотеку (папку с музыкой), "
+                "отдаёт её музыкальным приложениям по протоколу Subsonic и записывает, что и сколько раз слушали. "
+                "Kurai читает отсюда библиотеку и прослушивания, а свои плейлисты пишет обратно — так они появляются "
+                "в любом плеере. Пользователи и пароли заводятся в Kurai и переносятся сюда сами; здесь — "
+                "сканирование, библиотеки, транскодирование и общие плейлисты.")),
+        **plugins.merged("apps")}
 
 
 # what a browser says of where a request comes from (Sec-Fetch-Site): from this site, or typed into the address bar

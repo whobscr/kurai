@@ -7,7 +7,8 @@
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="field textarea label border round">
       <textarea name="text" required maxlength="1000">{{ text or "" }}</textarea>
-      <label>{{ _("Например: что-нибудь спокойное на дождливый вечер, как Bonobo, но без вокала") }}</label>
+      <label>{{ _("Что послушать?") }}</label>
+      <span class="helper">{{ _("Например: что-нибудь спокойное на дождливый вечер, как Bonobo, но без вокала") }}</span>
     </div>
     <div class="row">
       <button class="round"><i>send</i><span>{{ _("Попросить") }}</span></button>

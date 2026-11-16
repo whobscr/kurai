@@ -54,6 +54,15 @@
       </div>
       {% endif %}
     </header>
+    {# offered by kurai.js where the browser can install Kurai and it isn't installed yet; «Не сейчас» hides it here #}
+    <article class="round install-banner primary-container" id="install-banner" hidden>
+      <div class="row"><i>install_mobile</i>
+        <span class="max">{{ _("Установите Kurai как приложение: значок на главном экране и push-уведомления.") }}</span></div>
+      <div class="row">
+        <button type="button" class="round install-now">{{ _("Установить") }}</button>
+        <a class="button round border install-how" href="/me#install">{{ _("Как установить") }}</a>
+        <button type="button" class="round transparent" id="install-later">{{ _("Не сейчас") }}</button></div>
+    </article>
     {% block content %}{% endblock %}
     <footer class="foot small-text">Kurai {{ version }} · <a href="/docs/changelog">{{ _("Что нового") }}</a> ·
       <a href="https://github.com/whobscr/kurai">{{ _("Исходный код") }}</a> (AGPL-3.0)</footer>

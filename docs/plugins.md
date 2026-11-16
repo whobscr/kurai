@@ -29,7 +29,7 @@ At start, Kurai loads every entry point in the group `kurai.plugins`. Each must 
 # pyproject.toml
 [project]
 name = "kurai-incoming"
-dependencies = ["kurai>=0.2.22,<0.3"]
+dependencies = ["kurai>=0.2.24,<0.3"]
 
 [project.entry-points."kurai.plugins"]
 incoming = "kurai_incoming.plugin:plugin"
@@ -70,6 +70,8 @@ plugin = plugins.Plugin(
     checks={"incoming": check},
     templates=ROOT / "templates",
     docs=ROOT / "docs" / "ru",
+    telegram=telegram.register,
+    telegram_help=_("«входящие» — сколько альбомов ждут одобрения (для администраторов)."),
     migrations=ROOT / "migrations",
 )
 ```
@@ -95,6 +97,7 @@ plugin = plugins.Plugin(
 | `template_globals` | Values or functions available in every template. Times from the database: `{{ t \| local }}` shows them in the server's time zone (`TZ`), `{{ t \| local("%d.%m") }}` in another format. |
 | `docs` | A folder `<section>/NN-slug.md` (`user` or `admin`), shown in Kurai's «Справка» among its own pages. |
 | `telegram` | `(dispatcher) -> None`: registers aiogram handlers, tried before Kurai's own «Спросить». |
+| `telegram_help` | One line on what your handlers do, listed in the bot's `/help` after Kurai's own lines. |
 | `share_path` | Where «Поделиться» from another app goes, `"{q}"` replaced by the shared text (the first plugin that sets it wins). |
 | `migrations` | An Alembic script folder with your tables (see below). |
 
@@ -187,13 +190,15 @@ with `kurai.web.routes.admin.back(tab, message)` to return to the tab with a mes
 
 - **Checks**: `{name: async (db) -> str}`. The button `{{ check(name) }}` posts to `/admin/check/<name>` and shows the
   returned text with the time it took, or the exception's message.
-- **Apps**: `plugins.App(label, url, keep_prefix, headers)`. The app is proxied under `/admin/apps/<name>/` for
-  admins only. Set the app's own URL base to that path where it can have one (`keep_prefix=True`); otherwise the
-  prefix is cut.
+- **Apps**: `plugins.App(label, url, keep_prefix, headers, frame=True, about="")`. The app is proxied under
+  `/admin/apps/<name>/` for admins only. Set the app's own URL base to that path where it can have one
+  (`keep_prefix=True`); otherwise the prefix is cut. `frame=False` offers it in a new tab only (for pages that break
+  in a frame). `about` is a few sentences on what the app is for and what it does in the system, shown behind the
+  «i» on «Приложения»; describe it in your docs too.
 - **Docs**: Markdown files in `docs/<section>/NN-slug.md`, the first line a `# Heading`. They're merged with Kurai's
   pages, ordered by file name, and appear at `/docs/<section>/<slug>`.
 - **Telegram**: `telegram=register`, where `register(dp)` adds aiogram handlers with filters narrow enough to leave
-  other messages to «Спросить». `kurai.telegram.bot.user_of(chat_id)` finds the linked Kurai user;
+  other messages to «Спросить»; `telegram_help` says what they do in the bot's `/help`. `kurai.telegram.bot.user_of(chat_id)` finds the linked Kurai user;
   `current_bot()` sends messages outside a handler (`None` while the bot is off).
 - **Sharing**: `share_path="/incoming?q={q}"` sends what's shared to Kurai's installed app on a phone to your page.
 

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.dialects.postgresql import insert
 
-from kurai import outbound, security, settings
+from kurai import notify, outbound, security, settings
 from kurai.db.models import PushSubscription
 from kurai.i18n import _
 from kurai.web.deps import Ctx, user_required
@@ -138,7 +138,8 @@ def _subscription(sub: Any) -> tuple[str, dict] | None:
 
 @router.post("/push")
 async def push_subscribe(request: Request, ctx: Ctx = Depends(user_required)):
-    """The browser's push subscription (sent by kurai.js)."""
+    """The browser's push subscription (sent by kurai.js): kept, push switched on for the user, and a test
+    notification sent to this device at once, so the page can say whether it really works."""
     try:
         parsed = _subscription(await request.json())
     except ValueError:
@@ -149,5 +150,7 @@ async def push_subscribe(request: Request, ctx: Ctx = Depends(user_required)):
     stmt = insert(PushSubscription).values(endpoint=endpoint, user_id=ctx.user.id, keys=keys)
     await ctx.db.execute(stmt.on_conflict_do_update(index_elements=[PushSubscription.endpoint],
                                                     set_={"user_id": ctx.user.id, "keys": keys}))
+    ctx.user.notify_push = True
     await ctx.db.commit()
-    return {"ok": True}
+    error = await notify.push_test(ctx.db, endpoint, keys)
+    return {"ok": error is None, "detail": error or ""}

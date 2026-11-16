@@ -20,6 +20,7 @@ from kurai.db.models import Job, LlmCall, User
 from kurai.i18n import _
 from kurai.jobs import queue, window
 from kurai.web.deps import Ctx, admin_required
+from kurai.web.routes import apps
 from kurai.web.templating import render
 
 router = APIRouter(prefix="/admin")
@@ -149,8 +150,7 @@ async def _tab_data(ctx: Ctx, tab: str, page: int = 1, status: str = "") -> dict
     if tab == "users":
         data["users"] = (await db.execute(select(User).order_by(User.id))).scalars().all()
     if tab == "apps":
-        data["apps"] = [("navidrome", "Navidrome", True)] + [(k, a.label, a.frame)
-                                                             for k, a in plugins.merged("apps").items()]
+        data["apps"] = list(apps.targets().items())
     if tab == "plugins":
         off = set(await settings.get(db, plugins.DISABLED_KEY))
         data["plugin_list"] = [(p, p.name not in off) for p in plugins.installed()]

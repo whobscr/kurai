@@ -113,24 +113,26 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .app-stage:fullscreen .app-exit { display: inline-flex !important; position: absolute; right: 1rem; bottom: 1rem;
   box-shadow: var(--elevate2); opacity: .75; }
 .app-stage:fullscreen .app-exit:hover, .app-stage:fullscreen .app-exit:focus-visible { opacity: 1; }
-/* the run-now buttons: each with an «i» that shows what it does, over the page (on hover, or opened by a tap) */
+/* an «i» that shows what something is or does, over the page (on hover, or opened by a tap): beside the run-now
+   buttons, the apps */
 .manual-job { display: inline-flex; align-items: center; gap: .1rem; position: relative; margin: 0; }
 .manual-job button { margin: 0; }
-.job-info > summary { list-style: none; cursor: pointer; display: flex; padding: .25rem; border-radius: 50%;
+.info-tip { position: relative; display: inline-flex; }
+.info-tip > summary { list-style: none; cursor: pointer; display: flex; padding: .25rem; border-radius: 50%;
   color: var(--on-surface-variant); }
-.job-info > summary::-webkit-details-marker { display: none; }
-.job-info > summary:hover, .job-info[open] > summary { color: var(--primary); }
-.job-info-text { display: none; position: absolute; z-index: 5; inset-block-start: calc(100% + .35rem);
+.info-tip > summary::-webkit-details-marker { display: none; }
+.info-tip > summary:hover, .info-tip[open] > summary { color: var(--primary); }
+.info-tip-text { display: none; position: absolute; z-index: 5; inset-block-start: calc(100% + .35rem);
   inset-inline-start: 0; inline-size: min(22rem, 85vw); padding: .75rem 1rem; border-radius: 1rem; opacity: 1;
   background: var(--surface-container-highest); color: var(--on-surface); box-shadow: var(--elevate2); }
-.job-info[open] .job-info-text { display: block; }
+.info-tip[open] .info-tip-text { display: block; }
 .job-filters { margin-bottom: .75rem; }
 .pager { margin-top: .75rem; }
 .job-result { max-width: 30rem; overflow-wrap: anywhere; }
 .profile { display: flex; margin: .25rem 0; }
 
 /* ---------- docs: a wiki-like sidebar and page ---------- */
-.docs { display: grid; grid-template-columns: 15rem 1fr; gap: 1rem; align-items: start; }
+.docs { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1rem; align-items: start; }
 .docs-nav { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: .15rem; }
 .docs-nav h6 { font-size: .95rem; font-weight: 600; margin: 1rem .75rem .25rem; }
 .docs-nav a { display: block; text-align: left; padding: .35rem .75rem; border-radius: 1rem; }
@@ -141,7 +143,33 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .markdown code { background: var(--surface-variant); padding: 0 .3rem; border-radius: .3rem; }
 .markdown pre code { display: block; padding: .75rem; overflow-x: auto; }
 .markdown .admonition { border-left: 4px solid var(--primary); padding: .25rem 1rem; background: var(--surface-container, var(--surface-variant)); border-radius: .5rem; }
-@media (max-width: 900px) { .docs { grid-template-columns: 1fr; } .docs-nav { position: static; } }
+/* the page's width never comes from a wide diagram or table: those scroll inside it */
+.docs-body { min-inline-size: 0; }
+.markdown table { display: block; overflow-x: auto; }
+@media (max-width: 900px) { .docs { grid-template-columns: minmax(0, 1fr); } .docs-nav { position: static; } }
+/* a diagram in the docs (inline SVG): theme colours only; on a narrow screen it scrolls sideways at a readable size */
+.diagram { overflow-x: auto; margin: 1rem 0; }
+.diagram svg { display: block; inline-size: 100%; min-inline-size: 40rem; block-size: auto; font-size: 12px; }
+.diagram text { fill: var(--on-surface); text-anchor: middle; }
+.diagram .l { text-anchor: start; }
+.diagram .r { text-anchor: end; }
+.diagram .name { font-weight: 600; font-size: 13px; }
+.diagram .box rect { fill: var(--surface-container-high); stroke: var(--outline); }
+.diagram .core rect { fill: var(--primary-container); stroke: var(--primary); }
+.diagram .core text { fill: var(--on-primary-container); }
+.diagram .data rect { fill: var(--secondary-container); stroke: var(--secondary); }
+.diagram .data text { fill: var(--on-secondary-container); }
+.diagram .model rect, .diagram .plugin rect { fill: var(--tertiary-container); stroke: var(--tertiary); }
+.diagram .model text, .diagram .plugin text { fill: var(--on-tertiary-container); }
+.diagram .plugin rect { stroke-dasharray: 6 4; }
+.diagram .zone rect { fill: none; stroke: var(--outline-variant, var(--outline)); stroke-dasharray: 4 4; }
+.diagram .zone text { text-anchor: start; font-size: 12px; fill: var(--on-surface-variant); }
+.diagram .link path { fill: none; stroke: var(--primary); stroke-width: 1.6; }
+.diagram .link .dashed { stroke: var(--tertiary); stroke-dasharray: 5 4; }
+.diagram .head { fill: var(--primary); }
+.diagram .note text { font-size: 11px; fill: var(--on-surface-variant); }
+/* a text field's hint under it */
+.field > .helper { display: block; margin: .25rem 1.5rem 0; font-size: .8rem; opacity: .8; }
 
 /* ---------- the pictures: theme tokens only ---------- */
 .art .p { fill: var(--primary); } .art .pc { fill: var(--primary-container); } .art .on-pc { fill: var(--on-primary-container); }
@@ -160,6 +188,18 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .tabs { contain: inline-size; overscroll-behavior-x: contain; }  /* its width never comes from its tabs */
 .field { max-inline-size: 100%; }
 .field > select, .field > input { min-inline-size: 0; max-inline-size: 100%; text-overflow: ellipsis; }
+/* a select's chosen option stays on one line (Chrome wraps it over the label); a long label is cut at the field's
+   edge instead of running out of it (Beer CSS keeps labels on one line) */
+.field > select { white-space: nowrap; overflow: hidden; }
+.field.label > label { overflow: hidden; }
+/* rows of fields and buttons wrap instead of running off the screen; a field in such a row shares it */
+main .row { flex-wrap: wrap; }
+main .row > :is(.max, .small-text) { white-space: normal; min-inline-size: 0; }
+main .row > .field { flex: 1 1 12rem; }
+main .row > :is(form, div) { min-inline-size: 0; max-inline-size: 100%; }  /* a nested row wraps inside the screen */
+.user-row > .max { flex: 1 1 12rem; }
+/* what the scripts hide stays hidden, whatever display Beer CSS gives the element (buttons, rows) */
+[hidden] { display: none !important; }
 article > table { display: block; overflow-x: auto; }
 
 /* ---------- «Для вас»: the wave large on the left, the notifications in a narrow column, then the mixes ---------- */

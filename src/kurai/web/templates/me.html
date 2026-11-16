@@ -83,10 +83,32 @@
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label class="checkbox"><input type="checkbox" name="push" {{ 'checked' if user.notify_push }}><span>{{ _("Push в браузере и приложении") }}</span></label>
     <label class="checkbox"><input type="checkbox" name="telegram" {{ 'checked' if user.notify_telegram }}><span>{{ _("В Telegram") }}</span></label>
-    <div class="row wrap"><button class="round border">{{ _("Сохранить") }}</button>
-      <button type="button" class="round transparent" id="push-enable" data-key="{{ push_key }}"
-        data-unsupported="{{ _('Этот браузер не поддерживает push') }}" data-denied="{{ _('Разрешение не дано') }}"
-        data-done="{{ _('Push включён на этом устройстве') }}" data-failed="{{ _('Не удалось включить push') }}">{{ _("Разрешить push на этом устройстве") }}</button></div>
+    <div class="row"><button class="round border">{{ _("Сохранить") }}</button></div>
   </form>
+  {# push needs each device's own permission: kurai.js shows this device's state and turns it on #}
+  <h6>{{ _("Push на этом устройстве") }}</h6>
+  <p class="small-text" id="push-status" data-key="{{ push_key }}" data-user-on="{{ 1 if user.notify_push else 0 }}"
+     data-checking="{{ _('Проверяю…') }}"
+     data-off="{{ _('Ещё не включён: браузер спросит разрешение, затем придёт проверочное уведомление.') }}"
+     data-on="{{ _('Включён: это устройство подписано на уведомления Kurai.') }}"
+     data-unsupported="{{ _('Этот браузер не умеет push-уведомления.') }}"
+     data-ios="{{ _('На iPhone и iPad push работает только в установленном приложении: сначала установите Kurai на экран «Домой» (см. «Приложение на телефоне» ниже) и откройте его оттуда.') }}"
+     data-denied="{{ _('Уведомления для этого сайта запрещены в браузере. Разрешите их в настройках сайта (значок у адреса → «Уведомления») и нажмите кнопку ещё раз.') }}"
+     data-nokey="{{ _('На сервере нет ключей push — сообщите администратору.') }}"
+     data-sent="{{ _('Готово: отправлено проверочное уведомление. Если оно не появилось, проверьте, разрешены ли уведомления для браузера в настройках телефона.') }}"
+     data-failed="{{ _('Не получилось:') }}"></p>
+  <button type="button" class="round" id="push-enable" hidden><i>notifications_active</i><span>{{ _("Включить push на этом устройстве") }}</span></button>
+</article>
+
+<article class="round" id="install">
+  <h6>{{ _("Приложение на телефоне") }}</h6>
+  <p class="small-text">{{ _("Kurai можно установить как приложение: значок на главном экране, своё окно без адресной строки, push-уведомления и «Поделиться» из других приложений.") }}</p>
+  {# kurai.js shows the part that fits this device #}
+  <p class="install-state" data-state="installed" hidden>{{ _("Kurai уже открыт как установленное приложение.") }}</p>
+  <div class="install-state" data-state="prompt" hidden>
+    <button type="button" class="round install-now"><i>install_mobile</i><span>{{ _("Установить приложение") }}</span></button></div>
+  <p class="install-state" data-state="ios" hidden>{{ _("В Safari нажмите «Поделиться» (квадрат со стрелкой вверх) → «На экран „Домой“» → «Добавить».") }}</p>
+  <p class="install-state" data-state="other" hidden>{{ _("Откройте меню браузера (⋮ в Chrome, ≡ в Firefox) и выберите «Установить приложение» или «Добавить на главный экран». На компьютере в Chrome и Edge — значок установки в конце адресной строки.") }}</p>
+  <a class="small-text" href="/docs/user/start#install">{{ _("Подробнее в справке") }}</a>
 </article>
 {% endblock %}

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kurai import outbound, settings
 from kurai.config import get_config
 from kurai.db.models import Notification, PushSubscription, User
+from kurai.i18n import _
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +58,24 @@ async def _telegram(values: dict, chat_id: int, text: str, link: str) -> None:
 
 
 async def _push(db: AsyncSession, values: dict, user_id: int, text: str, link: str) -> None:
-    """Web push (VAPID). pywebpush sends with requests; the gateway's proxy is given to its session."""
+    subs = (await db.execute(select(PushSubscription).where(PushSubscription.user_id == user_id))).scalars().all()
+    for error in await _send_push(db, values, [(s.endpoint, s.keys) for s in subs], text, link):
+        log.warning("web push: %s", error)
+
+
+async def push_test(db: AsyncSession, endpoint: str, keys: dict) -> str | None:
+    """A test notification to one device (its subscription just made): the error to show, or None when the push
+    service took it."""
+    values = await settings.get_all(db)
+    if not values["webpush.private_key"]:
+        return "no VAPID key"
+    errors = await _send_push(db, values, [(endpoint, keys)], _("Push-уведомления работают на этом устройстве."), "/me")
+    return errors[0] if errors else None
+
+
+async def _send_push(db: AsyncSession, values: dict, subs: list[tuple[str, dict]], text: str, link: str) -> list[str]:
+    """Web push (VAPID) to these subscriptions; the errors. pywebpush sends with requests; the gateway's proxy is
+    given to its session. A subscription the browser dropped is removed."""
     import asyncio
 
     import requests
@@ -66,21 +84,21 @@ async def _push(db: AsyncSession, values: dict, user_id: int, text: str, link: s
     route = outbound.route_from(values, "webpush")
     payload = json.dumps({"title": "Kurai", "body": text, "url": link or "/"})
     subject = f"mailto:kurai@{urlsplit(get_config().base_url).hostname or 'localhost'}"
-    subs = (await db.execute(select(PushSubscription).where(PushSubscription.user_id == user_id))).scalars().all()
+    errors = []
     with requests.Session() as session:
         if route.proxy:
             session.proxies = {"https": route.proxy, "http": route.proxy}
-        for sub in subs:
+        for endpoint, keys in subs:
             try:
                 await asyncio.to_thread(
-                    webpush, {"endpoint": sub.endpoint, "keys": sub.keys}, payload,
+                    webpush, {"endpoint": endpoint, "keys": keys}, payload,
                     vapid_private_key=values["webpush.private_key"], vapid_claims={"sub": subject},
                     requests_session=session, timeout=20)
             except WebPushException as e:
                 if e.response is not None and e.response.status_code in (404, 410):  # the browser dropped it
-                    await db.execute(delete(PushSubscription).where(PushSubscription.endpoint == sub.endpoint))
+                    await db.execute(delete(PushSubscription).where(PushSubscription.endpoint == endpoint))
                     await db.commit()
-                else:
-                    log.warning("web push: %s", e)
+                errors.append(str(e))
             except Exception as e:
-                log.warning("web push: %s", e)
+                errors.append(str(e))
+    return errors

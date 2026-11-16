@@ -2,7 +2,7 @@
 {% block title %}{{ _("Системные настройки") }}{% endblock %}
 {% block heading %}{{ _("Системные настройки") }}{% endblock %}
 
-{% from "admin_macros.html" import text, secret, switch, select, check, form_start as _form_start, form_end with context %}
+{% from "admin_macros.html" import text, secret, switch, select, check, info, form_start as _form_start, form_end with context %}
 {% macro form_start() %}{{ _form_start(tab) }}{% endmacro %}
 
 {% block content %}
@@ -133,10 +133,12 @@
 
 {% elif tab == "apps" %}
 <div class="tabs left-align apps-tabs">
-  {% for app, label, framed in apps %}
-  <a data-app="{{ app }}" data-label="{{ label }}" data-frame="{{ 'yes' if framed else 'no' }}" class="{{ 'active' if loop.first }}">{{ label }}</a>{% endfor %}
+  {% for name, app in apps %}
+  <a data-app="{{ name }}" data-label="{{ app.label }}" data-frame="{{ 'yes' if app.frame else 'no' }}" data-about="{{ app.about }}" class="{{ 'active' if loop.first }}">{{ app.label }}</a>{% endfor %}
 </div>
 <div class="row wrap app-actions">
+  {# what the chosen app is for: kurai.js puts the chosen tab's text here #}
+  {{ info(apps[0][1].about, "app-info") }}
   {# shown by kurai.js only where the browser can show an element on the whole screen (not on iPhones) #}
   <button type="button" id="app-full" class="round" hidden><i>fullscreen</i><span>{{ _("На весь экран") }}</span></button>
   <a id="app-tab" class="button border round" href="/admin/apps/{{ apps[0][0] }}/" target="_blank" rel="noopener"><i>open_in_new</i><span>{{ _("Открыть в новой вкладке") }}</span></a>
@@ -179,7 +181,7 @@
   <form method="post" action="/admin/jobs/run/{{ kind }}" class="manual-job"><input type="hidden" name="csrf" value="{{ csrf }}">
     <button class="round border small">{{ label }}</button>
     {# what it does: on hover, or on a tap (phones) #}
-    {% if about %}<details class="job-info"><summary title="{{ _('Что делает') }}"><i>info</i></summary><div class="job-info-text small-text">{{ about }}</div></details>{% endif %}
+    {% if about %}{{ info(about) }}{% endif %}
   </form>{% endfor %}
   </div>
 </article>

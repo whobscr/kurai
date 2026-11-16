@@ -1,5 +1,5 @@
 {# The form pieces of «Системные настройки», for Kurai's tabs and the plugins' ones:
-   {% from "admin_macros.html" import text, secret, switch, select, check, form_start, form_end %} #}
+   {% from "admin_macros.html" import text, secret, switch, select, check, info, form_start, form_end %} #}
 {% macro text(key, label, type="text", help="") %}
 <div class="field label border round"><input name="{{ key }}" type="{{ type }}" value="{{ values[key] if values[key] is not none else '' }}"
   {% if type == "number" %}step="any"{% endif %}><label>{{ label }}</label>{% if help %}<span class="helper">{{ help }}</span>{% endif %}</div>
@@ -22,6 +22,11 @@
 {% macro check(what, label=None) %}
 <button type="button" class="round border check" data-check="{{ what }}"><i>network_check</i><span>{{ label or _("Проверить") }}</span></button>
 <span class="check-result small-text" data-for="{{ what }}"></span>
+{% endmacro %}
+{% macro info(text, id="") %}
+{# an «i» that shows `text` on hover or a tap (kurai.js) #}
+<details class="info-tip"{% if id %} id="{{ id }}"{% endif %}{% if not text %} hidden{% endif %}><summary title="{{ _('Что это') }}"><i>info</i></summary>
+  <div class="info-tip-text small-text">{{ text }}</div></details>
 {% endmacro %}
 {% macro form_start(tab) %}<form method="post" action="/admin/{{ tab }}"><input type="hidden" name="csrf" value="{{ csrf }}">{% endmacro %}
 {% macro form_end() %}<div class="row"><button class="round"><i>save</i><span>{{ _("Сохранить") }}</span></button></div></form>{% endmacro %}

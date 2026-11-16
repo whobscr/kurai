@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 from kurai import __version__, outbound, plugins
 from kurai.config import get_config
+from kurai.i18n import _
 from kurai.integrations.navidrome import BASE_PATH
 from kurai.web.deps import Ctx, get_db, user_required
 from kurai.web.templating import ROOT, render
@@ -30,7 +31,8 @@ async def healthz(db=Depends(get_db)):
 @router.get("/manifest.webmanifest")
 async def manifest():
     return JSONResponse({
-        "name": "Kurai", "short_name": "Kurai", "start_url": "/", "scope": "/", "display": "standalone",
+        "id": "/", "name": "Kurai", "short_name": "Kurai", "start_url": "/", "scope": "/", "display": "standalone",
+        "description": _("Домашний музыкальный сервер: миксы по вашему вкусу и подборки по просьбе"),
         "background_color": "#1c1b1f", "theme_color": "#6750a4", "lang": "ru",
         "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
                   {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},

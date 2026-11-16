@@ -410,6 +410,51 @@ async def test_every_settings_tab_links_its_help_page(client):
         assert page.status_code == 200 and (not anchor or f'id="{anchor}"' in page.text), link
 
 
+async def test_push_on_a_device_switches_push_on_and_sends_a_test(client, db, monkeypatch):
+    """«Включить push на этом устройстве»: the subscription is kept, push is on for the user, a test push goes to this
+    device, and its result is what the page shows."""
+    from kurai import notify
+
+    sent = []
+
+    async def fake_test(db, endpoint, keys):
+        sent.append(endpoint)
+        return None if "good" in endpoint else "410 Gone"
+
+    monkeypatch.setattr(notify, "push_test", fake_test)
+    await login(client, "admin", "a-long-password")
+    token = csrf_of((await client.get("/me")).text)
+    await client.post("/me/notifications", data={"csrf": token})  # both switches off
+    sub = {"endpoint": "https://push.example.com/good", "keys": {"p256dh": "k", "auth": "a"}}
+    r = await client.post("/me/push", json=sub, headers={"X-CSRF-Token": token})
+    assert r.json() == {"ok": True, "detail": ""} and sent == [sub["endpoint"]]
+    admin = (await db.execute(select(User).where(User.username == "admin"))).scalar_one()
+    await db.refresh(admin)
+    assert admin.notify_push
+    sub["endpoint"] = "https://push.example.com/bad"
+    assert (await client.post("/me/push", json=sub, headers={"X-CSRF-Token": token})).json() == \
+        {"ok": False, "detail": "410 Gone"}
+    me = (await client.get("/me")).text
+    assert 'id="push-status"' in me and 'id="install"' in me and "install-now" in me
+
+
+async def test_bot_help_apps_info_and_the_architecture_page(client):
+    from kurai.telegram.bot import help_text
+
+    assert "/help" in help_text() and "Напишите, что хотите послушать" in help_text()
+    await login(client, "admin", "a-long-password")
+    apps = (await client.get("/admin/apps")).text
+    assert 'id="app-info"' in apps and 'data-about="Музыкальный сервер' in apps
+    jobs = (await client.get("/admin/jobs")).text
+    assert 'class="info-tip"' in jobs  # the run-now buttons' «i», the same piece
+    page = await client.get("/docs/admin/architecture")
+    assert page.status_code == 200 and '<svg viewBox' in page.text and 'class="diagram"' in page.text
+    assert 'href="/docs/admin/architecture"' in page.text  # in the sidebar
+    assert 'id="install"' in (await client.get("/docs/user/start")).text
+    assert 'id="install-banner"' in (await client.get("/")).text
+    assert (await client.get("/manifest.webmanifest")).json()["id"] == "/"
+
+
 async def test_navidromes_login_limit_is_waited_out_and_logins_are_reused(monkeypatch):
     """Navidrome answers «429 Too Many Requests» (plain text) to logins beyond its limit: Kurai waits and tries again,
     never takes it for a missing account, and reuses a login instead of logging in for every job."""

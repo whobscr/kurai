@@ -39,6 +39,15 @@ async def admin(client) -> str:
     return csrf_of((await client.get("/")).text)
 
 
+async def test_its_line_in_the_bots_help(db):
+    from kurai_incoming import telegram
+
+    from kurai.telegram.bot import help_text
+
+    assert telegram.HELP in help_text()
+    assert await telegram.waiting() >= 0
+
+
 def test_folder_names():
     assert incoming.parse_folder("Radiohead - OK Computer") == ("Radiohead", "OK Computer")
     assert incoming.parse_folder("Just a title") == ("", "Just a title")
