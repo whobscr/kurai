@@ -11,10 +11,20 @@
 // paused where it was). ♥ and 👎 (data-rate, data-track) rate a track. Repeat (off, the playlist, the track; the wave has no end, so no playlist
 // repeat there), the previous track, the volume and the keys (the «Клавиши» dialog lists them) are the player's too.
 // The phone's lock screen and headphones control it as well (Media Session).
+// Two audio elements take turns: while one plays, the other loads the next track (PRELOAD seconds before the end), and
+// the next track starts on it at once. A phone with its screen off lets a page go on only while it sounds: a gap to
+// load the next file was enough for Chrome to freeze the player between tracks.
 (() => {
   const $ = (id) => document.getElementById(id);
-  const bar = $("player"), audio = $("player-audio");
-  if (!bar || !audio) return;
+  const bar = $("player"), first = $("player-audio");
+  if (!bar || !first) return;
+  const strings = first.dataset;  // the texts the page gives the player
+  const elements = [first, new Audio()];
+  elements[1].preload = "auto";
+  let audio = first;  // the one playing (or ready to); the other is the spare
+  const spare = () => elements.find((el) => el !== audio);
+  let preloaded = null;  // the track id the spare holds
+  const PRELOAD = 30;
   const els = {cover: $("player-cover"), title: $("player-title"), artist: $("player-artist"), source: $("player-source"),
     toggle: $("player-toggle"), next: $("player-next"), prev: $("player-prev"), seek: $("player-seek"),
     time: $("player-time"), duration: $("player-duration"), repeat: $("player-repeat"), keys: $("player-keys"),
@@ -23,7 +33,7 @@
     get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
     set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* not remembered */ } },
   };
-  const say = (key, values = {}) => Object.entries(values).reduce((s, [k, v]) => s.replace(`{${k}}`, v), audio.dataset[key]);
+  const say = (key, values = {}) => Object.entries(values).reduce((s, [k, v]) => s.replace(`{${k}}`, v), strings[key]);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const post = (url, data, keepalive = false) => fetch(url, {method: "POST", keepalive, credentials: "same-origin",
     headers: {"X-CSRF-Token": document.body.dataset.csrf, "Content-Type": "application/json"},
@@ -42,7 +52,7 @@
   const REPEATS = ["off", "all", "one"];
   let repeat = REPEATS.includes(store.get("kurai.repeat")) ? store.get("kurai.repeat") : "off";
   const volume = Number(store.get("kurai.volume"));
-  if (volume >= 0 && volume <= 1 && store.get("kurai.volume") !== null) audio.volume = volume;
+  if (volume >= 0 && volume <= 1 && store.get("kurai.volume") !== null) elements.forEach((el) => { el.volume = volume; });
 
   // what a key or a button did, for a moment at the bottom
   const note = (text) => {
@@ -65,6 +75,7 @@
     document.querySelectorAll("[data-play]").forEach((b) => b.classList.toggle("playing", playing(b)));
     showRating();
     els.toggle.querySelector("i").textContent = audio.paused ? "play_arrow" : "pause";
+    if ("mediaSession" in navigator) navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing";
     for (const [which, text] of Object.entries(statuses)) setStatus(which, text);
   };
 
@@ -119,7 +130,16 @@
     if (!t) return;
     heard.add(t.id);
     played = 0; lastTime = 0;
-    audio.src = `/player/stream/${encodeURIComponent(t.id)}`;
+    if (preloaded === t.id) {  // the spare has it loaded: it takes over at once
+      const old = audio;
+      audio = spare();
+      old.pause();
+      old.removeAttribute("src");
+      old.load();  // lets the finished file go
+    } else {
+      audio.src = stream(t.id);
+    }
+    preloaded = null;
     if (autoplay) audio.play().catch(() => {});  // a refused autoplay leaves the bar paused, ready for a tap
     bar.hidden = false;
     els.cover.src = `/player/cover/${encodeURIComponent(t.id)}`;
@@ -138,6 +158,22 @@
     }
     keep();
     showQueue();
+  }
+
+  const stream = (id) => `/player/stream/${encodeURIComponent(id)}`;
+
+  // the track that plays after this one if nothing changes (the wave's next version is asked earlier: next())
+  const following = () => (repeat === "one" ? null
+    : tracks[index + 1] || (repeat === "all" && !isWave() && tracks.length > 1 ? tracks[0] : null));
+
+  // near the end: the spare loads what follows (once; a list changed since only means it isn't used)
+  function preload() {
+    const t = following();
+    if (!t || preloaded === t.id) return;
+    preloaded = t.id;
+    const el = spare();
+    el.src = stream(t.id);
+    el.load();
   }
 
   // the current track gave way (next, the end, another source, the page closed): played on or skipped, told to the
@@ -198,7 +234,7 @@
     const shown = showRepeat();
     repeat = shown === "off" ? (isWave() ? "one" : "all") : shown === "all" ? "one" : "off";
     store.set("kurai.repeat", repeat);
-    note(audio.dataset[{off: "repeatOff", all: "repeatAll", one: "repeatOne"}[showRepeat()]]);
+    note(strings[{off: "repeatOff", all: "repeatAll", one: "repeatOne"}[showRepeat()]]);
   }
   showRepeat();
 
@@ -370,8 +406,8 @@
       return;
     }
     report();
-    audio.pause();
-    audio.removeAttribute("src");
+    elements.forEach((el) => { el.pause(); el.removeAttribute("src"); });
+    preloaded = null;
     source = null; tracks = []; index = 0;
     bar.hidden = true;
     keep(); showQueue(); syncButtons();
@@ -423,22 +459,36 @@
     }
   });
 
-  // ---------- the audio element ----------
-  audio.addEventListener("timeupdate", () => {
+  // ---------- the audio elements: only the playing one's events count (the spare's error only drops what it loaded) ----------
+  const on = (type, handler) => elements.forEach((el) => el.addEventListener(type, (e) => {
+    if (e.target === audio) handler(e);
+  }));
+  on("timeupdate", () => {
     const t = audio.currentTime;
     if (!audio.paused && t > lastTime && t - lastTime < 2) played += t - lastTime;
     lastTime = t;
-    if (Math.abs(t - keptAt) >= 10) { keptAt = t; keep(); }  // where it is, now and then (a reload resumes there)
     const d = audio.duration || (current() && current().duration) || 0;
+    if (Math.abs(t - keptAt) >= 10) {  // now and then: where it is (a reload resumes there; the lock screen shows it)
+      keptAt = t;
+      keep();
+      if ("mediaSession" in navigator && Number.isFinite(audio.duration) && audio.duration > 0) {
+        try {
+          navigator.mediaSession.setPositionState({duration: audio.duration, position: Math.min(t, audio.duration),
+            playbackRate: audio.playbackRate});
+        } catch { /* a browser without positions */ }
+      }
+    }
+    if (d && d - t < PRELOAD) preload();
     els.time.textContent = clock(t);
     if (d && document.activeElement !== els.seek) els.seek.value = String(Math.round((t / d) * 100));
   });
-  audio.addEventListener("seeked", () => { lastTime = audio.currentTime; });
-  audio.addEventListener("playing", () => { failures = 0; });
-  audio.addEventListener("ended", ended);
-  audio.addEventListener("play", syncButtons);
-  audio.addEventListener("pause", syncButtons);
-  audio.addEventListener("error", () => {
+  on("seeked", () => { lastTime = audio.currentTime; });
+  on("playing", () => { failures = 0; });
+  on("ended", ended);
+  on("play", syncButtons);
+  on("pause", syncButtons);
+  elements.forEach((el) => el.addEventListener("error", () => { if (el !== audio) preloaded = null; }));
+  on("error", () => {
     // a file that won't play (a format the browser lacks, a missing file): the next one, but not round and round
     if (!source || !current()) return;
     failures += 1;
@@ -496,6 +546,7 @@
   if ("mediaSession" in navigator) {
     navigator.mediaSession.setActionHandler("play", () => audio.play());
     navigator.mediaSession.setActionHandler("pause", () => audio.pause());
+    navigator.mediaSession.setActionHandler("seekto", (d) => { if (audio.duration) audio.currentTime = d.seekTime; });
     navigator.mediaSession.setActionHandler("nexttrack", () => next());
     navigator.mediaSession.setActionHandler("previoustrack", previous);
   }
@@ -511,9 +562,9 @@
     if (current() && audio.duration) audio.currentTime = Math.max(0, Math.min(audio.duration - 1, audio.currentTime + s));
   };
   const setVolume = (v) => {
-    audio.muted = false;
-    audio.volume = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;
-    store.set("kurai.volume", String(audio.volume));
+    const value = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;
+    elements.forEach((el) => { el.muted = false; el.volume = value; });
+    store.set("kurai.volume", String(value));
     note(say("volume", {n: Math.round(audio.volume * 100)}));
   };
   const rateCurrent = (kind) => {
@@ -541,7 +592,11 @@
       ArrowRight: () => (e.shiftKey ? next() : seekBy(10)), ArrowLeft: () => (e.shiftKey ? previous() : seekBy(-10)),
       KeyN: () => next(), KeyP: previous,
       ArrowUp: () => setVolume(audio.volume + 0.1), ArrowDown: () => setVolume(audio.volume - 0.1),
-      KeyM: () => { audio.muted = !audio.muted; note(audio.muted ? audio.dataset.muted : say("volume", {n: Math.round(audio.volume * 100)})); },
+      KeyM: () => {
+        const muted = !audio.muted;
+        elements.forEach((el) => { el.muted = muted; });
+        note(muted ? strings.muted : say("volume", {n: Math.round(audio.volume * 100)}));
+      },
       KeyL: () => rateCurrent("like"), KeyD: () => rateCurrent("dislike"), KeyR: cycleRepeat,
       KeyQ: openQueue,
     };
@@ -554,6 +609,6 @@
   });
   document.addEventListener("kurai:page", syncButtons);
   window.addEventListener("pagehide", () => { report(); keep(); });
-  audio.addEventListener("pause", keep);
+  on("pause", keep);
   restore();
 })();
