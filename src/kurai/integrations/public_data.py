@@ -20,7 +20,6 @@ from kurai.i18n import _
 LISTENBRAINZ = "https://api.listenbrainz.org/1"
 LISTENBRAINZ_LABS = "https://labs.api.listenbrainz.org"
 MUSICBRAINZ = "https://musicbrainz.org/ws/2"
-# ListenBrainz's own similar-artists dataset (the one its artist pages use)
 # the waits before the tries after a busy answer, in seconds
 RETRY_WAITS = (2, 5, 15, 30)
 BUSY = {429, 500, 502, 503, 504}
@@ -28,6 +27,9 @@ BUSY = {429, 500, 502, 503, 504}
 UNREACHABLE = (aiohttp.ClientError, asyncio.TimeoutError, ProxyError, ProxyConnectionError, ProxyTimeoutError)
 # an artist every source knows (Radiohead), for the «Проверить» buttons
 KNOWN_ARTIST = "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+# a MusicBrainz search result counts as the same recording from this score (of 100)
+MATCH_SCORE = 90
+# ListenBrainz's own similar-artists dataset (the one its artist pages use)
 SIMILAR_ALGORITHM = "session_based_days_7500_session_300_contribution_5_threshold_10_limit_100_filter_True_skip_30"
 
 
@@ -39,6 +41,11 @@ TOKEN_REFUSED = _("ListenBrainz не принял токен: проверьте
 
 class PublicDataError(Exception):
     pass
+
+
+def _phrase(text: str) -> str:
+    """Text to search MusicBrainz for as a quoted phrase (no quotes or backslashes inside)."""
+    return re.sub(r'[\\"]', " ", text).strip()
 
 
 def _retry_after(value: str | None, default: float) -> float:
@@ -150,7 +157,7 @@ class PublicData:
     async def track_albums(self, title: str, artist_mbid: str | None = None, limit: int = 8) -> list[dict]:
         """The studio albums a track is on (MusicBrainz's recordings and their releases), best match first:
         [{"mbid" (release group), "title", "artist", "year"}]. Compilations, live albums and singles are left out."""
-        clean = re.sub(r'[\\"]', " ", title).strip()
+        clean = _phrase(title)
         if not clean:
             return []
         query = f'recording:"{clean}"' + (f" AND arid:{artist_mbid}" if artist_mbid else "")
@@ -166,6 +173,28 @@ class PublicData:
                 out[group["id"]] = {"mbid": group["id"], "title": group.get("title", release.get("title", "")),
                                     "artist": artist, "year": (release.get("date") or "")[:4]}
         return list(out.values())[:limit]
+
+    async def artist_id(self, name: str, titles: list[str]) -> str | None:
+        """An artist's MusicBrainz id by name. First by a recording of one of their titles credited first to that name
+        (it tells apart artists who share a name); else the only artist of exactly that name. None: not sure."""
+        key = name.casefold()
+        if not _phrase(name):
+            return None
+        for title in titles:
+            if not (clean := _phrase(re.sub(r"[(\[].*?[)\]]", " ", title))):  # «(Remastered 2011)» isn't the title
+                continue
+            data = await self._musicbrainz("recording", {"query": f'recording:"{clean}" AND artist:"{_phrase(name)}"',
+                                                         "limit": 10})
+            for rec in (data or {}).get("recordings", []):
+                credit = (rec.get("artist-credit") or [{}])[0]
+                artist = credit.get("artist") or {}
+                if (int(rec.get("score", 0)) >= MATCH_SCORE and artist.get("id")
+                        and key in (credit.get("name", "").casefold(), artist.get("name", "").casefold())):
+                    return artist["id"]
+        data = await self._musicbrainz("artist", {"query": f'artist:"{_phrase(name)}"', "limit": 10})
+        exact = [a["id"] for a in (data or {}).get("artists", [])
+                 if a.get("name", "").casefold() == key and a.get("id")]
+        return exact[0] if len(exact) == 1 else None
 
     async def discography(self, artist_mbid: str, limit: int = 100) -> list[dict]:
         """An artist's studio albums (MusicBrainz's release groups of type Album, no compilations, live albums or

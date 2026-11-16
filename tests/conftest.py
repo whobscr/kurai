@@ -86,3 +86,20 @@ def navidrome(monkeypatch):
         monkeypatch.setattr(module, "navidrome", lambda: fake)
     monkeypatch.setattr(kurai.bootstrap.library, "navidrome", lambda: fake)
     return fake
+
+
+class _NoPublicData:
+    """Public data in tests unless a test brings its own: MusicBrainz finds no artist's id (no request leaves)."""
+
+    async def artist_id(self, name, titles):
+        return None
+
+
+@pytest.fixture(autouse=True)
+def no_public_data(monkeypatch):
+    from kurai.integrations import public_data
+
+    async def client(db):
+        return _NoPublicData()
+
+    monkeypatch.setattr(public_data, "client", client)

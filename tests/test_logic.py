@@ -432,3 +432,39 @@ def test_the_pictures_take_turns_the_same_for_everyone():
     assert art("hero", 24, start + timedelta(hours=23, minutes=59)) == daily[0]  # changes at midnight
     assert len(set(daily)) == len(ART_POOLS["hero"])
     assert art("hero", .5, start + timedelta(minutes=29)) != art("hero", .5, start + timedelta(minutes=31))
+
+
+# ---------- artists ----------
+
+
+def test_an_artist_is_counted_once_however_credited_or_spelled():
+    from kurai.artists import top_artists
+
+    weights = [("Florence And The Machine", 13), ("Florence and the Machine", 7), ("Charli XCX • Finn Keane", 2),
+               ("Charli XCX • Cirkut", 1), ("Charli XCX feat. Lorde", 1), ("", 5), (None, 5)]
+    assert top_artists(weights) == [{"name": "Florence And The Machine", "weight": 20},
+                                    {"name": "Charli XCX", "weight": 4}]
+    assert len(top_artists([(f"A{i}", 1) for i in range(30)], count=20)) == 20
+
+
+def test_the_migration_rewrites_old_tastes_by_the_first_credited_artist():
+    import importlib.util
+    from pathlib import Path
+
+    import kurai
+
+    path = Path(kurai.__file__).parent / "migrations" / "versions" / "0011_taste_artist_names.py"
+    spec = importlib.util.spec_from_file_location("m0011", path)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    top = [{"name": "Florence And The Machine", "weight": 13}, {"name": "Florence and the Machine", "weight": 7},
+           {"name": "Charli XCX • Charlotte Aitchison • Finn Keane", "weight": 2},
+           {"name": "Charli XCX • Charlotte Aitchison • Cirkut", "weight": 1}, {"name": "Lorde", "weight": 25}]
+    related = [{"name": "Caroline Polachek • Danny L Harle", "mbid": "a", "score": 1.0, "via": "Lorde", "depth": 1},
+               {"name": "Caroline Polachek", "mbid": "b", "score": 0.5, "via": "Lorde", "depth": 1},
+               {"name": "Kero Kero Bonito", "mbid": "c", "score": 0.4, "via": "Lorde", "depth": 2}]
+    new_top, new_related = m.cleaned(top, related)
+    assert new_top == [{"name": "Lorde", "weight": 25}, {"name": "Florence And The Machine", "weight": 20},
+                       {"name": "Charli XCX", "weight": 3}]
+    assert [(a["name"], a["mbid"]) for a in new_related] == [("Caroline Polachek", "a"), ("Kero Kero Bonito", "c")]
+    assert m.cleaned(new_top, new_related) == (new_top, new_related)  # a clean taste stays as it is

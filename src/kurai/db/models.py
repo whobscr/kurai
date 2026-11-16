@@ -281,3 +281,14 @@ class Popularity(Base):
     kind: Mapped[str] = mapped_column(String(16))  # "artist" | "release_group"
     listens: Mapped[int] = mapped_column(BigInteger, default=0)
     updated_at: Mapped[datetime] = _now()
+
+
+class ArtistId(Base):
+    """An artist's MusicBrainz id found by name (recommend/artist_ids.py) for the tracks whose tags have none; by the
+    artist's key (kurai/artists.py). `mbid` empty: looked up and not found (asked again after a while)."""
+
+    __tablename__ = "artist_ids"
+
+    artist_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    mbid: Mapped[str | None] = mapped_column(String(36))
+    looked_up_at: Mapped[datetime] = _now()

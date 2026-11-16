@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import settings
-from kurai.artists import artist_key
+from kurai.artists import artist_key, main_artist
 from kurai.db.models import Taste, Track, User
 from kurai.integrations import public_data
 from kurai.integrations.public_data import PublicData, PublicDataError
@@ -63,7 +63,7 @@ async def seeds_of(db: AsyncSession, taste: Taste, count: int = SEEDS) -> dict[s
     """A taste's favourite artists that have a MusicBrainz id in the library: {mbid: (name, weight)}."""
     out: dict[str, tuple[str, float]] = {}
     for a in (taste.top_artists or [])[:count]:
-        mbid = (await db.execute(select(Track.artist_mbid).where(Track.artist == a["name"],
+        mbid = (await db.execute(select(Track.artist_mbid).where(Track.artist_key == artist_key(a["name"]),
                                                                   Track.artist_mbid.is_not(None),
                                                                   Track.artist_mbid != "").limit(1))
                 ).scalar_one_or_none()
@@ -85,7 +85,7 @@ async def refresh(db: AsyncSession, user: User) -> dict:
     seeds = await seeds_of(db, taste)
     if not seeds:
         return {"skipped": "у любимых исполнителей нет идентификаторов MusicBrainz"}
-    favourites = {a["name"].lower() for a in taste.top_artists}
+    favourites = {artist_key(a["name"]) for a in taste.top_artists}
     try:
         found = await neighbours(await public_data.client(db), seeds, depth)
     except PublicDataError as e:
@@ -93,9 +93,9 @@ async def refresh(db: AsyncSession, user: User) -> dict:
         return {"error": str(e)}
     library = dict((await db.execute(select(Track.artist_mbid, func.min(Track.artist))
                                      .where(Track.artist_mbid.in_(list(found))).group_by(Track.artist_mbid))).all())
-    related = [{"name": library[m], "mbid": m, "score": e["score"], "via": e["via"], "depth": e["depth"]}
+    related = [{"name": main_artist(library[m]), "mbid": m, "score": e["score"], "via": e["via"], "depth": e["depth"]}
                for m, e in sorted(found.items(), key=lambda kv: -kv[1]["score"])
-               if m in library and library[m].lower() not in favourites][:KEEP]
+               if m in library and artist_key(library[m]) not in favourites][:KEEP]
     taste.related_artists, taste.related_at = related, datetime.now(UTC)
     await db.commit()
     return {"related": len(related), "asked": len(seeds)}

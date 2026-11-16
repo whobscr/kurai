@@ -12,14 +12,14 @@ from kurai.db.models import Job, User
 from kurai.i18n import _
 from kurai.jobs import queue, window
 from kurai.notify import notify, send_telegram
-from kurai.recommend import library, playlists, popularity, related, wave
+from kurai.recommend import artist_ids, library, playlists, popularity, related, wave
 
 log = logging.getLogger(__name__)
 
 TICK = 20
 # outside the night: how often the light jobs run (plugins add theirs)
 EVERY = {"sync_library": timedelta(hours=1), "sync_listens": timedelta(minutes=30),
-         "embed_new": timedelta(minutes=30), "popularity": timedelta(hours=3)}
+         "embed_new": timedelta(minutes=30), "popularity": timedelta(hours=3), "artist_ids": timedelta(hours=3)}
 # a small number of new tracks is embedded during the day; a big backlog (the first indexing) waits for the night
 DAYTIME_EMBED_LIMIT = 200
 # the audio analysis (when it's on): new imports during the day, the backlog at night
@@ -50,6 +50,8 @@ async def _nightly(db, job: Job) -> dict:
             failed.append(f"{name}: {str(e) or e.__class__.__name__}")
 
     await step("library", lambda: library.sync_library(db))
+    # the new artists' ids before the tastes' «слушают вместе» and the plugins' steps ask ListenBrainz by them
+    await step("artist_ids", lambda: artist_ids.look_up(db))
     await step("embeddings", lambda: library.embed_tracks(db))
     wave_on = await settings.get(db, "wave.enabled")
     # ids, not the users themselves: a rollback after one user's failure expires every loaded object
@@ -136,6 +138,7 @@ HANDLERS = {
     "explain": _explain,
     "wave": _wave,
     "popularity": lambda db, job: popularity.refresh(db),
+    "artist_ids": lambda db, job: artist_ids.look_up(db),
     "analyze_audio": audio_analyze.run,  # taken only by the audio container's lane
 }
 

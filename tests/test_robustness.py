@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import delete, select
 
 from kurai import security, settings
-from kurai.db.models import Job, Listen, Setting, Track, User
+from kurai.db.models import Job, Listen, Setting, Taste, Track, User
 
 pytestmark = pytest.mark.usefixtures("database")
 
@@ -312,3 +312,64 @@ async def test_what_ended_a_request_is_logged_but_not_a_refusal(database, caplog
         await c.get("/refused")
     lines = [r.getMessage() for r in caplog.records if r.name == "kurai"]
     assert lines == ["GET /broken ended by RuntimeError('the query failed')"]
+
+
+async def test_a_favourite_finds_its_musicbrainz_id_on_tracks_with_guests(db):
+    """A favourite is the first credited artist; their id is found on a track of theirs with guests too."""
+    from kurai.recommend import related
+
+    user = User(username="seedy", display_name="Seedy", password_hash="x", navidrome_id="nd-seedy")
+    db.add(user)
+    db.add(Track(id="seed-1", title="360", artist="Charli XCX • Charlotte Aitchison • Finn Keane", album="Brat",
+                 artist_mbid="260b6184-8828-48eb-945c-bc4cb6fc34ca"))
+    await db.commit()
+    taste = Taste(user_id=user.id, top_artists=[{"name": "charli xcx", "weight": 3}, {"name": "Nobody", "weight": 1}])
+    db.add(taste)
+    await db.commit()
+    assert await related.seeds_of(db, taste) == {"260b6184-8828-48eb-945c-bc4cb6fc34ca": ("charli xcx", 3.0)}
+
+
+async def test_artists_without_ids_in_their_tags_get_them_by_name_and_keep_them(db, monkeypatch):
+    from sqlalchemy import update
+
+    from kurai.db.models import ArtistId
+    from kurai.integrations import public_data
+    from kurai.recommend import artist_ids
+
+    db.add_all([Track(id="ai-1", title="Bad Liar", artist="Imagine Dragons", album="Origins"),
+                Track(id="ai-2", title="Believer", artist="Imagine Dragons feat. Lil Wayne", album="Evolve"),
+                Track(id="ai-3", title="Ribs", artist="Lorde", album="Pure Heroine"),
+                Track(id="ai-4", title="Creep", artist="Radiohead", album="Pablo Honey", artist_mbid="rh-tag"),
+                Track(id="ai-5", title="Nothing", artist="Nobody Known", album="X")])
+    await db.commit()
+    asked = []
+
+    class MusicBrainz:
+        async def artist_id(self, name, titles):
+            asked.append((name, titles))
+            return {"Imagine Dragons": "id-mbid", "Lorde": "lorde-mbid"}.get(name)
+
+    async def client(db):
+        return MusicBrainz()
+
+    monkeypatch.setattr(public_data, "client", client)
+    result = await artist_ids.look_up(db)
+    # the one with the most tracks first, by the first credited artist; Radiohead's tags have an id already
+    assert [name for name, _ in asked if name in ("Imagine Dragons", "Lorde", "Nobody Known", "Radiohead")] == [
+        "Imagine Dragons", "Lorde", "Nobody Known"]
+    assert ("Imagine Dragons", ["Bad Liar", "Believer"]) in asked
+    assert result["tracks"] >= 3
+    db.expire_all()
+    ids = dict((await db.execute(select(Track.id, Track.artist_mbid).where(Track.id.like("ai-%")))).all())
+    assert ids == {"ai-1": "id-mbid", "ai-2": "id-mbid", "ai-3": "lorde-mbid", "ai-4": "rh-tag", "ai-5": None}
+    assert (await db.get(ArtistId, "nobody known")).mbid is None  # not found: remembered, asked again later
+
+    asked.clear()
+    await artist_ids.look_up(db)
+    assert not [a for a in asked if a[0] in ("Imagine Dragons", "Lorde", "Nobody Known")]  # once is enough
+    # a library sync writes Navidrome's (empty) ids again: the ones found come back
+    await db.execute(update(Track).where(Track.id.in_(["ai-1", "ai-3"])).values(artist_mbid=None))
+    await artist_ids.apply(db)
+    await db.commit()
+    db.expire_all()
+    assert (await db.get(Track, "ai-1")).artist_mbid == "id-mbid" and (await db.get(Track, "ai-3")).artist_mbid

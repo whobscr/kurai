@@ -17,3 +17,14 @@ def main_artist(artist: str | None) -> str:
 def artist_key(artist: str | None) -> str:
     """The same, for comparing (stored as tracks.artist_key for the database's own filters)."""
     return main_artist(artist).casefold()
+
+
+def top_artists(weights: list[tuple[str | None, float]], count: int = 20) -> list[dict]:
+    """The strongest artists of (a track's artist line, weight) pairs: [{"name", "weight"}], each artist once, by its
+    key (one spelled two ways is one), under the name it came first with."""
+    totals: dict[str, list] = {}
+    for artist, weight in weights:
+        if key := artist_key(artist):
+            totals.setdefault(key, [main_artist(artist), 0.0])[1] += weight
+    ranked = sorted(totals.values(), key=lambda nw: -nw[1])[:count]
+    return [{"name": name, "weight": round(weight, 2)} for name, weight in ranked]

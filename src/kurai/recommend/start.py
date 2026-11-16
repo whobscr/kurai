@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import llm, settings
-from kurai.artists import artist_key, main_artist
+from kurai.artists import artist_key, top_artists
 from kurai.audio import EFFNET_MODEL
 from kurai.db.models import Listen, Track, TrackAudio, User
 from kurai.recommend import popularity
@@ -42,7 +42,7 @@ async def first_taste(db: AsyncSession, user: User) -> dict | None:
     if not styles and not words:
         return None
     model_name = await settings.get(db, "embed.model")
-    text, sound, artists = [], [], {}
+    text, sound, artists = [], [], []
     if styles:
         rows = (await db.execute(
             select(Track.artist, Track.embedding, Track.embedding_model, TrackAudio.effnet)
@@ -54,8 +54,7 @@ async def first_taste(db: AsyncSession, user: User) -> dict | None:
                 text.append(np.asarray(embedding, dtype=np.float32))
             if effnet is not None:
                 sound.append(np.asarray(effnet, dtype=np.float32))
-            if artist:
-                artists[main_artist(artist)] = artists.get(main_artist(artist), 0) + 1
+            artists.append((artist, 1))
     text_vector = mean_unit(text)
     described = ", ".join(styles) + (f". {words}" if words else "")
     try:  # the own words in the text space: as much as all the styles' tracks together
@@ -64,7 +63,7 @@ async def first_taste(db: AsyncSession, user: User) -> dict | None:
         text_vector = said if text_vector is None else 0.5 * text_vector + 0.5 * said
     except Exception as e:  # no embedding model: the styles' tracks alone
         log.info("the answers not embedded: %s", e)
-    top = [{"name": a, "weight": n} for a, n in sorted(artists.items(), key=lambda kv: -kv[1])[:20]]
+    top = top_artists(artists)
     return {"text": text_vector, "sound": mean_unit(sound), "top_artists": top}
 
 

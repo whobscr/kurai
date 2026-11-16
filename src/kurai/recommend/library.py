@@ -10,13 +10,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import llm, security, settings
-from kurai.artists import main_artist
+from kurai.artists import top_artists
 from kurai.audio import EFFNET_MODEL
 from kurai.config import get_config
 from kurai.db.models import Listen, Taste, Track, TrackAudio, User
 from kurai.i18n import _
 from kurai.integrations.navidrome import Account, Navidrome, song_fields
-from kurai.recommend import start
+from kurai.recommend import artist_ids, start
 from kurai.recommend.vectors import listen_weight, taste_vector
 
 log = logging.getLogger(__name__)
@@ -73,6 +73,7 @@ async def sync_library(db: AsyncSession) -> dict:
         raise RuntimeError(_("Navidrome не вернул ни одного трека: библиотека не тронута (папка с музыкой не "
                              "подключена или идёт пересканирование?)"))
     removed = (await db.execute(delete(Track).where(Track.seen_at < started))).rowcount
+    await artist_ids.apply(db)  # the ids found by name stay, where the tags still have none
     await db.commit()
     return {"tracks": count, "removed": removed}
 
@@ -151,7 +152,7 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
     half_life, floor = float(values["taste.half_life_days"]), float(values["taste.floor"]) / 100
     # «Только последние N дней»: a track last played before it says nothing; a 👎 always counts (it's a «no»)
     since = now - timedelta(days=float(values["taste.window_days"])) if values["taste.window"] else None
-    text_vectors, text_weights, sound_vectors, sound_weights, artists = [], [], [], [], {}
+    text_vectors, text_weights, sound_vectors, sound_weights, artists = [], [], [], [], []
     for listen, track, effnet in rows:
         if (since is not None and listen.last_played is not None and listen.last_played < since
                 and listen.rating not in (1, 2)):
@@ -165,12 +166,11 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
         if effnet is not None:
             sound_vectors.append(np.asarray(effnet, dtype=np.float32))
             sound_weights.append(w)
-        if w > 0 and track.artist:
-            name = main_artist(track.artist)  # the artist themselves, not each line of guests
-            artists[name] = artists.get(name, 0) + w
+        if w > 0:
+            artists.append((track.artist, w))
     vector = taste_vector(text_vectors, text_weights)
     sound = taste_vector(sound_vectors, sound_weights)
-    top = [{"name": a, "weight": round(w, 2)} for a, w in sorted(artists.items(), key=lambda kv: -kv[1])[:20]]
+    top = top_artists(artists)  # the artists themselves, not each line of guests
     first = await start.first_taste(db, user) if user.start_asked_at else None
     if first is not None:
         vector = start.with_prior(vector, first["text"], len(text_vectors))

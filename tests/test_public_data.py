@@ -168,3 +168,36 @@ async def test_an_artists_discography_is_its_studio_albums(monkeypatch, waits):
         assert [a["title"] for a in found] == ["Songs About Jane", "V"]  # studio albums, oldest first
     finally:
         await runner.cleanup()
+
+
+def _answering(pd, answers: dict):
+    """PublicData whose MusicBrainz answers from `answers` ({query: data}); the queries asked are kept."""
+    asked = []
+
+    async def musicbrainz(path, params):
+        asked.append(params["query"])
+        return answers.get(params["query"], {})
+
+    pd._musicbrainz = musicbrainz
+    return asked
+
+
+async def test_an_artist_id_comes_from_their_own_recording_or_a_name_no_one_else_has():
+    pd = PublicData(outbound.Route(None, None))
+    nirvana_us = {"name": "Nirvana", "artist": {"id": "us", "name": "Nirvana"}}
+    asked = _answering(pd, {
+        'recording:"Lithium" AND artist:"Nirvana"': {"recordings": [
+            {"score": 100, "artist-credit": [nirvana_us]}]},
+        'artist:"Nirvana"': {"artists": [{"id": "us", "name": "Nirvana"}, {"id": "uk", "name": "Nirvana"}]},
+        'artist:"Coldplay"': {"artists": [{"id": "cp", "name": "COLDPLAY"}, {"id": "x", "name": "Coldplay Tribute"}]},
+        'recording:"Song" AND artist:"Other"': {"recordings": [
+            {"score": 100, "artist-credit": [{"name": "Someone Else", "artist": {"id": "se", "name": "Someone Else"}}]},
+            {"score": 60, "artist-credit": [{"name": "Other", "artist": {"id": "weak", "name": "Other"}}]}]},
+    })
+    # the title tells two artists of one name apart; «(Remastered 2011)» is left out of it
+    assert await pd.artist_id("Nirvana", ["Lithium (Remastered 2011)"]) == "us"
+    assert asked == ['recording:"Lithium" AND artist:"Nirvana"']
+    assert await pd.artist_id("Nirvana", ["Unknown"]) is None  # two Nirvanas and no title of theirs: not sure
+    assert await pd.artist_id("Coldplay", []) == "cp"  # the only one of exactly that name
+    assert await pd.artist_id("Other", ["Song"]) is None  # another's recording, a weak match: neither counts
+    assert await pd.artist_id('"', ["x"]) is None
