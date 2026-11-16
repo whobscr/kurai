@@ -441,6 +441,8 @@ async def test_push_on_a_device_switches_push_on_and_sends_a_test(client, db, mo
         {"ok": False, "detail": "410 Gone"}
     me = (await client.get("/me")).text
     assert 'id="push-status"' in me and 'id="install"' in me and "install-now" in me
+    # Kurai's own ready colours (a phone's colour picker offers its system's), the current one marked
+    assert 'data-color="#00639b" data-for="my-accent"' in me and 'preset chosen' in me
 
 
 async def test_bot_help_apps_info_and_the_architecture_page(client):

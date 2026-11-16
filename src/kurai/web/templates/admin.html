@@ -3,6 +3,7 @@
 {% block heading %}{{ _("Системные настройки") }}{% endblock %}
 
 {% from "admin_macros.html" import text, secret, switch, select, check, info, form_start as _form_start, form_end with context %}
+{% from "partials/color_pick.html" import color_pick with context %}
 {% macro form_start() %}{{ _form_start(tab) }}{% endmacro %}
 
 {% block content %}
@@ -16,10 +17,7 @@
 {% if tab == "general" %}
 <article class="round">{{ form_start() }}
   <h6>{{ _("Оформление по умолчанию") }}</h6>
-  <div class="color-pick"><span class="swatch" style="background:{{ values['ui.default_accent'] }}"><input type="color" id="default-accent" name="ui.default_accent" value="{{ values['ui.default_accent'] }}"></span>
-    <label for="default-accent">{{ _("Акцентный цвет для всех, кто не выбрал свой. Цвет текста и значков на нём подбирается сам.") }}</label></div>
-  <div class="row wrap presets">{% for c in ["#6750a4", "#006a6a", "#386a20", "#984061", "#8b5000", "#00639b", "#b3261e", "#5d5f5f"] %}
-    <button type="button" class="circle preset" style="background:{{ c }}" data-color="{{ c }}" title="{{ c }}"></button>{% endfor %}</div>
+  {{ color_pick("ui.default_accent", "default-accent", values['ui.default_accent'], _("Акцентный цвет для всех, кто не выбрал свой. Цвет текста и значков на нём подбирается сам.")) }}
   <h6>{{ _("Ночное окно") }}</h6>
   <p class="small-text">{{ _("Когда идёт тяжёлая работа: индексация, вкусы, ночные миксы, поиск новой музыки, кандидаты на удаление. Сейчас — {h} ч.").format(h=night_hours) }}</p>
   <div class="row wrap">{{ text("night.start", _("Начало (ЧЧ:ММ)")) }}{{ text("night.end", _("Конец (ЧЧ:ММ)")) }}</div>

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Личный кабинет") }}{% endblock %}
 {% block heading %}{{ _("Личный кабинет") }}{% endblock %}
+{% from "partials/color_pick.html" import color_pick with context %}
 {% block content %}
 {% if message %}<article class="round primary-container">{{ message }}</article>{% endif %}
 
@@ -14,8 +15,7 @@
   <h6>{{ _("Оформление") }}</h6>
   <form method="post" action="/me/look" class="row wrap">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <div class="color-pick"><span class="swatch" style="background:{{ user.accent_color or accent }}"><input type="color" id="my-accent" name="accent" value="{{ user.accent_color or accent }}"></span>
-      <label for="my-accent">{{ _("Свой акцентный цвет") }}</label></div>
+    <div class="look-colour">{{ color_pick("accent", "my-accent", user.accent_color or accent, _("Свой акцентный цвет — из готовых или любой (нажмите на круг)")) }}</div>
     <div class="field label suffix border round"><select name="mode">
       {% for v, l in (("auto", _("Как в системе")), ("light", _("Светлая")), ("dark", _("Тёмная"))) %}
       <option value="{{ v }}" {{ 'selected' if user.theme_mode == v else '' }}>{{ l }}</option>{% endfor %}

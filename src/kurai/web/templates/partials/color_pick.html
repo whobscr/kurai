@@ -1,0 +1,13 @@
+{# A colour field with Kurai's own ready colours (Material's tones): a phone's own colour picker (Android's) offers
+   its system's colours, which may look nothing like the app; the field stays for any colour. kurai.js fills it. #}
+{% set PRESETS = [("#6750a4", _("Фиолетовый")), ("#00639b", _("Синий")), ("#006a6a", _("Бирюзовый")),
+                  ("#386a20", _("Зелёный")), ("#5b6300", _("Оливковый")), ("#8b5000", _("Янтарный")),
+                  ("#a23f00", _("Оранжевый")), ("#b3261e", _("Красный")), ("#984061", _("Малиновый")),
+                  ("#6b5778", _("Лавандовый")), ("#5d5f5f", _("Графитовый"))] %}
+{% macro color_pick(name, id, value, label) %}
+<div class="color-pick"><span class="swatch" style="background:{{ value }}"><input type="color" id="{{ id }}" name="{{ name }}" value="{{ value }}"></span>
+  <label for="{{ id }}">{{ label }}</label></div>
+<div class="row wrap presets" role="group" aria-label="{{ _('Готовые цвета') }}">{% for color, title in PRESETS %}
+  <button type="button" class="circle preset {{ 'chosen' if color == (value or '') | lower }}" style="background:{{ color }}"
+    data-color="{{ color }}" data-for="{{ id }}" title="{{ title }}" aria-label="{{ title }}"><i>check</i></button>{% endfor %}</div>
+{% endmacro %}

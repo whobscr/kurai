@@ -87,11 +87,16 @@
       } catch (e) { out.classList.add("bad"); out.textContent = `✗ ${e}`; }
     }));
 
-    // colour fields: the swatch shows the choice; presets fill the field
-    const showColour = (input) => { input.parentElement.style.background = input.value; };
+    // colour fields: the swatch shows the choice; a ready colour fills its field (and is marked chosen)
+    const showColour = (input) => {
+      input.parentElement.style.background = input.value;
+      root.querySelectorAll(`.preset[data-for="${input.id}"]`).forEach((b) => {
+        b.classList.toggle("chosen", b.dataset.color === input.value.toLowerCase());
+      });
+    };
     root.querySelectorAll(".swatch input[type=color]").forEach((i) => i.addEventListener("input", () => showColour(i)));
     root.querySelectorAll(".preset").forEach((b) => b.addEventListener("click", () => {
-      const input = root.querySelector('input[type=color][name="ui.default_accent"]');
+      const input = root.querySelector(`#${b.dataset.for}`);
       if (input) { input.value = b.dataset.color; showColour(input); }
     }));
 
