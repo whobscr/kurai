@@ -24,7 +24,7 @@ from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER
 from kurai.jobs import queue
 from kurai.recommend import library, mixing, playlists, related, retrieval, start
-from kurai.recommend.vectors import Candidate, taste_vector
+from kurai.recommend.vectors import Candidate, arrange, mean_unit
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,8 @@ POLL = 15  # seconds between looks at «now playing»
 DEFAULT_DURATION = 240
 KEEP_EVENTS = timedelta(days=30)
 NAME = _("Моя волна")
+ANCHORS = 4  # the directions of what was played lately that «сейчас» follows, each with its share
+ANCHOR_LIKENESS = 0.5  # tracks at least this alike (the joint cosine) are one direction
 
 
 # ---------- watching ----------
@@ -164,9 +166,12 @@ def _popular(ids: list[str]) -> list[Candidate]:
 
 async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now: datetime | None = None,
                rng: random.Random | None = None) -> Plan:
-    """The next version of the user's wave: near what was just liked («сейчас») and near the taste of all time, away
-    from what was skipped; new, known and «слушают вместе» tracks in the set shares; nothing heard within the track's
-    pause, the artists heard lately lowered, the ones skipped again and again left out. A listener who hasn't played
+    """The next version of the user's wave: «now_weight» of it near what was just played («сейчас»), the rest near the
+    taste of all time («всегда»). Each kind gets its share of the tracks by its own queries (one query between them
+    would give everything to whichever is a little closer): «сейчас» is up to ANCHORS tracks played lately, each
+    with a part by how fresh it is («Затухание «сейчас»»). Tracks like the skipped ones are lowered («Отталкивание от
+    пропущенного»); in each part, new, known and «слушают вместе» tracks in the set shares; nothing heard within the
+    track's pause, the resting artists left out, the ones skipped again and again too. A listener who hasn't played
     anything yet gets what their answers point at with the library's popular tracks between (start.py); without
     answers either, the popular tracks alone. Nothing is saved (the admins' preview shows it as it is)."""
     mix = mix or await mixing.load(db, "wave")
@@ -178,23 +183,23 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
                                                              WaveEvent.at >= session_since)
                                      .order_by(WaveEvent.at))).scalars())
     vectors = await retrieval.track_vectors(db, {e.track_id for e in session})
-    queries = {}
-    for space in j.weights:
-        found, weights = [], []
-        for e in session:
-            raw = vectors.get(e.track_id, ("", {}))[1].get(space)
-            if raw is None:
-                continue
-            fade = 0.5 ** ((now - e.at).total_seconds() / 60 / mix.session_half_life)
-            found.append(np.asarray(raw, dtype=np.float32))
-            weights.append(-fade if e.skipped else fade)
-        just_now = taste_vector(found, weights, mix.skip_push) if found else None
-        queries[space] = playlists.mix_query(j, space, [(just_now, mix.now_weight), (taste.get(space),
-                                                                                       1 - mix.now_weight)])
+    fresh: dict[str, float] = {}  # a played track -> how fresh (its latest play)
+    away = []
+    for e in session:
+        raw = vectors.get(e.track_id, ("", {}))[1]
+        if not any(raw.get(space) is not None for space in j.weights):
+            continue
+        if e.skipped:
+            away.append(j.item(raw))
+        else:
+            fresh[e.track_id] = 0.5 ** ((now - e.at).total_seconds() / 60 / mix.session_half_life)
+    anchors = _anchors(j, {tid: (vectors[tid][1], f) for tid, f in fresh.items()})
+    taste_queries = {space: playlists.mix_query(j, space, [(taste.get(space), 1.0)]) for space in j.weights}
+    has_taste = any(q is not None for q in taste_queries.values())
     heard = await recently_heard(db, user, now, mix.track_rest_days)
     taste_row = await db.get(Taste, user.id)
     new_listener = (taste_row is None or not taste_row.tracks_used) and not session
-    if not any(q is not None for q in queries.values()):
+    if not anchors and not has_taste:
         ids = await start.popular(db, mix.size, heard)
         if not ids:
             return Plan([], {"skipped": _("в библиотеке пока нет треков")})
@@ -204,19 +209,30 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
         if e.skipped and (artist := vectors.get(e.track_id, ("", {}))[0]):
             skips[artist] = skips.get(artist, 0) + 1
     banned = {a for a, n in skips.items() if mix.artist_skip_ban and n >= mix.artist_skip_ban}
-    pool = [c for c in await retrieval.candidates(db, j, queries, user, rest_days=mix.track_rest_days,
-                                                  exclude_artists=banned) if c.id not in heard]
     neighbours = related.artists_for(taste_row, mix.related_depth) if mix.related_share else {}
-    near = [c for c in await retrieval.candidates(db, j, queries, user, rest_days=mix.track_rest_days,
-                                                  exclude_artists=banned, only_artists=list(neighbours))
-            if c.id not in heard] if neighbours else []
-    if not pool and not near:
-        return Plan([], {"skipped": _("нет подходящих треков")})
-    resting = await mixing.resting_artists(db, user, now, mix.artist_rest_hours)
-    known = await retrieval.played(db, user, {c.id for c in pool + near})
+    resting = await mixing.resting_artists(db, user, now, mix.artist_rest_hours, mix.artist_rest_shape)
     # nothing played yet: every N-th track one of the library's popular ones (their places kept free)
     places = mix.size // mix.popular_every if new_listener and mix.popular_every >= 2 else 0
-    chosen = mixing.assemble(pool, near, known, mix, mix.size - places, resting, rng)
+    size = mix.size - places
+    now_count = round(size * (mix.now_weight if has_taste else 1.0)) if anchors else 0
+    parts = [({space: playlists.mix_query(j, space, [(raw.get(space), 1.0)]) for space in j.weights}, count)
+             for (raw, _f), count in zip(anchors, _apportion(now_count, [f for _r, f in anchors]), strict=True)]
+    parts.append((taste_queries, size - now_count))
+    chosen, found_any = [], False
+    for queries, count in parts:
+        if count <= 0 or not any(q is not None for q in queries.values()):
+            continue
+        pool = [c for c in await retrieval.candidates(db, j, queries, user, rest_days=mix.track_rest_days,
+                                                      exclude_artists=banned) if c.id not in heard]
+        near = [c for c in await retrieval.candidates(db, j, queries, user, rest_days=mix.track_rest_days,
+                                                      exclude_artists=banned, only_artists=list(neighbours))
+                if c.id not in heard] if neighbours else []
+        found_any = found_any or bool(pool or near)
+        known = await retrieval.played(db, user, {c.id for c in pool + near})
+        chosen = mixing.choose(pool, near, known, mix, count, resting, rng, chosen, away)
+    if not found_any:
+        return Plan([], {"skipped": _("нет подходящих треков")})
+    chosen = arrange(chosen, mix.smooth, mix.artist_gap)
     popular = 0
     if places:
         hits = await start.popular(db, places, heard | {c.id for c in chosen})
@@ -233,6 +249,35 @@ async def build(db: AsyncSession, user: User) -> dict:
     if not made.tracks:
         return made.result
     return await _save(db, user, [c.id for c in made.tracks], now, made.result)
+
+
+def _anchors(j, played: dict[str, tuple[dict, float]]) -> list[tuple[dict, float]]:
+    """The directions of what was played lately: tracks that sound alike (ANCHOR_LIKENESS) grouped, the freshest
+    first, at most ANCHORS (a track beyond joins the nearest). Each: its tracks' mean raw vector per space, and their
+    freshness summed (its part of «сейчас»)."""
+    groups: list[tuple[np.ndarray, list[dict], float]] = []  # (the first track's joint vector, raws, freshness)
+    for raw, f in sorted(played.values(), key=lambda p: -p[1]):
+        v = j.item(raw)
+        likeness = [float(np.dot(v, g[0])) for g in groups]
+        best = int(np.argmax(likeness)) if groups else -1
+        if groups and (likeness[best] >= ANCHOR_LIKENESS or len(groups) >= ANCHORS):
+            first, raws, total = groups[best]
+            groups[best] = (first, raws + [raw], total + f)
+        else:
+            groups.append((v, [raw], f))
+    return [({space: mean_unit([r[space] for r in raws if r.get(space) is not None]) for space in j.weights}, f)
+            for _v, raws, f in groups]
+
+
+def _apportion(total: int, weights: list[float]) -> list[int]:
+    """`total` split by `weights` in whole numbers (the largest remainders round up)."""
+    if not weights or total <= 0:
+        return [0] * len(weights)
+    exact = [total * w / sum(weights) for w in weights]
+    out = [int(x) for x in exact]
+    for i in sorted(range(len(exact)), key=lambda i: out[i] - exact[i])[:total - sum(out)]:
+        out[i] += 1
+    return out
 
 
 def _between(items: list, extra: list, every: int) -> list:

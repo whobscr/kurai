@@ -134,18 +134,27 @@ def spread(candidates: list[Candidate]) -> float:
     return max(0.01, float(np.std([c.relevance for c in candidates])))
 
 
+AWAY = 6.0  # how many spreads a track sounding like a skipped one loses at «Отталкивание от пропущенного» 1
+
+
 def adjust(candidates: list[Candidate], randomness: float = 0.0, resting: set[str] | None = None,
-           rest_penalty: float = 0.0, rng: random.Random | None = None, scale: float | None = None) -> list[Candidate]:
+           rest_penalty: float = 0.0, rng: random.Random | None = None, scale: float | None = None,
+           away: list[np.ndarray] | None = None, push: float = 0.0) -> list[Candidate]:
     """The relevance as a mix weighs it: an artist heard lately (`resting`, lower case) lowered by `rest_penalty`
-    spreads, and random noise of `randomness` spreads added. Best first."""
+    spreads; a track like one of `away` (the skipped ones' vectors) lowered by `push` × AWAY spreads × its likeness
+    (the cosine, from 0) to the nearest of them; random noise of `randomness` spreads added. Best first."""
     scale = scale if scale is not None else spread(candidates)
     rng = rng or random.Random()
     resting = resting or set()
+    away = [normalize(np.asarray(a, dtype=np.float32)) for a in away or []] if push else []
     out = []
     for c in candidates:
         r = c.relevance
         if c.artist.lower() in resting:
             r -= rest_penalty * scale * 2
+        if away:
+            v = normalize(c.vector)
+            r -= push * AWAY * scale * max(0.0, max(float(np.dot(v, a)) for a in away))
         if randomness:
             r += rng.gauss(0, randomness * scale)
         out.append(replace(c, relevance=r))
@@ -154,16 +163,18 @@ def adjust(candidates: list[Candidate], randomness: float = 0.0, resting: set[st
 
 
 def compose(parts: list[tuple[list[Candidate], int]], size: int, diversity: float,
-            max_per_artist: int) -> list[Candidate]:
+            max_per_artist: int, chosen: list[Candidate] | None = None) -> list[Candidate]:
     """A mix of parts (new, related, known…), each `(candidates, how many)`, chosen in turn by MMR so they don't
-    repeat each other; what a part lacks is filled from all of them."""
-    chosen: list[Candidate] = []
+    repeat each other; what a part lacks is filled from all of them. Continues `chosen` (another part of the same
+    mix: no repeats, the artists counted): returns it with up to `size` more."""
+    chosen = list(chosen or [])
+    goal = len(chosen) + size
     for pool, count in parts:
-        chosen = mmr_select(pool, count, diversity, max_per_artist, chosen)
-    if len(chosen) < size:
+        chosen = mmr_select(pool, min(count, goal - len(chosen)), diversity, max_per_artist, chosen)
+    if len(chosen) < goal:
         everything = sorted((c for pool, _n in parts for c in pool), key=lambda c: -c.relevance)
-        chosen = mmr_select(everything, size - len(chosen), diversity, max_per_artist, chosen)
-    return chosen[:size]
+        chosen = mmr_select(everything, goal - len(chosen), diversity, max_per_artist, chosen)
+    return chosen[:goal]
 
 
 def arrange(tracks: list[Candidate], smooth: bool = True, artist_gap: int = 1) -> list[Candidate]:

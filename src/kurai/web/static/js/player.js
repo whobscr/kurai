@@ -101,8 +101,10 @@
       if (!data || !data.tracks.length) return;
       source = {which, name: data.kind === "wave" ? say("wave") : data.name, version: data.version,
         chosen: data.kind === "set"};
-      tracks = which === "wave" ? data.tracks.filter((t) => !heard.has(t.id)) : data.tracks;
-      if (!tracks.length) tracks = data.tracks;
+      // the wave after something else: spaced from what just played (still `tracks` here)
+      let fresh = which === "wave" ? data.tracks.filter((t) => !heard.has(t.id)) : data.tracks;
+      if (!fresh.length) fresh = data.tracks;
+      tracks = which === "wave" && current() ? spaced(fresh, data.artist_gap || 0) : fresh;
       index = Math.max(0, startId ? tracks.findIndex((t) => t.id === startId) : 0);
       if (which === "wave") setStatus("wave", data.description || "");
       playCurrent();
@@ -200,6 +202,21 @@
   }
   showRepeat();
 
+  // the new version's tracks in its order, but none by an artist of the last `gap` tracks played (the current one
+  // too: the server doesn't know it yet) while another is left — as the server spaces a version within itself
+  function spaced(upcoming, gap) {
+    if (gap <= 0) return upcoming;
+    const artist = (t) => (t.artist || "").toLowerCase();
+    const recent = tracks.slice(Math.max(0, index + 1 - gap), index + 1).map(artist);
+    const rest = upcoming.slice(), out = [];
+    while (rest.length) {
+      const last = recent.concat(out.map(artist)).slice(-gap);
+      const i = Math.max(0, rest.findIndex((t) => !last.includes(artist(t))));
+      out.push(rest.splice(i, 1)[0]);
+    }
+    return out;
+  }
+
   // the wave's newest version: its tracks not yet heard become the ones after the current track
   async function refresh() {
     if (!isWave()) return false;
@@ -212,7 +229,7 @@
         const pending = tracks.slice(index + 1).filter((t) => t.added);  // what the user put in plays first
         const upcoming = data.tracks.filter((t) => !heard.has(t.id) && (!now || t.id !== now.id)
           && !pending.some((p) => p.id === t.id));
-        tracks = tracks.slice(0, index + 1).concat(pending, upcoming);
+        tracks = tracks.slice(0, index + 1).concat(pending, spaced(upcoming, data.artist_gap || 0));
         keep();
         showQueue();
         source.version = data.version;

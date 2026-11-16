@@ -121,7 +121,7 @@ async def plan_mixes(db: AsyncSession, user: User, count: int, mix: mixing.Mix |
     near = await retrieval.candidates(db, j, taste, user, rest_days=mix.track_rest_days,
                                       only_artists=list(neighbours)) if neighbours else []
     known = await retrieval.played(db, user, {c.id for c in pool + near})
-    resting = await mixing.resting_artists(db, user, datetime.now(UTC), mix.artist_rest_hours)
+    resting = await mixing.resting_artists(db, user, datetime.now(UTC), mix.artist_rest_hours, mix.artist_rest_shape)
     taste_joint = j.vector(taste)
     mixes = []
     for i in range(count):

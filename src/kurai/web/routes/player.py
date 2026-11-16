@@ -111,9 +111,10 @@ async def queue(which: str, ctx: Ctx = Depends(user_required)):
         ids = await _unheard_wave(ctx, playlist)
         if ids is None:
             return {"pending": True}
+        # «Между треками одного исполнителя»: the player keeps it from what it just played to the new version
         return {"id": playlist.id, "kind": playlist.kind, "name": playlist.name,
                 "description": playlist.description, "version": playlist.created_at.isoformat(),
-                "tracks": await _tracks(ctx, ids)}
+                "artist_gap": (await mixing.load(ctx.db, "wave")).artist_gap, "tracks": await _tracks(ctx, ids)}
     else:
         playlist = await ctx.db.get(Playlist, int(which)) if which.isdigit() else None
         if playlist is None or playlist.user_id != ctx.user.id:

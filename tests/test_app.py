@@ -621,6 +621,7 @@ async def test_the_web_player_plays_the_wave_and_reports_plays_and_skips(client,
     await db.commit()
     queue = (await client.get("/player/queue/wave")).json()
     assert [t["id"] for t in queue["tracks"]] == ["p2", "p0"] and queue["version"]  # in order, unknown left out
+    assert queue["artist_gap"] == 5  # the player keeps «Между треками одного исполнителя» into the next version
     assert (await client.get(f"/player/queue/{playlist.id}")).json()["name"] == "Моя волна"
     assert (await client.get(f"/player/queue/{other.id}")).status_code == 404
 
@@ -1069,3 +1070,75 @@ async def test_the_players_list_is_saved_as_the_users_own_playlist(client, db, n
     home = (await client.get("/")).text
     assert "Мой плейлист" in home and f'data-play="{saved.id}"' in home
     assert saved.kind not in playlists.KEEP_DAYS  # never removed by itself
+
+
+async def test_the_waves_settings_change_the_music_as_they_say(db):
+    """The wave's dials against a small library of three «genres» (directions): «"Сейчас" против "всегда"» gives
+    its share of the version to what was just played, step by step (not all-or-nothing); skips alone (nothing
+    played yet) move the wave away from what was skipped; «Пауза для исполнителя» keeps a just-heard artist out."""
+    from datetime import UTC, datetime, timedelta
+
+    from kurai.db.models import Taste, WaveEvent
+    from kurai.recommend import mixing, wave
+
+    model = await settings.get(db, "embed.model")
+    rng = np.random.default_rng(3)
+    centre = {g: np.eye(8)[g * 3] for g in range(3)}
+    genre = {}
+    for g in range(3):
+        for a in range(10):
+            artist = np.eye(8)[g * 3] + 0.35 * rng.normal(size=8)
+            for t in range(4):
+                tid = f"wv-g{g}a{a}t{t}"
+                genre[tid] = g
+                db.add(Track(id=tid, title=tid, artist=f"wv-g{g}a{a}", album="x", duration=240,
+                             embedding=(artist + 0.2 * rng.normal(size=8)).tolist(), embedding_model=model))
+    vic = User(username="vic", display_name="Вик", password_hash="x")
+    db.add(vic)
+    await db.commit()
+    db.add(Taste(user_id=vic.id, vector=centre[0].tolist(), embedding_model=model, tracks_used=10))
+    await db.commit()
+    now = datetime.now(UTC)
+
+    async def session(events):
+        await db.execute(WaveEvent.__table__.delete().where(WaveEvent.user_id == vic.id))
+        db.add_all([WaveEvent(user_id=vic.id, track_id=t, skipped=skipped, seconds=10 if skipped else 200,
+                              at=now - timedelta(minutes=10)) for t, skipped in events])
+        await db.commit()
+
+    async def version(**values):
+        mix = mixing.Mix("wave", {"mix.wave.size": 20, "mix.wave.related_share": 0, "mix.wave.randomness": 0,
+                                  **{f"mix.wave.{k}": v for k, v in values.items()}})
+        return [c.id for c in (await wave.plan(db, vic, mix, now=now)).tracks]
+
+    def share(ids, g):
+        return sum(genre.get(i) == g for i in ids) / len(ids)
+
+    await session([(f"wv-g1a{a}t0", False) for a in range(4)])  # genre 1 just now; the taste is genre 0
+    steps = [share(await version(now_weight=w, artist_rest_hours=0, artist_max=4), 1) for w in (0, 0.25, 0.5, 0.75, 1)]
+    assert steps == sorted(steps) and steps[0] <= 0.1 and steps[-1] >= 0.8, steps
+    assert 0.3 <= steps[2] <= 0.7 and steps[1] < steps[2] < steps[3], steps  # a dial, not a switch
+
+    # «Затухание «сейчас»»: genre 1 played long ago, genre 2 just now — the slower the fading, the more of genre 1
+    await db.execute(WaveEvent.__table__.delete().where(WaveEvent.user_id == vic.id))
+    db.add_all([WaveEvent(user_id=vic.id, track_id=f"wv-g{g}a{a}t0", skipped=False, seconds=200,
+                          at=now - timedelta(minutes=ago)) for g, ago in ((1, 90), (2, 5)) for a in range(3)])
+    await db.commit()
+    older = [share(await version(now_weight=1, session_half_life=h, artist_rest_hours=0, artist_max=4), 1)
+             for h in (5, 45, 600)]
+    assert older[0] < older[1] < older[2] and older[0] <= 0.1 and older[2] >= 0.35, older
+
+    skipped = [f"wv-g0a{a}t0" for a in range(4)]
+    await session([(t, True) for t in skipped])  # skips only, near the taste
+
+    def closeness(ids):
+        return float(np.mean([np.dot(np.asarray(t.embedding), centre[0]) for t in tracks if t.id in ids]))
+
+    tracks = (await db.execute(select(Track).where(Track.id.like("wv-%")))).scalars().all()
+    still = closeness(await version(skip_push=0, artist_skip_ban=0))
+    away = closeness(await version(skip_push=1, artist_skip_ban=0))
+    assert away < still - 0.05, (still, away)
+
+    await session([("wv-g0a5t0", False)])
+    assert "wv-g0a5" in {i.rsplit("t", 1)[0] for i in await version(artist_rest_hours=0)}
+    assert "wv-g0a5" not in {i.rsplit("t", 1)[0] for i in await version(artist_rest_hours=6, artist_rest_shape=50)}

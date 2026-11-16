@@ -4,12 +4,14 @@ both tabs' forms, their checks and the code that picks the tracks; /docs/admin/m
 
 A profile is one set of values: «wave» or «playlists». A parameter belongs to the profiles it has a default in."""
 
+import hashlib
 import random
+import statistics
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import settings
@@ -18,6 +20,8 @@ from kurai.i18n import _
 from kurai.recommend.vectors import Candidate, adjust, arrange, compose, spread
 
 PROFILES = {"wave": _("«Моя волна»"), "playlists": _("Плейлисты")}
+# a resting artist let back in (others ran short): this many spreads lower, so after everyone else
+REST_LAST = 10
 
 
 @dataclass(frozen=True)
@@ -49,7 +53,8 @@ class Param:
 PARAMS: tuple[Param, ...] = (
     # ---- the basic ones: what the music is made of ----
     Param("new_share", _("Доля нового"),
-          _("Треки, которые человек ещё ни разу не слушал, но близкие к его вкусу. 0 — только знакомое."),
+          _("Треки, которые человек ещё ни разу не слушал, но близкие к его вкусу. 0 — только знакомое (если "
+            "знакомого, что подходит, хватает)."),
           float, {"wave": 0.4, "playlists": 0.5}),
     Param("related_share", _("Доля «слушают вместе»"),
           _("Исполнители, которых в мире слушают те же люди, что и любимых исполнителей человека (ListenBrainz), — "
@@ -63,7 +68,8 @@ PARAMS: tuple[Param, ...] = (
             "разницу между кандидатами."),
           float, {"wave": 0.15, "playlists": 0.1}, ask=True),
     Param("now_weight", _("«Сейчас» против «всегда»"),
-          _("Насколько волна идёт за тем, что играет последние часы, а не за вкусом за всё время."),
+          _("Доля волны, которая идёт за тем, что играет последние часы; остальное — по вкусу за всё время. 0.6 — "
+            "60 % треков."),
           float, {"wave": 0.6}),
     Param("taste_weight", _("Вкус в «Спросить»"),
           _("Насколько запрос тянется к вкусу человека. Большой вес подменяет просьбу привычным."),
@@ -72,13 +78,16 @@ PARAMS: tuple[Param, ...] = (
           _("Трек, сыгранный за эти дни, не попадает в подборку — чтобы успеть по нему соскучиться."),
           float, {"wave": 7, "playlists": 7}, high=365),
     Param("artist_rest_hours", _("Пауза для исполнителя, ч"),
-          _("Исполнитель, звучавший за эти часы, опускается в выборе (а не исключается: если хорошего больше нет, "
-            "он вернётся)."),
+          _("Самое большее столько часов исполнитель, только что звучавший, не попадает в подборку (пока хватает "
+            "других; если не хватает — возвращается, последним). Когда именно он вернётся — решает «Форма паузы». "
+            "0 — без паузы."),
           float, {"wave": 6, "playlists": 24}, high=24 * 30),
     # ---- the advanced ones ----
-    Param("artist_rest_penalty", _("Сила паузы исполнителя"),
-          _("Насколько опускается недавно звучавший исполнитель: 0 — никак, 1 — на всю разницу между кандидатами."),
-          float, {"wave": 0.5, "playlists": 0.5}, advanced=True),
+    Param("artist_rest_shape", _("Форма паузы исполнителя"),
+          _("Когда в пределах паузы исполнитель возвращается: 1 — в любой момент с равной вероятностью; 2 — чем "
+            "ближе к концу, тем вероятнее (к середине паузы вернулась четверть); 8 и больше — почти все в самом "
+            "конце."),
+          float, {"wave": 2, "playlists": 2}, low=1, high=20, advanced=True),
     Param("artist_max", _("Треков одного исполнителя в подборке"),
           _("Не больше стольких треков одного исполнителя в одной версии волны или в одном плейлисте."),
           int, {"wave": 2, "playlists": 2}, low=1, high=20, advanced=True, ask=True),
@@ -95,7 +104,7 @@ PARAMS: tuple[Param, ...] = (
           _("1 — соседи любимых исполнителей; 2 — ещё и соседи соседей: шире, дальше от привычного."),
           int, {"wave": 1, "playlists": 1}, low=1, high=2, advanced=True),
     Param("skip_push", _("Отталкивание от пропущенного"),
-          _("Насколько волна уходит от звучания пропущенных треков."),
+          _("Насколько опускаются треки, похожие на пропущенные: 0 — никак, 1 — сильно (волна уходит от их звучания)."),
           float, {"wave": 0.3}, advanced=True),
     Param("skip_share", _("Что считать пропуском"),
           _("Трек, сыгранный меньше этой доли своей длины, считается пропущенным."),
@@ -107,7 +116,8 @@ PARAMS: tuple[Param, ...] = (
           _("За сколько последних часов прослушивания и пропуски направляют волну."),
           float, {"wave": 3}, low=0.5, high=24, advanced=True),
     Param("session_half_life", _("Затухание «сейчас», мин"),
-          _("Через столько минут трек весит вдвое меньше: чем меньше, тем резче волна следует за последним."),
+          _("Через столько минут трек весит вдвое меньше: чем меньше, тем больше волны — за последним, что звучало; "
+            "чем больше — тем ровнее за всем сеансом."),
           float, {"wave": 45}, low=5, high=24 * 60, advanced=True),
     Param("rebuild_plays", _("Обновлять после стольких треков"),
           _("Новая версия волны — после стольких дослушанных треков (после пропуска — сразу)."),
@@ -181,31 +191,76 @@ def standard(profile: str) -> Mix:
     return Mix(profile, {})
 
 
-async def resting_artists(db: AsyncSession, user: User, now: datetime, hours: float) -> set[str]:
-    """The artists the user heard within `hours` (played or skipped, any app), in lower case: they rest («Пауза для
-    исполнителя»)."""
+def returns_after(hours: float, shape: float, key: str) -> float:
+    """When, within its pause of `hours`, an artist heard comes back: a point drawn once for `key` (the user, the
+    artist and when they were last heard — the same at every rebuild, a new draw after the next play), with the
+    chance of being back by a part x of the pause x^shape («Форма паузы исполнителя»: 1 — even, 2 — quadratic)."""
+    draw = int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], "big") / 2 ** 64
+    return hours * draw ** (1 / max(shape, 1e-6))
+
+
+async def resting_artists(db: AsyncSession, user: User, now: datetime, hours: float, shape: float = 2) -> set[str]:
+    """The artists the user heard (played or skipped, any app) whose return within the pause («Пауза для
+    исполнителя») hasn't come yet, in lower case."""
+    if hours <= 0:
+        return set()
     since = now - timedelta(hours=hours)
-    events = select(Track.artist).join(WaveEvent, WaveEvent.track_id == Track.id).where(
-        WaveEvent.user_id == user.id, WaveEvent.at >= since)
-    played = select(Track.artist).join(Listen, Listen.track_id == Track.id).where(
-        Listen.user_id == user.id, Listen.last_played >= since)
-    return {a.lower() for a in (await db.execute(events.union(played))).scalars() if a}
+    last: dict[str, datetime] = {}
+    for stmt in (select(Track.artist, func.max(WaveEvent.at)).join(WaveEvent, WaveEvent.track_id == Track.id)
+                 .where(WaveEvent.user_id == user.id, WaveEvent.at >= since).group_by(Track.artist),
+                 select(Track.artist, func.max(Listen.last_played)).join(Listen, Listen.track_id == Track.id)
+                 .where(Listen.user_id == user.id, Listen.last_played >= since).group_by(Track.artist)):
+        for artist, at in (await db.execute(stmt)).all():
+            if artist and at and (artist.lower() not in last or at > last[artist.lower()]):
+                last[artist.lower()] = at
+    return {artist for artist, at in last.items()
+            if (now - at).total_seconds() / 3600 < returns_after(hours, shape, f"{user.id}|{artist}|{at.isoformat()}")}
 
 
-def assemble(pool: list[Candidate], near: list[Candidate], known: set[str], mix: Mix, size: int,
-             resting: set[str] | None = None, rng: random.Random | None = None) -> list[Candidate]:
-    """A wave's version or a mix from the candidates near the query (`pool`) and those of the «слушают вместе»
-    artists (`near`): the relevance weighed (resting artists lowered, randomness added), then the shares — related,
-    new (never played: not in `known`), known — each chosen by MMR, and the whole put in playing order. Each track
-    says which part it came for (`kind`)."""
+def _capacity(candidates: list[Candidate], per_artist: int) -> int:
+    """How many tracks these can give with at most `per_artist` of each artist."""
+    counts: dict[str, int] = {}
+    for c in candidates:
+        counts[c.artist.lower()] = counts.get(c.artist.lower(), 0) + 1
+    return sum(min(n, per_artist) for n in counts.values())
+
+
+def choose(pool: list[Candidate], near: list[Candidate], known: set[str], mix: Mix, size: int,
+           resting: set[str] | None = None, rng: random.Random | None = None,
+           chosen: list[Candidate] | None = None, away: list | None = None) -> list[Candidate]:
+    """`size` more tracks after `chosen` (another part of the same version), not in playing order: from the candidates
+    near the query (`pool`) and those of the «слушают вместе» artists (`near`). The artists resting («Пауза для
+    исполнителя») are left out while the others can fill it — else let back in, last; randomness is added; then the
+    shares — related, new (never played: not in `known`), known — each by MMR. Known takes only the better half of the
+    pool (familiar tracks far from the query don't fill its share; they fill only what's missing). The tracks like
+    the skipped ones (`away`, their vectors) are lowered by «Отталкивание от пропущенного». Each track says which part
+    it came for (`kind`)."""
+    resting = resting or set()
+    awake = [c for c in pool if c.artist.lower() not in resting]
+    awake_near = [c for c in near if c.artist.lower() not in resting]
+    if _capacity(awake + awake_near, mix.artist_max) >= size:
+        pool, near = awake, awake_near
+    # the better half of the pool, the resting artists aside (they come back only to fill what's missing): what a
+    # familiar track has to reach to count for the known share
+    base = [c for c in pool if c.artist.lower() not in resting] or pool
+    cut = statistics.median(c.relevance for c in base) if base else 0.0
+    fits = {c.id for c in base if c.relevance >= cut}
     scale = spread(pool + near)
-    pool = adjust(pool, mix.randomness, resting, mix.artist_rest_penalty, rng, scale)
-    near = adjust(near, mix.randomness, resting, mix.artist_rest_penalty, rng, scale)
+    push = mix.skip_push if away else 0.0
+    pool = adjust(pool, mix.randomness, resting, REST_LAST, rng, scale, away, push)
+    near = adjust(near, mix.randomness, resting, REST_LAST, rng, scale, away, push)
     new = [replace(c, kind="new") for c in pool if c.id not in known]
-    old = [replace(c, kind="known") for c in pool if c.id in known]
+    old = [replace(c, kind="known") for c in pool if c.id in fits and c.id in known]
+    rest = [replace(c, kind="known") for c in pool if c.id not in fits and c.id in known]
     # the related artists' tracks the user hasn't heard come first: that's what they're mixed in for
     near = [replace(c, kind="related") for c in sorted(near, key=lambda c: (c.id in known, -c.relevance))]
     n_related = round(size * mix.related_share) if near else 0
     n_new = round(size * mix.new_share)
-    parts = [(near, n_related), (new, n_new), (old, max(0, size - n_related - n_new))]
-    return arrange(compose(parts, size, mix.variety, mix.artist_max), mix.smooth, mix.artist_gap)
+    parts = [(near, n_related), (new, n_new), (old, max(0, size - n_related - n_new)), (rest, 0)]
+    return compose(parts, size, mix.variety, mix.artist_max, chosen)
+
+
+def assemble(pool: list[Candidate], near: list[Candidate], known: set[str], mix: Mix, size: int,
+             resting: set[str] | None = None, rng: random.Random | None = None) -> list[Candidate]:
+    """A mix from one query's candidates (`choose`), in playing order."""
+    return arrange(choose(pool, near, known, mix, size, resting, rng), mix.smooth, mix.artist_gap)

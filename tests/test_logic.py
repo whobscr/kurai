@@ -76,12 +76,27 @@ def test_a_resting_artist_is_lowered_and_randomness_shuffles():
     assert len(shuffled) > 1
 
 
+def test_a_resting_artist_is_left_out_while_others_can_fill_the_mix():
+    """«Пауза для исполнителя»: an artist heard lately isn't in the new version even when they're the best match by
+    far — unless the others can't fill it; then they come back, after everyone else."""
+    import random
+
+    mix = mixing.Mix("wave", {"mix.wave.randomness": 0, "mix.wave.artist_max": 2, "mix.wave.size": 10})
+    best = [_cand(f"a{i}", "Favourite", [1, 0.01 * i], 0.99 - 0.001 * i) for i in range(5)]
+    others = [_cand(f"o{i}", f"Other {i}", [0.5, 0.1 * i], 0.5 - 0.01 * i) for i in range(12)]
+    picked = mixing.assemble(best + others, [], set(), mix, 10, resting={"favourite"}, rng=random.Random(1))
+    assert len(picked) == 10 and "Favourite" not in {c.artist for c in picked}
+    assert {c.artist for c in mixing.assemble(best + others, [], set(), mix, 10, rng=random.Random(1))} >= {"Favourite"}
+    few = mixing.assemble(best + others[:9], [], set(), mix, 10, resting={"favourite"}, rng=random.Random(1))
+    assert len(few) == 10 and [c.artist for c in few].count("Favourite") == 1  # 9 others: one comes back
+
+
 def test_a_mix_takes_its_shares_of_new_known_and_related():
     import random
 
     mix = mixing.Mix("wave", {"mix.wave.new_share": 0.5, "mix.wave.related_share": 0.25, "mix.wave.randomness": 0,
                               "mix.wave.artist_max": 5})
-    pool = [_cand(f"n{i}", f"N{i}", [1, 0.01 * i], 0.9 - 0.01 * i) for i in range(10)]
+    pool = [_cand(f"n{i}", f"N{i}", [1, 0.01 * i], 0.95 - 0.01 * i) for i in range(10)]
     pool += [_cand(f"k{i}", f"K{i}", [1, 0.02 * i], 0.95 - 0.01 * i) for i in range(10)]
     near = [_cand(f"r{i}", f"R{i}", [0, 1], 0.2) for i in range(10)]
     known = {f"k{i}" for i in range(10)} | {"r0"}
@@ -92,6 +107,36 @@ def test_a_mix_takes_its_shares_of_new_known_and_related():
     # no known tracks: the new ones fill their place
     alone = mixing.assemble(pool[:10], [], set(), mix, 8, rng=random.Random(1))
     assert len(alone) == 8 and {c.kind for c in alone} == {"new"}
+
+
+def test_a_share_takes_only_what_fits_and_the_halves_continue_each_other():
+    """New and known come from the better half of the pool: familiar tracks far from the query don't fill the known
+    share (what fits fills it instead). A second part of a version continues the first: no repeats, artists counted."""
+    import random
+
+    mix = mixing.Mix("wave", {"mix.wave.new_share": 0.5, "mix.wave.related_share": 0, "mix.wave.randomness": 0,
+                              "mix.wave.artist_max": 1})
+    near_new = [_cand(f"n{i}", f"N{i}", [1, 0.01 * i], 0.9 - 0.01 * i) for i in range(10)]
+    far_known = [_cand(f"k{i}", f"K{i}", [0, 1], 0.1 - 0.01 * i) for i in range(10)]
+    known = {c.id for c in far_known}
+    picked = mixing.choose(near_new + far_known, [], known, mix, 6, rng=random.Random(1))
+    assert {c.id for c in picked} <= {c.id for c in near_new}  # the far familiar ones didn't get in
+    more = mixing.choose(near_new + far_known, [], known, mix, 4, rng=random.Random(1), chosen=picked)
+    assert len(more) == 10 and len({c.id for c in more}) == 10 and more[:6] == picked
+    assert len({c.artist for c in more}) == 10  # one track an artist across both parts
+
+
+def test_an_artist_comes_back_within_the_pause_by_its_shape():
+    """«Форма паузы»: one draw per artist and play (the same at every rebuild), the chance of being back by a part x
+    of the pause x^shape, never after the pause."""
+    keys = [f"1|artist {i}|2026-11-16T10:00:00" for i in range(4000)]
+    for shape in (1, 2, 8):
+        back = [mixing.returns_after(6, shape, k) for k in keys]
+        assert max(back) <= 6 and back == [mixing.returns_after(6, shape, k) for k in keys]
+        for part in (0.25, 0.5, 0.75):
+            share = sum(b <= 6 * part for b in back) / len(back)
+            assert abs(share - part ** shape) < 0.03, (shape, part, share)
+    assert mixing.returns_after(6, 2, keys[0]) != mixing.returns_after(6, 2, keys[0].replace("10:00", "11:00"))
 
 
 def test_mixing_parameters_are_checked():
