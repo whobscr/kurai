@@ -9,12 +9,13 @@
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
   <meta name="theme-color" content="{{ accent }}">
   <link rel="stylesheet" href="/static/vendor/beercss/beer.min.css">
-  <link rel="stylesheet" href="/static/css/kurai.css">
+  {# Kurai's own files carry the version: a release's pages never meet a browser's cached files of the one before #}
+  <link rel="stylesheet" href="/static/css/kurai.css?v={{ version }}">
   <script src="/static/vendor/material-dynamic-colors/material-dynamic-colors.min.js" type="module"></script>
   <script src="/static/vendor/beercss/beer.min.js" type="module"></script>
   <script src="/static/vendor/htmx/htmx.min.js" defer></script>
-  <script src="/static/js/kurai.js" defer></script>
-  <script src="/static/js/player.js" defer></script>
+  <script src="/static/js/kurai.js?v={{ version }}" defer></script>
+  <script src="/static/js/player.js?v={{ version }}" defer></script>
 </head>
 <body data-accent="{{ accent }}" data-mode="{{ mode }}" data-csrf="{{ csrf }}" class="{% block body_class %}{% endblock %}">
 {% block shell %}

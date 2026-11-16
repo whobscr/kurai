@@ -196,6 +196,10 @@ async def test_pages_docs_errors_and_pwa(client):
     home = (await client.get("/")).text
     assert 'id="mode-toggle"' in home and 'data-play="wave"' in home and 'id="playlists-open"' in home
     assert 'class="main-nav' in home and 'id="player"' in home and 'id="page"' in home
+    from kurai import __version__
+
+    for asset in ("css/kurai.css", "js/kurai.js", "js/player.js"):  # a release never meets the cached files before it
+        assert f"/static/{asset}?v={__version__}" in home
     token = csrf_of(home)
     assert (await client.post("/me/mode", json={"mode": "dark"}, headers={"X-CSRF-Token": token})).status_code == 204
     assert 'data-mode="dark"' in (await client.get("/")).text
