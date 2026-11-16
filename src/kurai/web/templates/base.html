@@ -80,14 +80,17 @@
       <span class="small-text" id="player-artist"></span>
     </div>
     <span class="chip small player-source" id="player-source"><i>waves</i><span></span></span>
-    <div class="player-rate">{{ rate_buttons("") }}
-      <a class="button circle transparent" href="/history" title="{{ _('История') }}"><i>history</i></a></div>
     <button type="button" class="circle player-toggle" id="player-toggle" title="{{ _('Пауза / играть') }}"><i>play_arrow</i></button>
     <button type="button" class="circle transparent" id="player-next" title="{{ _('Следующий') }}"><i>skip_next</i></button>
-    <div class="player-progress">
-      <span class="small-text" id="player-time">0:00</span>
-      <input type="range" id="player-seek" min="0" max="100" step="1" value="0" aria-label="{{ _('Перемотка') }}">
-      <span class="small-text" id="player-duration">0:00</span>
+    {# the second row: ♥, 👎, «История», and where the track is #}
+    <div class="player-bottom">
+      <div class="player-rate">{{ rate_buttons("") }}
+        <a class="button circle transparent" href="/history" title="{{ _('История') }}"><i>history</i></a></div>
+      <div class="player-progress">
+        <span class="small-text" id="player-time">0:00</span>
+        <input type="range" id="player-seek" min="0" max="100" step="1" value="0" aria-label="{{ _('Перемотка') }}">
+        <span class="small-text" id="player-duration">0:00</span>
+      </div>
     </div>
     <audio id="player-audio" preload="auto"
       data-pending="{{ _('Собираю волну по вашему вкусу…') }}" data-updated="{{ _('Волна обновилась в {t} — по тому, что вы слушаете') }}"
