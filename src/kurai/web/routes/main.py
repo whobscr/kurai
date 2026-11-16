@@ -1,4 +1,5 @@
-"""The pages every user has: «Для вас» (the playlists and notifications), «Спросить», and the PWA's share target."""
+"""The pages every user has: «Для вас» (the wave's big button, the playlists, notifications), «Спросить», and the PWA's
+share target."""
 
 from urllib.parse import quote
 
@@ -6,7 +7,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select, update
 
-from kurai import plugins
+from kurai import plugins, settings
 from kurai.db.models import Job, LlmCall, Notification, Playlist
 from kurai.jobs import queue
 from kurai.web.deps import Ctx, user_required
@@ -30,7 +31,9 @@ async def home(request: Request, ctx: Ctx = Depends(user_required)):
                                   .order_by(Notification.created_at.desc()).limit(10))).scalars().all()
     await ctx.db.execute(update(Notification).where(Notification.user_id == ctx.user.id).values(read=True))
     await ctx.db.commit()
-    return render(request, "home.html", ctx, playlists=playlists, notes=notes)
+    wave = next((p for p in playlists if p.kind == "wave"), None)
+    return render(request, "home.html", ctx, wave=wave, mixes=[p for p in playlists if p.kind != "wave"], notes=notes,
+                  wave_on=await settings.get(ctx.db, "wave.enabled"))
 
 
 @router.post("/playlists/{playlist_id}/feedback")

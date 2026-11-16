@@ -1,10 +1,11 @@
 """«Моя волна»: one playlist per user that follows what they're listening to right now.
 
 The worker watches Navidrome's «now playing» (every music app reports the track it starts), so Kurai sees within
-seconds which track was played on and which was skipped. After a skip, or a few tracks played, the wave is rebuilt as a
-job: near what was just liked and near the taste of all time, away from what was skipped, without anything heard today
-or the artists skipped twice. It's the same playlist in Navidrome every time: an app plays its own copy of a playlist,
-so the new version is heard when the wave is opened again."""
+seconds which track was played on and which was skipped; Kurai's web player tells it directly. After a skip, or a few
+tracks played, the wave is rebuilt as a job: near what was just liked and near the taste of all time, away from what
+was skipped, without anything heard today or the artists skipped twice. It's the same playlist in Navidrome every
+time: an app plays its own copy of a playlist, so the new version is heard when the wave is opened again (Kurai's web
+player picks it up by itself)."""
 
 import asyncio
 import logging
@@ -19,6 +20,7 @@ from kurai import db as database
 from kurai import settings
 from kurai.db.models import Playlist, Track, User, WaveEvent
 from kurai.i18n import _
+from kurai.integrations.navidrome import WEB_PLAYER
 from kurai.jobs import queue
 from kurai.recommend import library, playlists, retrieval
 from kurai.recommend.vectors import mmr_select, order_smoothly, taste_vector
@@ -58,7 +60,9 @@ class Watcher:
     def update(self, now: datetime, entries: list[dict]) -> list[tuple[str, str, bool, int]]:
         """(username, track id, skipped, seconds played) of each track that has just given way to another."""
         events = []
-        current = {(e.get("username", ""), str(e.get("playerId", ""))): e for e in entries if e.get("id")}
+        # Kurai's own web player reports its events itself (web/routes/player.py)
+        current = {(e.get("username", ""), str(e.get("playerId", ""))): e for e in entries
+                   if e.get("id") and e.get("playerName") != WEB_PLAYER}
         for key, entry in current.items():
             before = self.playing.get(key)
             if before is not None and before.track_id == entry["id"]:

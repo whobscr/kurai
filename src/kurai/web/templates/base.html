@@ -14,26 +14,29 @@
   <script src="/static/vendor/beercss/beer.min.js" type="module"></script>
   <script src="/static/vendor/htmx/htmx.min.js" defer></script>
   <script src="/static/js/kurai.js" defer></script>
+  <script src="/static/js/player.js" defer></script>
 </head>
 <body data-accent="{{ accent }}" data-mode="{{ mode }}" data-csrf="{{ csrf }}" class="{% block body_class %}{% endblock %}">
 {% block shell %}
-  {% set nav = [("/", "library_music", _("Для вас")), ("/ask", "chat", _("Спросить"))]
+  {# the first entry is the app's main one: drawn as a circle of the accent colour (kurai.css: .main-nav) #}
+  {% set nav = [("/", "waves", _("Для вас")), ("/ask", "chat", _("Спросить"))]
      + nav_extra + [("/me", "person", _("Кабинет"))] %}
   {% if user and user.is_admin %}{% set nav = nav + [("/admin", "tune", _("Система"))] %}{% endif %}
   <nav class="left m l">
     <header><img src="/static/icons/logo.svg" alt="" class="logo-rail"></header>
     {% for href, icon, label in nav %}
-      <a href="{{ href }}" class="{{ 'active' if (path == href or (href != '/' and path.startswith(href))) else '' }}">
+      <a href="{{ href }}" class="{{ 'main-nav' if loop.first }} {{ 'active' if (path == href or (href != '/' and path.startswith(href))) else '' }}">
         <i>{{ icon }}</i><div>{{ label }}</div></a>
     {% endfor %}
     <a href="/docs" class="{{ 'active' if path.startswith('/docs') else '' }}"><i>menu_book</i><div>{{ _("Справка") }}</div></a>
   </nav>
   <nav class="bottom s">
     {% for href, icon, label in nav %}
-      <a href="{{ href }}" class="{{ 'active' if (path == href or (href != '/' and path.startswith(href))) else '' }}"><i>{{ icon }}</i></a>
+      <a href="{{ href }}" class="{{ 'main-nav' if loop.first }} {{ 'active' if (path == href or (href != '/' and path.startswith(href))) else '' }}" title="{{ label }}"><i>{{ icon }}</i></a>
     {% endfor %}
   </nav>
-  <main class="responsive">
+  {# the page itself: kurai.js swaps only this when moving between pages, so the player below keeps playing #}
+  <main class="responsive" id="page">
     {# the page's band: its title (and a line under it) on the accent, Material's shapes on the right #}
     <header class="hero {% block hero_class %}{% endblock %}">
       <div class="hero-text max">
@@ -41,19 +44,20 @@
         {% block lead %}{% endblock %}
       </div>
       <div class="hero-art" aria-hidden="true">
-        <div class="shape very-sunny slow-rotate a1"></div><div class="shape sided-cookie12 a2"></div>
-        <div class="shape flower slow-rotate a3"></div>
+        <div class="shape very-sunny a1"></div><div class="shape sided-cookie12 a2"></div>
+        <div class="shape flower a3"></div>
       </div>
       {% if user %}
       <div class="hero-tools">
         <button type="button" id="mode-toggle" class="transparent circle" title="{{ _('Светлая или тёмная тема') }}"><i>dark_mode</i></button>
-        <form method="post" action="/logout">
+        <form method="post" action="/logout" data-reload>
           <input type="hidden" name="csrf" value="{{ csrf }}">
           <button class="transparent circle" title="{{ _('Выйти') }}"><i>logout</i></button>
         </form>
       </div>
       {% endif %}
     </header>
+    {% block content %}{% endblock %}
     {# offered by kurai.js where the browser can install Kurai and it isn't installed yet; «Не сейчас» hides it here #}
     <article class="round install-banner primary-container" id="install-banner" hidden>
       <div class="row"><i>install_mobile</i>
@@ -63,10 +67,28 @@
         <a class="button round border install-how" href="/me#install">{{ _("Как установить") }}</a>
         <button type="button" class="round transparent" id="install-later">{{ _("Не сейчас") }}</button></div>
     </article>
-    {% block content %}{% endblock %}
     <footer class="foot small-text">Kurai {{ version }} · <a href="/docs/changelog">{{ _("Что нового") }}</a> ·
       <a href="https://github.com/whobscr/kurai">{{ _("Исходный код") }}</a> (AGPL-3.0)</footer>
   </main>
+  {# the web player (player.js): shown once something plays; outside the page, so it plays on across pages #}
+  <footer class="fixed player" id="player" hidden>
+    <img class="player-cover" id="player-cover" alt="">
+    <div class="player-text">
+      <b id="player-title"></b>
+      <span class="small-text" id="player-artist"></span>
+    </div>
+    <span class="chip small player-source" id="player-source"><i>waves</i><span></span></span>
+    <button type="button" class="circle player-toggle" id="player-toggle" title="{{ _('Пауза / играть') }}"><i>play_arrow</i></button>
+    <button type="button" class="circle transparent" id="player-next" title="{{ _('Следующий') }}"><i>skip_next</i></button>
+    <div class="player-progress">
+      <span class="small-text" id="player-time">0:00</span>
+      <input type="range" id="player-seek" min="0" max="100" step="1" value="0" aria-label="{{ _('Перемотка') }}">
+      <span class="small-text" id="player-duration">0:00</span>
+    </div>
+    <audio id="player-audio" preload="auto"
+      data-pending="{{ _('Собираю волну по вашему вкусу…') }}" data-updated="{{ _('Волна обновилась в {t} — по тому, что вы слушаете') }}"
+      data-now="{{ _('Сейчас: {track}') }}" data-error="{{ _('Не получилось включить:') }}" data-wave="{{ _('Моя волна') }}"></audio>
+  </footer>
 {% endblock %}
 </body>
 </html>

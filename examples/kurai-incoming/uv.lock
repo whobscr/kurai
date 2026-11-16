@@ -1140,7 +1140,7 @@ wheels = [
 
 [[package]]
 name = "kurai"
-version = "0.2.24"
+version = "1.0.0"
 source = { editable = "../../" }
 dependencies = [
     { name = "aiodns" },
@@ -1209,7 +1209,7 @@ dev = [
 
 [[package]]
 name = "kurai-incoming"
-version = "0.2.24"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "kurai" },

@@ -40,6 +40,7 @@ class FakeNavidrome:
     def __init__(self):
         self.users: dict[str, str] = {}
         self.playlists: dict[str, tuple[str, list[str]]] = {}
+        self.scrobbles: list[tuple[str, str]] = []
 
     async def ensure_admin(self, account):
         return False
@@ -53,6 +54,12 @@ class FakeNavidrome:
 
     async def set_password(self, token, user_id, username, name, password):
         self.users[username] = password
+
+    def signed(self, account, method, params, client="kurai"):
+        return f"http://navidrome.invalid/rest/{method}", [("u", account.username), ("c", client)] + params
+
+    async def scrobble(self, account, song_id, at_ms):
+        self.scrobbles.append((account.username, song_id))
 
     async def save_playlist(self, account, name, track_ids, playlist_id=None, comment=""):
         pid = playlist_id or f"pl{len(self.playlists) + 1}"

@@ -202,26 +202,65 @@ main .row > :is(form, div) { min-inline-size: 0; max-inline-size: 100%; }  /* a 
 [hidden] { display: none !important; }
 article > table { display: block; overflow-x: auto; }
 
-/* ---------- «Для вас»: the wave large on the left, the notifications in a narrow column, then the mixes ---------- */
-/* Beer CSS spaces stacked cards with a margin; in these grids the gap does it */
-.split > *, .mixes > * { margin-block: 0 !important; }
-.split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1rem; align-items: stretch; }
-@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+/* ---------- «Для вас»: the wave's big button on a wide band of the accent, «Плейлисты» on it, the notifications below.
+   Material's shapes give it movement; nothing moves (no animation) ---------- */
 .kicker { display: block; font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
-  opacity: .8; }
-.feature { position: relative; overflow: hidden; display: flex; align-items: center; gap: 1.5rem; margin: 0;
-  padding: 1.75rem; border-radius: .5rem 2rem 2rem 2rem; min-block-size: 13rem;
-  background: var(--tertiary-container); color: var(--on-tertiary-container); }
-.feature h3 { margin: .25rem 0 .5rem; font-size: 2rem; font-weight: 600; }
-.feature p { margin: 0 0 .75rem; }
-.feature-text { position: relative; z-index: 1; flex: 1; min-inline-size: 0; }
-.feature-cover { flex: none; inline-size: 9rem; block-size: 9rem; background: var(--tertiary); display: flex;
-  align-items: center; justify-content: center; }
-.feature-cover > i { filter: none; color: var(--on-tertiary); font-size: 3.5rem; inline-size: 3.5rem; block-size: 3.5rem; }
-.feature .button { background: var(--tertiary); color: var(--on-tertiary); }
-@media (max-width: 600px) { .feature { flex-direction: column; align-items: flex-start; padding: 1.25rem; }
-  .feature-cover { inline-size: 5.5rem; block-size: 5.5rem; } .feature-cover > i { font-size: 2.25rem; }
-  .feature h3 { font-size: 1.6rem; } }
+  opacity: .85; }
+.wave-stage { position: relative; overflow: hidden; margin: 0 0 1.5rem; padding: 5.5rem 2.5rem 3rem; min-block-size: 24rem;
+  display: flex; align-items: center; border-radius: 2.5rem 2.5rem 2.5rem .75rem; color: var(--on-primary-container);
+  background:
+    radial-gradient(40rem 26rem at 85% 110%, color-mix(in srgb, var(--tertiary-container) 85%, transparent), transparent 70%),
+    linear-gradient(135deg, var(--primary-container) 10%, color-mix(in srgb, var(--primary-container) 55%, var(--secondary-container)) 100%); }
+.wave-art { position: absolute; inset: 0; pointer-events: none; }
+.wave-art .shape { position: absolute; }
+.wave-art .w1 { inline-size: 26rem; block-size: 26rem; right: -7rem; top: -9rem; background: var(--primary); opacity: .14; }
+.wave-art .w2 { inline-size: 12rem; block-size: 12rem; right: 9rem; bottom: -4rem; background: var(--tertiary); opacity: .22; }
+.wave-art .w3 { inline-size: 5rem; block-size: 5rem; right: 4rem; bottom: 3.5rem; background: var(--secondary); opacity: .35; }
+.wave-art .w4 { inline-size: 7rem; block-size: 3rem; left: 40%; top: 1.25rem; background: var(--primary); opacity: .12;
+  transform: rotate(-24deg); }
+.wave-body { position: relative; z-index: 1; display: flex; align-items: center; gap: 2.5rem; inline-size: 100%; }
+.wave-text { flex: 1; min-inline-size: 0; }
+.wave-text h2 { margin: .25rem 0 .5rem; font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 700; line-height: 1;
+  letter-spacing: -.02em; }
+.wave-status { margin: 0 0 .5rem; max-inline-size: 32rem; }
+.wave-rate { gap: .25rem; }
+/* the big button: a circle of the accent inside a cookie of its container colour (a ring with petals) */
+.wave-play { flex: none; inline-size: 11rem; block-size: 11rem; margin: 0; padding: 0; border: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--on-primary);
+  background: radial-gradient(circle, var(--primary) 0 60%, color-mix(in srgb, var(--primary) 30%, transparent) 61% 100%);
+  box-shadow: 0 .75rem 2rem color-mix(in srgb, var(--primary) 45%, transparent); }
+.wave-play > i { font-size: 5rem; inline-size: 5rem; block-size: 5rem; }
+.wave-play:hover { background: radial-gradient(circle, color-mix(in srgb, var(--primary) 88%, var(--on-primary)) 0 60%,
+  color-mix(in srgb, var(--primary) 38%, transparent) 61% 100%); }
+.wave-play:focus-visible { outline: .25rem solid var(--tertiary); outline-offset: .25rem; }
+.wave-play:disabled { cursor: not-allowed; opacity: .5; }
+[data-play] .when-playing, [data-play].playing .when-stopped { display: none; }
+[data-play].playing .when-playing { display: inline; }
+/* «Плейлисты»: a pill of the surface over the band, always in sight */
+.playlists-open { position: absolute; z-index: 2; top: 1.25rem; left: 1.25rem; display: inline-flex; align-items: center;
+  gap: .5rem; margin: 0; padding: .6rem 1.1rem .6rem .9rem; border: 0; border-radius: 2rem; cursor: pointer;
+  font: inherit; font-weight: 600; color: var(--on-surface); background: var(--surface-container-lowest, var(--surface));
+  box-shadow: var(--elevate2); }
+.playlists-open > i { color: var(--primary); }
+.playlists-open .count { min-inline-size: 1.5rem; padding: 0 .4rem; border-radius: 1rem; text-align: center;
+  font-size: .8rem; line-height: 1.5rem; background: var(--primary); color: var(--on-primary); }
+.playlists-open:hover { background: var(--surface-container-high); }
+@media (max-width: 600px) {
+  .wave-stage { padding: 4.75rem 1.25rem 1.75rem; min-block-size: 0; border-radius: 2rem 2rem 2rem .5rem; }
+  .wave-body { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
+  .wave-play { inline-size: 8.5rem; block-size: 8.5rem; align-self: center; }
+  .wave-play > i { font-size: 4rem; inline-size: 4rem; block-size: 4rem; }
+  .wave-art .w1 { inline-size: 16rem; block-size: 16rem; right: -6rem; top: -5rem; }
+  .wave-art .w4 { display: none; }
+}
+
+/* the playlists' sheet: Beer CSS's dialog from the left, without its slide */
+dialog.sheet { inline-size: min(26rem, 92vw); transition: none; display: flex; flex-direction: column; gap: .75rem; }
+dialog.sheet::backdrop { opacity: 1; visibility: visible; background: color-mix(in srgb, var(--shadow, #000) 40%, transparent); }
+dialog.sheet header { padding: 0; min-block-size: 0; }
+dialog.sheet h5 { margin: 0; font-weight: 600; }
+dialog.sheet .mix { flex: none; }
+.mix .cover { border: 0; cursor: pointer; padding: 0; }
 
 .notes-col { margin: 0; padding: 1.25rem; border-radius: 2rem 2rem .5rem 2rem;
   background: var(--surface-container-high); display: flex; flex-direction: column; gap: .5rem; }
@@ -230,20 +269,47 @@ article > table { display: block; overflow-x: auto; }
 .note.unread { background: var(--primary-container); color: var(--on-primary-container); }
 .note a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
 
-.mixes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr)); gap: 1rem; }
 .mix { display: flex; gap: 1rem; align-items: flex-start; margin: 0; padding: 1.1rem; border-radius: 1.5rem;
-  background: var(--surface-container-low); transition: transform var(--speed2), box-shadow var(--speed2); }
-.mix:hover { transform: translateY(-2px); box-shadow: var(--elevate2); }
+  background: var(--surface-container-low); }
 .mix-text { flex: 1; min-inline-size: 0; }
 .mix h6 { margin: .1rem 0 .25rem; font-weight: 600; }
 .mix p { margin: 0 0 .25rem; }
 .mix .cover { flex: none; inline-size: 4.5rem; block-size: 4.5rem; display: flex; align-items: center;
   justify-content: center; }
 .mix .cover > i { filter: none; }
-.mix .row .max, .feature .row .max { white-space: nowrap; }
 /* what made the mix picks its colour: the night's mixes the secondary, requests the second accent */
 .mix .cover { background: var(--primary-container); color: var(--on-primary-container); }
 .mix-nightly .cover { background: var(--secondary-container); color: var(--on-secondary-container); }
 .mix-nightly .kicker { color: var(--secondary); }
 .mix-ask .cover { background: var(--tertiary-container); color: var(--on-tertiary-container); }
 .mix-ask .kicker { color: var(--tertiary); }
+
+/* ---------- the main entry of the menu («Для вас»): a circle of the accent, larger, always ---------- */
+nav.left > a.main-nav { margin-block: .25rem .75rem; }
+nav.left > a.main-nav > i, nav.bottom > a.main-nav > i { inline-size: 3.5rem !important; block-size: 3.5rem !important;
+  border-radius: 50% !important; padding: 0 !important; display: flex; align-items: center; justify-content: center;
+  font-size: 1.75rem; background-color: var(--primary) !important; color: var(--on-primary) !important;
+  box-shadow: 0 .35rem 1rem color-mix(in srgb, var(--primary) 40%, transparent); }
+nav.left > a.main-nav > div { font-weight: 700; color: var(--primary); }
+nav.bottom > a.main-nav > i { inline-size: 3.25rem !important; block-size: 3.25rem !important; margin-block-start: -.5rem; }
+nav:is(.left, .bottom) > a.main-nav.active > i { outline: .2rem solid var(--primary-container); outline-offset: .15rem; }
+
+/* ---------- the player's bar: under the page (above the phone's menu), while something plays ---------- */
+footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas:
+  "cover text source toggle next" "cover progress progress progress progress"; align-items: center; column-gap: .75rem;
+  padding: .6rem 1rem; margin: 0; min-block-size: 0; border-radius: 1.5rem 1.5rem 0 0; z-index: 11;
+  background: var(--surface-container-high); box-shadow: 0 -.25rem 1rem color-mix(in srgb, var(--shadow, #000) 18%, transparent); }
+.player-cover { grid-area: cover; inline-size: 3.5rem; block-size: 3.5rem; border-radius: .9rem; object-fit: cover;
+  background: var(--primary-container); }
+.player-text { grid-area: text; display: flex; flex-direction: column; min-inline-size: 0; line-height: 1.25rem; }
+/* the inner padding keeps the first letter whole (a clipped box cuts a glyph that starts left of it) */
+.player-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-start: .3rem;
+  margin-inline-start: -.3rem; }
+.player-source { grid-area: source; margin: 0; }
+.player-toggle { grid-area: toggle; margin: 0; }
+#player-next { grid-area: next; margin: 0; }
+.player-progress { grid-area: progress; display: flex; align-items: center; gap: .5rem; }
+.player-progress input { flex: 1; min-inline-size: 0; accent-color: var(--primary); }
+@media (max-width: 600px) { .player-source { display: none; }
+  footer.player { grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "cover text toggle next" "progress progress progress progress"; padding: .5rem .75rem; } }

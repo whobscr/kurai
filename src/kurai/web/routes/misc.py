@@ -5,20 +5,23 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-import aiohttp
 import markdown
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from sqlalchemy import text
 
-from kurai import __version__, outbound, plugins
+from kurai import __version__, plugins
 from kurai.config import get_config
 from kurai.i18n import _
 from kurai.integrations.navidrome import BASE_PATH
+from kurai.web import upstream
 from kurai.web.deps import Ctx, get_db, user_required
 from kurai.web.templating import ROOT, render
 
 router = APIRouter()
+# what a browser needs of a song or a picture: its type, and the parts of it for seeking
+MEDIA_HEADERS = upstream.keep("content-type", "content-length", "content-range", "accept-ranges",
+                              "content-disposition", "cache-control", "last-modified", "etag")
 DOCS = Path(__file__).resolve().parents[2] / "docs" / "ru"
 
 
@@ -122,26 +125,8 @@ async def docs(request: Request, section: str = "user", slug: str = "", ctx: Ctx
 async def subsonic(path: str, request: Request):
     base = get_config().navidrome_url.rstrip("/")
     url = f"{base}{BASE_PATH}/rest/{path}" + (f"?{request.url.query}" if request.url.query else "")
-    session = outbound.local_session(aiohttp.ClientTimeout(total=None, sock_read=3600))
-    try:
-        upstream = await session.request(request.method, url, data=await request.body(),
-                                         headers={k: v for k, v in request.headers.items()
-                                                  if k.lower() in ("content-type", "range", "accept")})
-    except aiohttp.ClientError as e:
-        await session.close()
-        raise HTTPException(502, f"Navidrome: {e}") from e
-
-    async def body():
-        try:
-            async for chunk in upstream.content.iter_chunked(64 * 1024):
-                yield chunk
-        finally:
-            upstream.release()
-            await session.close()
-
-    headers = {k: v for k, v in upstream.headers.items()
-               if k.lower() in ("content-type", "content-range", "accept-ranges", "content-disposition")}
-    return StreamingResponse(body(), status_code=upstream.status, headers=headers)
+    return await upstream.relay(request.method, url, MEDIA_HEADERS, "Navidrome", data=await request.body(),
+                                headers=upstream.keep("content-type", "range", "accept")(request.headers))
 
 
 @router.get("/about")

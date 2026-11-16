@@ -5,15 +5,14 @@ An app configured with this path as its URL base (Navidrome: ND_BASEURL) gets th
 gets it without the prefix. Navidrome logs Kurai's admin account in by the reverse-proxy header, which nginx always
 clears on the way in."""
 
-from collections.abc import AsyncIterator
+from collections.abc import Mapping
 
-import aiohttp
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
 
-from kurai import outbound, plugins, settings
+from kurai import plugins, settings
 from kurai.config import get_config
 from kurai.i18n import _
+from kurai.web import upstream
 from kurai.web.deps import Ctx, LoginRequired, context
 
 router = APIRouter(prefix="/admin/apps")
@@ -72,29 +71,17 @@ async def proxy(app: str, path: str, request: Request, ctx: Ctx = Depends(admin_
         headers["Remote-User"] = await settings.get(ctx.db, "navidrome.admin_user")
     if target.headers:
         headers.update(target.headers(base))
-    session = outbound.local_session(aiohttp.ClientTimeout(total=None, sock_read=600))
-    try:
-        upstream = await session.request(request.method, url, headers=headers, data=await request.body(),
-                                         allow_redirects=False)
-    except aiohttp.ClientError as e:
-        await session.close()
-        raise HTTPException(502, f"{app}: {e}") from e
 
-    out_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in DROP_RESPONSE}
-    location = upstream.headers.get("Location")
-    if location and location.startswith(base):
-        location = location[len(base.rstrip("/")):]
-    if location and location.startswith("/") and not location.startswith(PREFIX):
-        location = f"{PREFIX}/{app}{location}"
-    if location:
-        out_headers["Location"] = location
+    def out_headers(got: Mapping[str, str]) -> dict[str, str]:
+        out = {k: v for k, v in got.items() if k.lower() not in DROP_RESPONSE}
+        location = got.get("Location")
+        if location and location.startswith(base):
+            location = location[len(base.rstrip("/")):]
+        if location and location.startswith("/") and not location.startswith(PREFIX):
+            location = f"{PREFIX}/{app}{location}"
+        if location:
+            out["Location"] = location
+        return out
 
-    async def body() -> AsyncIterator[bytes]:
-        try:
-            async for chunk in upstream.content.iter_chunked(64 * 1024):
-                yield chunk
-        finally:
-            upstream.release()
-            await session.close()
-
-    return StreamingResponse(body(), status_code=upstream.status, headers=out_headers)
+    return await upstream.relay(request.method, url, out_headers, app, read_timeout=600, headers=headers,
+                                data=await request.body(), allow_redirects=False)

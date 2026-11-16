@@ -1,65 +1,56 @@
 {% extends "base.html" %}
 {% block title %}{{ _("Для вас") }}{% endblock %}
 {% block heading %}{{ _("Для вас") }}{% endblock %}
-{% block hero_class %}tall{% endblock %}
-{% block lead %}<p class="lead">{{ _("Плейлисты уже в вашем музыкальном приложении (Symfonium, Feishin, Substreamer…). Оценка помогает следующим подборкам.") }}</p>{% endblock %}
 {% block content %}
 {# each mix gets a cover shape of its own (by its number) and a colour by what made it #}
 {% set shapes = ["sided-cookie9", "sunny", "flower", "burst", "gem", "puffy", "soft-boom", "sided-cookie6", "clamshell", "pentagon"] %}
-{% set kinds = {"wave": ("waves", _("Моя волна")), "ask": ("auto_awesome", _("По просьбе")), "nightly": ("nights_stay", _("Ночной микс"))} %}
+{% set kinds = {"ask": ("auto_awesome", _("По просьбе")), "nightly": ("nights_stay", _("Ночной микс"))} %}
 {% macro rate(p) %}
   {% for value, icon in ((1, "thumb_up"), (-1, "thumb_down")) %}
   <form method="post" action="/playlists/{{ p.id }}/feedback">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="value" value="{{ value }}">
-    <button class="circle {{ 'fill' if p.feedback == value else 'transparent' }}" title="{{ _('Нравится') if value > 0 else _('Не нравится') }}"><i>{{ icon }}</i></button>
+    <button class="circle small {{ 'fill' if p.feedback == value else 'transparent' }}" title="{{ _('Нравится') if value > 0 else _('Не нравится') }}"><i>{{ icon }}</i></button>
   </form>
   {% endfor %}
 {% endmacro %}
-{% set wave = playlists | selectattr("kind", "equalto", "wave") | first %}
-{% set mixes = playlists | rejectattr("kind", "equalto", "wave") | list %}
 
-<div class="split">
-  {% if wave %}
-  <article class="feature">
-    <div class="feature-cover shape very-sunny slow-rotate"><i>waves</i></div>
-    <div class="feature-text">
+{# the wave: one big button that plays it here, in the browser; the player keeps up with its new versions #}
+<section class="wave-stage">
+  <div class="wave-art" aria-hidden="true">
+    <div class="shape sided-cookie12 w1"></div><div class="shape flower w2"></div><div class="shape gem w3"></div>
+    <div class="shape pill w4"></div>
+  </div>
+  <button type="button" class="playlists-open" id="playlists-open" aria-haspopup="dialog">
+    <i>menu</i><span>{{ _("Плейлисты") }}</span>{% if mixes %}<span class="count">{{ mixes | length }}</span>{% endif %}
+  </button>
+  <div class="wave-body">
+    <button type="button" class="wave-play" data-play="wave" {{ 'disabled' if not wave_on }}
+            aria-label="{{ _('Слушать «Мою волну»') }}"><i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
+    <div class="wave-text">
       <span class="kicker">{{ _("Подстраивается под вас") }}</span>
-      <h3>{{ wave.name }}</h3>
-      {% if wave.description %}<p>{{ wave.description }}</p>{% endif %}
-      <div class="row"><span class="max">{{ wave.track_ids | length }} {{ _("треков") }}</span>{{ rate(wave) }}</div>
+      <h2>{{ _("Моя волна") }}</h2>
+      {# the player writes here what plays now and when the wave changed #}
+      <p class="wave-status" data-player-status="wave">
+        {% if not wave_on %}{{ _("Выключена администратором.") }}
+        {% elif wave and wave.description %}{{ wave.description }}
+        {% else %}{{ _("Бесконечный поток по вашему вкусу: пропускайте, что не нравится, — и он сразу поменяется.") }}{% endif %}
+      </p>
+      {% if wave %}<div class="row wave-rate">{{ rate(wave) }}</div>{% endif %}
     </div>
-  </article>
-  {% else %}
-  <article class="feature">
-    <div class="feature-cover shape very-sunny slow-rotate"><i>nights_stay</i></div>
-    <div class="feature-text">
-      <span class="kicker">{{ _("Скоро") }}</span>
-      <h3>{{ _("Первые миксы — ночью") }}</h3>
-      <p>{{ _("Ночью Kurai изучит, что вы слушаете, и соберёт первые миксы. А можно попросить подборку прямо сейчас.") }}</p>
-      <a class="button round" href="/ask"><i>chat</i><span>{{ _("Спросить") }}</span></a>
-    </div>
-  </article>
-  {% endif %}
+  </div>
+</section>
 
-  <aside class="notes-col">
-    <h6>{{ _("Уведомления") }}</h6>
-    {% for n in notes %}
-    <div class="note {{ '' if n.read else 'unread' }}">
-      <div>{% if n.link %}<a href="{{ n.link }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</div>
-      <span class="small-text">{{ n.created_at | local }}</span></div>
-    {% else %}
-    <p class="small-text">{{ _("Новых нет. Здесь появится, когда плейлист по вашей просьбе будет готов.") }}</p>
-    {% endfor %}
-  </aside>
-</div>
-
-{% if mixes %}
-<h5 class="section-title">{{ _("Миксы") }}</h5>
-<div class="mixes">
+{# the other playlists, behind the «Плейлисты» button: a sheet from the side #}
+<dialog id="playlists" class="left sheet" aria-labelledby="playlists-title">
+  <header class="row">
+    <h5 id="playlists-title" class="max">{{ _("Плейлисты") }}</h5>
+    <button type="button" class="circle transparent" id="playlists-close" title="{{ _('Закрыть') }}"><i>close</i></button>
+  </header>
   {% for p in mixes %}
   {% set icon, kind_label = kinds.get(p.kind, ("queue_music", "")) %}
   <article class="mix mix-{{ p.kind }}">
-    <div class="cover shape {{ shapes[p.id % (shapes | length)] }}"><i>{{ icon }}</i></div>
+    <button type="button" class="cover shape {{ shapes[p.id % (shapes | length)] }}" data-play="{{ p.id }}" title="{{ _('Слушать') }}">
+      <i class="when-stopped">{{ icon }}</i><i class="when-playing">pause</i></button>
     <div class="mix-text">
       <span class="kicker">{{ kind_label }}</span>
       <h6>{{ p.name }}</h6>
@@ -67,7 +58,20 @@
       <div class="row small-text"><span class="max">{{ p.track_ids | length }} {{ _("треков") }} · {{ p.created_at | local("%d.%m") }}</span>{{ rate(p) }}</div>
     </div>
   </article>
+  {% else %}
+  <p class="small-text">{{ _("Пока пусто. Ночью Kurai соберёт миксы по вашему вкусу, а подборку по словам можно попросить в «Спросить».") }}</p>
+  <a class="button round" href="/ask"><i>chat</i><span>{{ _("Спросить") }}</span></a>
   {% endfor %}
-</div>
-{% endif %}
+</dialog>
+
+<section class="notes-col">
+  <h6>{{ _("Уведомления") }}</h6>
+  {% for n in notes %}
+  <div class="note {{ '' if n.read else 'unread' }}">
+    <div>{% if n.link %}<a href="{{ n.link }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</div>
+    <span class="small-text">{{ n.created_at | local }}</span></div>
+  {% else %}
+  <p class="small-text">{{ _("Новых нет. Здесь появится, когда плейлист по вашей просьбе будет готов.") }}</p>
+  {% endfor %}
+</section>
 {% endblock %}

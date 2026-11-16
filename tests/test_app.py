@@ -194,7 +194,8 @@ async def test_pages_docs_errors_and_pwa(client):
     assert 'href="/admin/apps/navidrome/" target="_blank"' in apps  # the new tab
     # the band's light / dark switch remembers the choice
     home = (await client.get("/")).text
-    assert 'id="mode-toggle"' in home and 'class="hero tall"' in home
+    assert 'id="mode-toggle"' in home and 'data-play="wave"' in home and 'id="playlists-open"' in home
+    assert 'class="main-nav' in home and 'id="player"' in home and 'id="page"' in home
     token = csrf_of(home)
     assert (await client.post("/me/mode", json={"mode": "dark"}, headers={"X-CSRF-Token": token})).status_code == 204
     assert 'data-mode="dark"' in (await client.get("/")).text
@@ -497,3 +498,68 @@ async def test_navidromes_login_limit_is_waited_out_and_logins_are_reused(monkey
             await nd._json("GET", "/api/limited")
     finally:
         await runner.cleanup()
+
+
+async def test_the_web_player_plays_the_wave_and_reports_plays_and_skips(client, db, navidrome, monkeypatch):
+    """The wave's queue (made first when there's none), a playlist's, the music as the user with the browser's Range,
+    and a track's end: a play (scrobbled) or a skip, both events of the wave at once."""
+    from kurai import security
+    from kurai.db.models import WaveEvent
+    from kurai.recommend import wave
+    from kurai.web.routes import player
+
+    await settings.put(db, {"wave.enabled": True})
+    for i in range(3):
+        db.add(Track(id=f"p{i}", title=f"Song {i}", artist="Pia's band", album="A", duration=200))
+    pia = User(username="pia", display_name="Пиа", password_hash=security.hash_password("pia-password"),
+               navidrome_id="nd-pia", navidrome_password=security.encrypt("nd-pw"))
+    db.add(pia)
+    await db.commit()
+    await login(client, "pia", "pia-password")
+    token = csrf_of((await client.get("/")).text)
+
+    first = (await client.get("/player/queue/wave")).json()
+    assert first == {"pending": True}
+    assert (await db.execute(select(Job).where(Job.dedupe_key == f"wave:{pia.id}"))).scalar_one().kind == "wave"
+
+    playlist = Playlist(user_id=pia.id, kind="wave", name="Моя волна", track_ids=["p2", "gone", "p0"])
+    other = Playlist(user_id=1, kind="nightly", name="Чужой", track_ids=["p1"])
+    db.add_all([playlist, other])
+    await db.commit()
+    queue = (await client.get("/player/queue/wave")).json()
+    assert [t["id"] for t in queue["tracks"]] == ["p2", "p0"] and queue["version"]  # in order, unknown left out
+    assert (await client.get(f"/player/queue/{playlist.id}")).json()["name"] == "Моя волна"
+    assert (await client.get(f"/player/queue/{other.id}")).status_code == 404
+
+    asked = {}
+
+    async def fake_relay(method, url, headers_out, name, read_timeout=3600, **request):
+        from fastapi.responses import Response
+
+        asked.update(url=url, **request)
+        return Response(status_code=206)
+
+    monkeypatch.setattr(player.upstream, "relay", fake_relay)
+    assert (await client.get("/player/stream/p2", headers={"Range": "bytes=100-"})).status_code == 206
+    assert asked["url"].endswith("/rest/stream") and ("id", "p2") in asked["params"]
+    assert ("c", "kurai-web") in asked["params"] and asked["headers"] == {"range": "bytes=100-"}
+
+    form = {"X-CSRF-Token": token}
+    played = await client.post("/player/event", json={"track_id": "p2", "seconds": 190}, headers=form)
+    skipped = await client.post("/player/event", json={"track_id": "p0", "seconds": 9}, headers=form)
+    assert played.json()["skipped"] is False and skipped.json()["skipped"] is True
+    assert navidrome.scrobbles == [("pia", "p2")]  # only a play counts in Navidrome
+    events = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == pia.id))).scalars().all()
+    assert sorted((e.track_id, e.skipped) for e in events) == [("p0", True), ("p2", False)]
+    assert (await client.post("/player/event", json={"track_id": "p0", "seconds": 1})).status_code == 403  # no token
+
+    # the web player's own «now playing» isn't counted again by the watching of the other apps
+    watcher = wave.Watcher()
+    watcher.update(datetime_now(), [{"id": "p1", "username": "pia", "playerId": "7", "playerName": "kurai-web"}])
+    assert watcher.playing == {}
+
+
+def datetime_now():
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC)

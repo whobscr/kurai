@@ -29,7 +29,7 @@ At start, Kurai loads every entry point in the group `kurai.plugins`. Each must 
 # pyproject.toml
 [project]
 name = "kurai-incoming"
-dependencies = ["kurai>=0.2.24,<0.3"]
+dependencies = ["kurai>=1.0.0,<2"]
 
 [project.entry-points."kurai.plugins"]
 incoming = "kurai_incoming.plugin:plugin"
@@ -293,9 +293,9 @@ a job from a test.
 
 ## Versions
 
-The plugin interface may still change between Kurai's minor versions (0.2 → 0.3) until 1.0. Pin the range you've
-tested (`kurai>=0.2.22,<0.3`), and build each plugin release on the Kurai version it was tested with. Kurai's
-changelog says when a hook changes.
+Since 1.0 the plugin interface follows semantic versioning: new hooks and fields come in minor versions (1.1, 1.2…),
+a change that breaks plugins only in a major one (2.0). Pin the major version you've tested (`kurai>=1.0.0,<2`), and
+build each plugin release on the Kurai version it was tested with. Kurai's changelog says when a hook changes.
 
 ## Rules
 

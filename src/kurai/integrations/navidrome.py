@@ -17,6 +17,9 @@ from kurai.i18n import _
 
 PAGE = 500
 CLIENT = "kurai"
+# the client name of Kurai's web player: its «now playing» entries are left to the player itself (it reports the
+# wave's events directly, so the watching of «now playing» mustn't count them again)
+WEB_PLAYER = "kurai-web"
 # Navidrome's URL base (ND_BASEURL in docker-compose.yml): it lives under the path the «Приложения» tab shows it at, so
 # every API of it is under this path too
 BASE_PATH = "/admin/apps/navidrome"
@@ -135,13 +138,18 @@ class Navidrome:
 
     # ---------- Subsonic API (as the user) ----------
 
-    async def _subsonic(self, account: Account, method: str, params: list[tuple[str, str]]) -> dict:
+    def signed(self, account: Account, method: str, params: list[tuple[str, str]],
+               client: str = CLIENT) -> tuple[str, list[tuple[str, str]]]:
+        """A Subsonic request as the account: its URL and parameters with the salted token (no password sent)."""
         salt = secrets.token_hex(6)
         auth = [("u", account.username), ("t", hashlib.md5((account.password + salt).encode()).hexdigest()),
-                ("s", salt), ("v", "1.16.1"), ("c", CLIENT), ("f", "json")]
+                ("s", salt), ("v", "1.16.1"), ("c", client), ("f", "json")]
+        return f"{self.base_url}/rest/{method}", auth + params
+
+    async def _subsonic(self, account: Account, method: str, params: list[tuple[str, str]]) -> dict:
+        url, data = self.signed(account, method, params)
         try:
-            async with outbound.local_session() as s, \
-                    s.post(f"{self.base_url}/rest/{method}", data=auth + params) as resp:
+            async with outbound.local_session() as s, s.post(url, data=data) as resp:
                 try:
                     body = await resp.json(content_type=None)
                 except ValueError:
@@ -180,13 +188,15 @@ class Navidrome:
         data = await self._subsonic(account, "getNowPlaying", [])
         return (data.get("nowPlaying") or {}).get("entry") or []
 
+    async def scrobble(self, account: Account, song_id: str, at_ms: int) -> None:
+        """A play of the song, counted in Navidrome (its play count, last play) as if a music app reported it."""
+        await self._subsonic(account, "scrobble", [("id", song_id), ("time", str(at_ms)), ("submission", "true")])
+
     async def download(self, account: Account, song_id: str, dest: str) -> None:
         """The song's original file (Subsonic «download»), streamed to `dest`."""
-        salt = secrets.token_hex(6)
-        auth = {"u": account.username, "t": hashlib.md5((account.password + salt).encode()).hexdigest(), "s": salt,
-                "v": "1.16.1", "c": CLIENT, "f": "json", "id": song_id}
+        url, params = self.signed(account, "download", [("id", song_id)])
         try:
-            async with outbound.local_session(600) as s, s.get(f"{self.base_url}/rest/download", params=auth) as resp:
+            async with outbound.local_session(600) as s, s.get(url, params=params) as resp:
                 kind = resp.headers.get("Content-Type", "")
                 if resp.status >= 400 or "json" in kind or "xml" in kind:
                     raise NavidromeError(f"Navidrome download {song_id}: HTTP {resp.status}: "

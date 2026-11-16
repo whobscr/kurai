@@ -13,7 +13,7 @@ from kurai import db as database
 from kurai import plugins, settings
 from kurai.i18n import _
 from kurai.web.deps import LoginRequired, PasswordChangeRequired, context, set_session_cookie
-from kurai.web.routes import admin, apps, auth, main, me, misc
+from kurai.web.routes import admin, apps, auth, main, me, misc, player
 from kurai.web.templating import ROOT, doodle, render
 
 ERRORS = {
@@ -39,7 +39,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Kurai", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.default_accent = settings.defaults()["ui.default_accent"]
     app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
-    for module in (auth, main, me, admin, apps, misc):
+    for module in (auth, main, me, player, admin, apps, misc):
         app.include_router(module.router)
     for plugin in plugins.plugins():
         if plugin.router is not None:
@@ -67,7 +67,7 @@ def create_app() -> FastAPI:
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):
         # FastAPI's HTTPException is a subclass: this catches both, unknown addresses (404) too
-        if request.url.path.startswith(("/jobs/", "/admin/check/", "/me/push")) or exc.status_code < 400:
+        if request.url.path.startswith(("/jobs/", "/admin/check/", "/me/push", "/player/")) or exc.status_code < 400:
             return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
         # Starlette's own details are just the status's phrase ("Not Found"): only Kurai's messages are shown
         detail = exc.detail if isinstance(exc.detail, str) and exc.detail != HTTPStatus(exc.status_code).phrase else ""
