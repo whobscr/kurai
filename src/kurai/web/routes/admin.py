@@ -20,7 +20,7 @@ from kurai.db.models import Job, LlmCall, Taste, Track, User
 from kurai.i18n import _
 from kurai.integrations import public_data
 from kurai.jobs import queue, window
-from kurai.recommend import mixing, playlists, related, wave
+from kurai.recommend import library, mixing, playlists, related, wave
 from kurai.web.deps import Ctx, admin_required
 from kurai.web.routes import apps
 from kurai.web.templating import render
@@ -40,6 +40,7 @@ CORE_TABS = {
     "jobs": _("Задачи"),
 }
 # each tab's help page, linked at its top (a plugin's tab says its own: AdminTab.docs)
+TASTE_KEYS = ("taste.half_life_days", "taste.floor", "taste.window", "taste.window_days")
 CORE_DOCS = {"general": "/docs/admin/first-run", "wave": "/docs/admin/mixing#wave",
              "playlists": "/docs/admin/mixing#playlists", "models": "/docs/admin/models", "audio": "/docs/admin/audio",
              "gateway": "/docs/admin/gateway", "users": "/docs/admin/users", "apps": "/docs/admin/apps#apps",
@@ -86,7 +87,8 @@ def manual_jobs() -> dict[str, tuple[str, str]]:
 FIELDS: dict[str, dict[str, type]] = {
     "general": {"ui.default_accent": str, "night.start": str, "night.end": str, "telegram.enabled": bool,
                 "telegram.token": str, "listenbrainz.token": str, "musicbrainz.contact": str},
-    "wave": {"wave.enabled": bool, **mixing.fields("wave")},
+    "wave": {"wave.enabled": bool, "taste.half_life_days": float, "taste.floor": float, "taste.window": bool,
+             "taste.window_days": float, **mixing.fields("wave")},
     "playlists": {"playlists.per_night": int, "playlists.keep_days": float, "ask.keep_days": float,
                   **mixing.fields("playlists")},
     "models": {"llm.enabled": bool, "llm.provider": str, "llm.server_type": str, "llm.base_url": str,
@@ -146,6 +148,12 @@ def _validate(values: dict[str, Any]) -> str | None:
         return _("Ночных миксов — от 0 до 10")
     if any(values[k] < 0 for k in ("playlists.keep_days", "ask.keep_days") if k in values):
         return _("Сколько хранить — 0 (всегда) или больше")
+    for key, low, high, message in (
+            ("taste.half_life_days", 1, 3650, _("«Память вкуса» — от 1 до 3650 дней")),
+            ("taste.floor", 0, 100, _("«Старое помнится не меньше» — от 0 до 100 %")),
+            ("taste.window_days", 1, 3650, _("«Только последние N дней» — от 1 до 3650"))):
+        if key in values and (values[key] is None or not low <= values[key] <= high):
+            return message
     for profile in mixing.PROFILES:
         if error := mixing.validate(profile, values):
             return error
@@ -254,6 +262,11 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
     await ctx.db.commit()
     if tab == "general" and values.get("ui.default_accent"):
         request.app.state.default_accent = values["ui.default_accent"]
+    # «Память вкуса» changed: everyone's taste made anew now (with the wave on it), not only at night
+    if tab == "wave" and any(values.get(k) != before.get(k) for k in TASTE_KEYS) and values.get("wave.enabled"):
+        for user in await library.active_users(ctx.db):
+            await queue.enqueue(ctx.db, "wave", {"retaste": True}, user_id=user.id, priority=30,
+                                dedupe_key=f"wave:{user.id}")
     # what depends on the saved values is re-applied in the background: the plugins' setup after the gateway
     if tab == "gateway":
         for plugin in plugins.plugins():

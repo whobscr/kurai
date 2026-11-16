@@ -2,7 +2,7 @@
 user's taste vector."""
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 from sqlalchemy import delete, func, select
@@ -146,9 +146,16 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
         .where(Listen.user_id == user.id)
     )).all()
     now = datetime.now(UTC)
+    values = await settings.get_all(db)
+    half_life, floor = float(values["taste.half_life_days"]), float(values["taste.floor"]) / 100
+    # «Только последние N дней»: a track last played before it says nothing; a 👎 always counts (it's a «no»)
+    since = now - timedelta(days=float(values["taste.window_days"])) if values["taste.window"] else None
     text_vectors, text_weights, sound_vectors, sound_weights, artists = [], [], [], [], {}
     for listen, track, effnet in rows:
-        w = listen_weight(listen.play_count, listen.starred, listen.rating, listen.last_played, now)
+        if (since is not None and listen.last_played is not None and listen.last_played < since
+                and listen.rating not in (1, 2)):
+            continue
+        w = listen_weight(listen.play_count, listen.starred, listen.rating, listen.last_played, now, half_life, floor)
         if w == 0:
             continue
         if track.embedding is not None and track.embedding_model == model_name:

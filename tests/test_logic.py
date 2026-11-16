@@ -23,6 +23,17 @@ NOW = datetime(2026, 11, 15, 12, tzinfo=UTC)
 # ---------- taste and selection ----------
 
 
+def test_the_taste_memory_sets_how_fast_and_how_far_a_listen_fades():
+    """«Память вкуса»: the weight halves every half-life since the last play, down to the floor; floor 0 forgets."""
+    fresh = listen_weight(5, False, 0, NOW, NOW, 30, 0.3)
+    month = listen_weight(5, False, 0, NOW - timedelta(days=30), NOW, 30, 0.3)
+    assert abs(month / fresh - (0.5 * 0.7 + 0.3)) < 1e-9
+    assert listen_weight(5, False, 0, NOW - timedelta(days=30), NOW, 120, 0.3) > month  # a longer memory
+    ancient = NOW - timedelta(days=3000)
+    assert abs(listen_weight(5, False, 0, ancient, NOW, 30, 0.3) / fresh - 0.3) < 1e-6
+    assert listen_weight(5, False, 0, ancient, NOW, 30, 0.0) / fresh < 1e-6  # floor 0: forgotten
+
+
 def test_listen_weight_counts_plays_stars_ratings_and_fades():
     assert listen_weight(0, False, 0, None) == 0
     assert listen_weight(10, True, 5, NOW, NOW) > listen_weight(10, False, 0, NOW, NOW) > 0

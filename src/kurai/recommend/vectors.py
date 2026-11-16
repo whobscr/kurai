@@ -11,9 +11,10 @@ import numpy as np
 
 
 def listen_weight(play_count: int, starred: bool, rating: int, last_played: datetime | None,
-                  now: datetime | None = None, half_life_days: float = 120) -> float:
+                  now: datetime | None = None, half_life_days: float = 120, floor: float = 0.3) -> float:
     """How much one track says about a user's taste: plays (with diminishing returns), a star, a rating (1-2 count
-    against), and recency (older plays fade with a half-life)."""
+    against), and recency: the weight halves every `half_life_days` since the last play, never below `floor` of it
+    («Память вкуса»)."""
     weight = math.log1p(play_count) + (2.0 if starred else 0.0)
     if rating:
         weight += (rating - 3) * 1.0
@@ -22,7 +23,7 @@ def listen_weight(play_count: int, starred: bool, rating: int, last_played: date
     if last_played is not None:
         now = now or datetime.now(UTC)
         age_days = max(0.0, (now - last_played).total_seconds() / 86400)
-        weight *= 0.5 ** (age_days / half_life_days) * 0.7 + 0.3  # never below 30%: old favourites still count
+        weight *= 0.5 ** (age_days / max(half_life_days, 1e-6)) * (1 - floor) + floor
     return weight
 
 

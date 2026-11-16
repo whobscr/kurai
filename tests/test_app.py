@@ -432,10 +432,12 @@ async def test_the_wave_and_playlists_tabs_save_check_and_preview(client, db, na
 
 
 def mixing_defaults(profile):
+    """The tab's form as it comes with the defaults: the mixing parameters (and on «Волна», «Память вкуса»)."""
     from kurai.recommend import mixing
 
-    return {k: ("on" if v is True else "" if v is False else v) for k, v in mixing.defaults().items()
-            if k.startswith(f"mix.{profile}.")}
+    taste = {k: v for k, v in settings.defaults().items() if k.startswith("taste.")} if profile == "wave" else {}
+    return {k: ("on" if v is True else "" if v is False else v) for k, v in {**mixing.defaults(), **taste}.items()
+            if k.startswith((f"mix.{profile}.", "taste."))}
 
 
 async def test_generated_playlists_are_kept_as_long_as_set(db, navidrome):
@@ -1142,3 +1144,61 @@ async def test_the_waves_settings_change_the_music_as_they_say(db):
     await session([("wv-g0a5t0", False)])
     assert "wv-g0a5" in {i.rsplit("t", 1)[0] for i in await version(artist_rest_hours=0)}
     assert "wv-g0a5" not in {i.rsplit("t", 1)[0] for i in await version(artist_rest_hours=6, artist_rest_shape=50)}
+
+
+async def test_the_taste_memory_is_saved_rebuilds_tastes_and_can_count_only_recent_listens(client, db, navidrome):
+    """«Память вкуса» on «Волна»: checked and saved; a change makes everyone's taste anew at once (a wave job with
+    «retaste»); with «Только последние N дней» on, a track not played within them leaves the taste (a 👎 stays)."""
+    from datetime import UTC, datetime, timedelta
+
+    from kurai.db.models import Taste
+    from kurai.recommend import library
+
+    model = await settings.get(db, "embed.model")
+    db.add_all([Track(id="tm-old", title="Old", artist="Old band", album="o", embedding=np.eye(8)[1].tolist(),
+                      embedding_model=model),
+                Track(id="tm-new", title="New", artist="New band", album="n", embedding=np.eye(8)[2].tolist(),
+                      embedding_model=model),
+                Track(id="tm-bad", title="Bad", artist="Bad band", album="b", embedding=np.eye(8)[3].tolist(),
+                      embedding_model=model)])
+    wes = User(username="wes", display_name="Уэс", password_hash="x")
+    db.add(wes)
+    await db.commit()
+    now = datetime.now(UTC)
+    db.add_all([Listen(user_id=wes.id, track_id="tm-old", play_count=50, last_played=now - timedelta(days=400)),
+                Listen(user_id=wes.id, track_id="tm-new", play_count=2, last_played=now - timedelta(days=2)),
+                Listen(user_id=wes.id, track_id="tm-bad", play_count=1, rating=1,
+                       last_played=now - timedelta(days=400))])
+    await db.commit()
+
+    async def taste():
+        await library.build_taste(db, wes)
+        row = await db.get(Taste, wes.id)
+        await db.refresh(row)
+        return np.asarray(row.vector), [a["name"] for a in row.top_artists]
+
+    vector, top = await taste()
+    assert "Old band" in top and vector[1] > 0  # by default the old favourite still counts (30 %)
+    await settings.put(db, {"taste.floor": 0, "taste.half_life_days": 30})
+    await db.commit()
+    vector, _top = await taste()
+    assert vector[1] < 0.01 * vector[2]  # floor 0, a month's memory: 400 days ago is forgotten
+    await settings.put(db, {"taste.floor": 30, "taste.half_life_days": 120, "taste.window": True,
+                            "taste.window_days": 365})
+    await db.commit()
+    vector, top = await taste()
+    assert "Old band" not in top and vector[1] == 0 and vector[3] < 0  # out of the window; the 👎 still counts
+
+    await login(client, "admin", "a-long-password")
+    page = (await client.get("/admin/wave")).text
+    assert 'name="taste.half_life_days"' in page and 'name="taste.window"' in page
+    form = {"csrf": csrf_of(page), "wave.enabled": "on", **{k: str(v) for k, v in mixing_defaults("wave").items()}}
+    r = await client.post("/admin/wave", data={**form, "taste.floor": "120"})
+    assert "от 0 до 100" in httpx.URL(r.headers["location"]).params["message"]
+    r = await client.post("/admin/wave", data={**form, "taste.half_life_days": "60"})
+    assert httpx.URL(r.headers["location"]).params["message"] == "Сохранено"
+    assert await settings.get(db, "taste.half_life_days") == 60
+    jobs = (await db.execute(select(Job).where(Job.kind == "wave", Job.user_id == wes.id))).scalars().all()
+    assert any((j.payload or {}).get("retaste") for j in jobs)
+    await settings.put(db, {k: v for k, v in settings.defaults().items() if k.startswith("taste.")})
+    await db.commit()

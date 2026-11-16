@@ -81,6 +81,12 @@ def _defaults() -> dict[str, Any]:
         "audio.clap": True,  # CLAP too: search by a description of the sound; doubles the time per track
         "audio.mix_weight": 0.5,  # mixes: the sound's share against the tags
         "audio.ask_weight": 0.5,  # «Спросить»: the sound's share (CLAP and the sound) against the tags
+        # the taste (library.build_taste): a listen's weight halves every half_life_days since its last play, down to
+        # floor % of it; with the window on, the tracks last played before window_days don't count at all
+        "taste.half_life_days": 120,
+        "taste.floor": 30,
+        "taste.window": False,
+        "taste.window_days": 365,
         # the nightly mixes per user, and how long the generated playlists stay (days; 0: for good); a liked one stays
         "playlists.per_night": 3,
         "playlists.keep_days": 14,
