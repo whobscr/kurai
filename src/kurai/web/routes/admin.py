@@ -204,7 +204,7 @@ async def save_plugins(request: Request, ctx: Ctx) -> RedirectResponse:
     await ctx.db.commit()
     if frozenset(off) == plugins.disabled():
         return back("plugins", _("Сохранено"))
-    response = back("plugins", _("Сохранено. Kurai перезапускается — обновите страницу через полминуты."))
+    response = back("plugins", _("Сохранено. Курай перезапускается — обновите страницу через полминуты."))
     response.background = BackgroundTask(_restart_web)
     return response
 

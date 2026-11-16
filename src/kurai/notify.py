@@ -82,7 +82,7 @@ async def _send_push(db: AsyncSession, values: dict, subs: list[tuple[str, dict]
     from pywebpush import WebPushException, webpush
 
     route = outbound.route_from(values, "webpush")
-    payload = json.dumps({"title": "Kurai", "body": text, "url": link or "/"})
+    payload = json.dumps({"title": _("Курай"), "body": text, "url": link or "/"})
     subject = f"mailto:kurai@{urlsplit(get_config().base_url).hostname or 'localhost'}"
     errors = []
     with requests.Session() as session:

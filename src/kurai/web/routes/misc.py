@@ -34,7 +34,8 @@ async def healthz(db=Depends(get_db)):
 @router.get("/manifest.webmanifest")
 async def manifest():
     return JSONResponse({
-        "id": "/", "name": "Kurai", "short_name": "Kurai", "start_url": "/", "scope": "/", "display": "standalone",
+        "id": "/", "name": _("Курай"), "short_name": _("Курай"), "start_url": "/", "scope": "/",
+        "display": "standalone",
         "description": _("Домашний музыкальный сервер: миксы по вашему вкусу и подборки по просьбе"),
         "background_color": "#1c1b1f", "theme_color": "#6750a4", "lang": "ru",
         "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},

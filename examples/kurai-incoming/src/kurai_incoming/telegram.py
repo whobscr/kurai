@@ -25,7 +25,7 @@ def register(dp: Dispatcher) -> None:
     async def incoming(message: Message) -> None:
         user = await user_of(message.chat.id)
         if user is None or not user.is_admin:
-            await message.answer(_("Входящие видят только администраторы Kurai."))
+            await message.answer(_("Входящие видят только администраторы Курая."))
             return
         await message.answer(_("Ждут одобрения: {n}. {url}/admin/incoming").format(
             n=await waiting(), url=get_config().base_url))

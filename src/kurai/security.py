@@ -13,10 +13,11 @@ from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from cryptography.fernet import Fernet, InvalidToken
 
 from kurai.config import get_config
+from kurai.i18n import _
 
 _hasher = PasswordHasher()
 
-TOTP_ISSUER = "Kurai"
+TOTP_ISSUER = _("Курай")  # the name an authenticator app shows
 RECOVERY_CODES = 8
 
 

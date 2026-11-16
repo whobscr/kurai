@@ -770,3 +770,14 @@ async def test_coming_back_to_the_wave_never_starts_with_what_was_just_heard(cli
     job.status, job.finished_at = "done", datetime.now(UTC)
     await db.commit()
     assert len((await client.get("/player/queue/wave")).json()["tracks"]) == wave.SIZE
+
+
+async def test_the_name_is_in_the_pages_language(client):
+    """Russian pages name the product «Курай» (the logo's wordmark, titles, texts, docs); «Kurai» is English's."""
+    await login(client, "admin", "a-long-password")
+    home = (await client.get("/")).text
+    assert '<span class="wordmark">Курай</span>' in home and "· Курай</title>" in home
+    for path in ("/", "/me", "/history", "/ask", "/admin/general", "/admin/apps", "/docs/user/start",
+                 "/docs/user/wave", "/docs/admin/architecture", "/docs/changelog"):
+        assert not re.findall(r"\bKurai\b", (await client.get(path)).text), path
+    assert (await client.get("/manifest.webmanifest")).json()["name"] == "Курай"

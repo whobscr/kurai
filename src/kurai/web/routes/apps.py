@@ -29,10 +29,10 @@ DROP_RESPONSE = {"connection", "keep-alive", "transfer-encoding", "content-encod
 def targets() -> dict[str, plugins.App]:
     return {"navidrome": plugins.App(
         "Navidrome", lambda: get_config().navidrome_url, True,
-        about=_("Музыкальный сервер, на котором стоит Kurai: хранит и сканирует библиотеку (папку с музыкой), "
+        about=_("Музыкальный сервер, на котором стоит Курай: хранит и сканирует библиотеку (папку с музыкой), "
                 "отдаёт её музыкальным приложениям по протоколу Subsonic и записывает, что и сколько раз слушали. "
-                "Kurai читает отсюда библиотеку и прослушивания, а свои плейлисты пишет обратно — так они появляются "
-                "в любом плеере. Пользователи и пароли заводятся в Kurai и переносятся сюда сами; здесь — "
+                "Курай читает отсюда библиотеку и прослушивания, а свои плейлисты пишет обратно — так они появляются "
+                "в любом плеере. Пользователи и пароли заводятся в Курае и переносятся сюда сами; здесь — "
                 "сканирование, библиотеки, транскодирование и общие плейлисты.")),
         **plugins.merged("apps")}
 
@@ -50,7 +50,7 @@ async def admin_any_method(request: Request, ctx: Ctx = Depends(context)) -> Ctx
     if not ctx.user.is_admin:
         raise HTTPException(403)
     if request.headers.get("sec-fetch-site", "same-origin") not in SAME_SITE:
-        raise HTTPException(403, _("Приложения открываются только со страниц Kurai"))
+        raise HTTPException(403, _("Приложения открываются только со страниц Курая"))
     return ctx
 
 
