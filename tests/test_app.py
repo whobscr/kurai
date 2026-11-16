@@ -728,3 +728,45 @@ async def test_likes_dislikes_and_the_history(client, db, navidrome):
     db.add(mix)
     await db.commit()
     assert f'class="circle mix-play" data-play="{mix.id}"' in (await client.get("/")).text
+
+
+async def test_coming_back_to_the_wave_never_starts_with_what_was_just_heard(client, db, navidrome):
+    """The wave's queue leaves out what the user played or skipped lately (the web player's events, any app's last
+    plays); too little left: a fresh version is asked for; a version made since that found nothing new plays as is."""
+    from datetime import UTC, datetime
+
+    from kurai import security
+    from kurai.db.models import Listen, WaveEvent
+    from kurai.recommend import wave
+
+    await settings.put(db, {"wave.enabled": True})
+    ids = [f"rw{i}" for i in range(wave.SIZE)]
+    for i in ids:
+        db.add(Track(id=i, title=i, artist="Again", album="A", duration=200))
+    rina = User(username="rina", display_name="Рина", password_hash=security.hash_password("rina-password"),
+                navidrome_id="nd-rina", navidrome_password=security.encrypt("nd"))
+    db.add(rina)
+    await db.commit()
+    db.add(Playlist(user_id=rina.id, kind="wave", name="Моя волна", track_ids=ids))
+    now = datetime.now(UTC)
+    db.add(WaveEvent(user_id=rina.id, track_id="rw0", skipped=False, seconds=200, at=now))  # in the web player
+    db.add(Listen(user_id=rina.id, track_id="rw1", play_count=1, last_played=now))  # in an app
+    await db.commit()
+    await login(client, "rina", "rina-password")
+
+    first = (await client.get("/player/queue/wave")).json()
+    assert [t["id"] for t in first["tracks"]][:2] == ["rw2", "rw3"]
+    assert not (await db.execute(select(Job).where(Job.user_id == rina.id, Job.kind == "wave"))).first()
+
+    # most of it heard: a fresh version is asked for, the rest plays meanwhile
+    db.add_all([WaveEvent(user_id=rina.id, track_id=i, skipped=True, seconds=5, at=now) for i in ids[2:-3]])
+    await db.commit()
+    rest = (await client.get("/player/queue/wave")).json()
+    assert [t["id"] for t in rest["tracks"]] == ids[-3:]
+    job = (await db.execute(select(Job).where(Job.user_id == rina.id, Job.kind == "wave"))).scalar_one()
+
+    # all heard, and a version made since found nothing new: it plays as it is rather than not at all
+    db.add_all([WaveEvent(user_id=rina.id, track_id=i, skipped=True, seconds=5, at=now) for i in ids[-3:]])
+    job.status, job.finished_at = "done", datetime.now(UTC)
+    await db.commit()
+    assert len((await client.get("/player/queue/wave")).json()["tracks"]) == wave.SIZE

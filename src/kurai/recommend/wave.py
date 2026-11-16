@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import db as database
 from kurai import settings
-from kurai.db.models import Playlist, Taste, Track, User, WaveEvent
+from kurai.db.models import Listen, Playlist, Taste, Track, User, WaveEvent
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER
 from kurai.jobs import queue
@@ -141,6 +141,14 @@ async def _playlist(db: AsyncSession, user: User) -> Playlist | None:
                              .order_by(Playlist.id.desc()))).scalars().first()
 
 
+async def recently_heard(db: AsyncSession, user: User, now: datetime) -> set[str]:
+    """The tracks the user played or skipped within HEARD, in Kurai's player or any app (its last plays): the wave
+    leaves them out, so it doesn't repeat itself."""
+    events = select(WaveEvent.track_id).where(WaveEvent.user_id == user.id, WaveEvent.at >= now - HEARD)
+    played = select(Listen.track_id).where(Listen.user_id == user.id, Listen.last_played >= now - HEARD)
+    return set((await db.execute(events.union(played))).scalars())
+
+
 async def build(db: AsyncSession, user: User) -> dict:
     """The next version of the user's wave, written into Navidrome over the last one. A listener who hasn't played
     anything yet gets what their answers point at with the library's popular tracks between (start.py); without
@@ -165,7 +173,7 @@ async def build(db: AsyncSession, user: User) -> dict:
             weights.append(-fade if e.skipped else fade)
         just_now = taste_vector(found, weights) if found else None
         queries[space] = playlists.mix_query(j, space, [(just_now, 0.6), (taste.get(space), 0.4)])
-    heard = {e.track_id for e in events}
+    heard = await recently_heard(db, user, now)
     taste_row = await db.get(Taste, user.id)
     new = (taste_row is None or not taste_row.tracks_used) and not session
     if not any(q is not None for q in queries.values()):

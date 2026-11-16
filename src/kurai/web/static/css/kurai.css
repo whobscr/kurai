@@ -240,7 +240,7 @@ article > table { display: block; overflow-x: auto; }
 .wave-play:focus-visible { outline: .25rem solid var(--tertiary); outline-offset: .25rem; }
 .wave-play:disabled { cursor: not-allowed; opacity: .5; }
 [data-play] .when-playing, [data-play].playing .when-stopped { display: none; }
-[data-play].playing .when-playing { display: inline; }
+[data-play].playing .when-playing { display: inline-flex; }  /* as Beer CSS draws every icon: on the same line */
 /* «Плейлисты»: a pill of the surface over the band, always in sight */
 .playlists-open { position: absolute; z-index: 2; top: 1.25rem; left: 1.25rem; display: inline-flex; align-items: center;
   gap: .5rem; margin: 0; padding: .6rem 1.1rem .6rem .9rem; border: 0; border-radius: 2rem; cursor: pointer;

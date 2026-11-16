@@ -64,6 +64,25 @@ async def _wave_state(ctx: Ctx) -> dict:
     return {"pending": True}
 
 
+async def _unheard_wave(ctx: Ctx, playlist: Playlist) -> list[str] | None:
+    """The wave's tracks without what the user heard lately (wave.HEARD), so coming back to it never starts with a
+    track just played. Less than half left: a fresh version is made (it comes as a new version); nothing left: None
+    (wait for it), unless a version made since found nothing new either (a small library): then it plays as it is."""
+    heard = await wave.recently_heard(ctx.db, ctx.user, datetime.now(UTC))
+    ids = [i for i in playlist.track_ids if i not in heard]
+    if len(ids) >= wave.SIZE // 2:
+        return ids
+    last = (await ctx.db.execute(select(Job).where(Job.user_id == ctx.user.id, Job.kind == "wave")
+                                 .order_by(Job.id.desc()))).scalars().first()
+    rebuilt_in_vain = (last is not None and last.status in ("done", "failed") and last.finished_at is not None
+                       and last.finished_at > playlist.created_at)
+    if rebuilt_in_vain:
+        return ids or playlist.track_ids
+    if last is None or last.status not in ("queued", "running"):
+        await jobs.enqueue(ctx.db, "wave", user_id=ctx.user.id, priority=20, dedupe_key=f"wave:{ctx.user.id}")
+    return ids or None
+
+
 @router.get("/queue/{which}")
 async def queue(which: str, ctx: Ctx = Depends(user_required)):
     """«wave» (the user's wave as it is now), «history» (what they played last) or a playlist's id: its tracks, and
@@ -78,6 +97,12 @@ async def queue(which: str, ctx: Ctx = Depends(user_required)):
                                          .order_by(Playlist.id.desc()))).scalars().first()
         if playlist is None or not playlist.track_ids:
             return await _wave_state(ctx)
+        ids = await _unheard_wave(ctx, playlist)
+        if ids is None:
+            return {"pending": True}
+        return {"id": playlist.id, "kind": playlist.kind, "name": playlist.name,
+                "description": playlist.description, "version": playlist.created_at.isoformat(),
+                "tracks": await _tracks(ctx, ids)}
     else:
         playlist = await ctx.db.get(Playlist, int(which)) if which.isdigit() else None
         if playlist is None or playlist.user_id != ctx.user.id:
