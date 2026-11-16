@@ -313,3 +313,18 @@ footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto a
 @media (max-width: 600px) { .player-source { display: none; }
   footer.player { grid-template-columns: auto minmax(0, 1fr) auto auto;
     grid-template-areas: "cover text toggle next" "progress progress progress progress"; padding: .5rem .75rem; } }
+
+/* ---------- what a listener likes: the question on «Для вас» and its section in «Кабинет» ---------- */
+dialog.start-dialog { inline-size: min(40rem, 94vw); max-block-size: 92dvh; inset-block-start: 4dvh; transition: none; }
+dialog.start-dialog::backdrop { opacity: 1; visibility: visible; background: color-mix(in srgb, var(--shadow, #000) 40%, transparent); }
+dialog.start-dialog h5 { margin: 0 0 .25rem; font-weight: 600; }
+.start-form { display: flex; flex-direction: column; gap: 1rem; margin-block-start: .75rem; }
+.style-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.style-chip { cursor: pointer; }
+.style-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.style-chip span { display: inline-flex; align-items: center; min-block-size: 2rem; padding: 0 .9rem; border-radius: 1rem;
+  border: 1px solid var(--outline); }
+.style-chip input:checked + span { background: var(--secondary-container); color: var(--on-secondary-container);
+  border-color: transparent; }
+.style-chip input:checked + span::before { content: "✓"; margin-inline-end: .35rem; }
+.style-chip input:focus-visible + span { outline: .15rem solid var(--primary); outline-offset: .1rem; }

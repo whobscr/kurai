@@ -151,6 +151,9 @@
       });
     }
 
+    // a question asked as the page opens (what a new listener likes)
+    root.querySelectorAll("dialog[data-open-at-start]").forEach((d) => { if (!d.open) d.showModal(); });
+
     // installing the app
     showInstall(root);
     const later = root.querySelector("#install-later");

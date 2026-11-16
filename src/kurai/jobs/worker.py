@@ -12,14 +12,14 @@ from kurai.db.models import Job, User
 from kurai.i18n import _
 from kurai.jobs import queue, window
 from kurai.notify import notify, send_telegram
-from kurai.recommend import library, playlists, wave
+from kurai.recommend import library, playlists, popularity, wave
 
 log = logging.getLogger(__name__)
 
 TICK = 20
 # outside the night: how often the light jobs run (plugins add theirs)
 EVERY = {"sync_library": timedelta(hours=1), "sync_listens": timedelta(minutes=30),
-         "embed_new": timedelta(minutes=30)}
+         "embed_new": timedelta(minutes=30), "popularity": timedelta(hours=3)}
 # a small number of new tracks is embedded during the day; a big backlog (the first indexing) waits for the night
 DAYTIME_EMBED_LIMIT = 200
 # the audio analysis (when it's on): new imports during the day, the backlog at night
@@ -112,8 +112,12 @@ async def _ask(db, job: Job) -> dict:
 
 
 async def _wave(db, job: Job) -> dict:
+    """A new version of the wave; with «retaste» (the user just said what they like), from their taste made anew."""
     # jobs queued before 0.2.23 have the user in the payload only
-    return await wave.build(db, await db.get(User, job.user_id or job.payload["user_id"]))
+    user = await db.get(User, job.user_id or job.payload["user_id"])
+    if (job.payload or {}).get("retaste"):
+        await library.build_taste(db, user)
+    return await wave.build(db, user)
 
 
 async def _explain(db, job: Job) -> dict:
@@ -128,6 +132,7 @@ HANDLERS = {
     "ask": _ask,
     "explain": _explain,
     "wave": _wave,
+    "popularity": lambda db, job: popularity.refresh(db),
     "analyze_audio": audio_analyze.run,  # taken only by the audio container's lane
 }
 

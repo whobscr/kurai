@@ -1,0 +1,21 @@
+{# What the user likes: the library's styles as chips and their own words. Included in the question on «Для вас»
+   (back="home") and in «Кабинет» (back="me"); posts to /me/start #}
+<form method="post" action="/me/start" class="start-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}">
+  {% if styles %}
+  <div class="style-chips">
+    {% for s in styles %}
+    <label class="style-chip"><input type="checkbox" name="style" value="{{ s }}" {{ 'checked' if s in user.start_styles }}><span>{{ s }}</span></label>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="field textarea label border round">
+    <textarea name="text" maxlength="500">{{ user.start_text }}</textarea>
+    <label>{{ _("Своими словами") }}</label>
+    <span class="helper">{{ _("Любимые исполнители, настроение, эпоха — например: «спокойная электроника, как Bonobo, и немного джаза»") }}</span>
+  </div>
+  <div class="row">
+    <button class="round"><i>check</i><span>{{ _("Готово") }}</span></button>
+    {% if back == "home" %}<button class="round transparent" name="skip" value="1">{{ _("Пропустить") }}</button>{% endif %}
+  </div>
+</form>

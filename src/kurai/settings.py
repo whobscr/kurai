@@ -28,10 +28,12 @@ CORE_SUBSYSTEMS = {
     "llm": _("Внешние модели (облачные API)"),
     "webpush": _("Push-уведомления"),
     "models": _("Загрузка моделей анализа звука"),
+    "public_data": _("ListenBrainz (популярность и похожие исполнители)"),
+    "musicbrainz": _("MusicBrainz (теги исполнителей)"),
 }
 
 CORE_SECRET_KEYS = {"llm.api_key", "embed.api_key", "telegram.token", "outbound.password", "navidrome.admin_password",
-                    "webpush.private_key"}
+                    "webpush.private_key", "listenbrainz.token"}
 
 
 @lru_cache
@@ -89,6 +91,10 @@ def _defaults() -> dict[str, Any]:
         # web push (VAPID keys made on first start)
         "webpush.public_key": "",
         "webpush.private_key": "",
+        # public listening data (integrations/public_data.py): ListenBrainz's popularity needs a user's token;
+        # MusicBrainz asks for a contact in every request
+        "listenbrainz.token": "",
+        "musicbrainz.contact": "",
         # «Моя волна»: a playlist that follows what each user is listening to (Navidrome's «now playing»)
         "wave.enabled": True,
         # the plugins switched off on «Плагины» (their names)

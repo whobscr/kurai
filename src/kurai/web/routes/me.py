@@ -1,5 +1,5 @@
-"""«Личный кабинет»: the user's look (accent colour, light / dark), the optional TOTP with recovery codes, Telegram,
-notifications and web push."""
+"""«Личный кабинет»: the user's look (accent colour, light / dark), what they like to listen to, the optional TOTP with
+recovery codes, Telegram, notifications and web push."""
 
 import re
 from datetime import UTC, datetime
@@ -13,11 +13,14 @@ from sqlalchemy.dialects.postgresql import insert
 from kurai import notify, outbound, security, settings
 from kurai.db.models import PushSubscription
 from kurai.i18n import _
+from kurai.jobs import queue
+from kurai.recommend import start
 from kurai.web.deps import Ctx, user_required
 from kurai.web.templating import render
 
 router = APIRouter(prefix="/me")
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+STYLES_KEPT = 12
 
 
 async def _page(request: Request, ctx: Ctx, **values):
@@ -28,7 +31,7 @@ async def _page(request: Request, ctx: Ctx, **values):
     if ctx.user.telegram_link_code:
         bot = await _bot_username(ctx)
     return render(request, "me.html", ctx, bot=bot, push_key=await settings.get(ctx.db, "webpush.public_key"),
-                  **values)
+                  styles=await start.library_styles(ctx.db), **values)
 
 
 async def _bot_username(ctx: Ctx) -> str | None:
@@ -113,6 +116,23 @@ async def telegram_unlink(ctx: Ctx = Depends(user_required)):
     ctx.user.telegram_chat_id = ctx.user.telegram_link_code = ctx.user.telegram_link_at = None
     await ctx.db.commit()
     return RedirectResponse("/me", 303)
+
+
+@router.post("/start")
+async def start_styles(request: Request, ctx: Ctx = Depends(user_required)):
+    """What the user likes, before (or instead of) listening: styles of the library and their own words; «Пропустить»
+    saves only that they were asked. The wave is made anew from the answers."""
+    form = await request.form()
+    back = RedirectResponse("/me#start" if form.get("back") == "me" else "/", 303)
+    if not form.get("skip"):
+        known = set(await start.library_styles(ctx.db, limit=200))
+        ctx.user.start_styles = [s for s in form.getlist("style") if s in known][:STYLES_KEPT]
+        ctx.user.start_text = str(form.get("text", "")).strip()[:500]
+        await queue.enqueue(ctx.db, "wave", {"retaste": True}, user_id=ctx.user.id, priority=20,
+                            dedupe_key=f"wave-start:{ctx.user.id}")
+    ctx.user.start_asked_at = datetime.now(UTC)
+    await ctx.db.commit()
+    return back
 
 
 @router.post("/notifications")

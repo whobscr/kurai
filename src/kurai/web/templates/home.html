@@ -64,6 +64,15 @@
   {% endfor %}
 </dialog>
 
+{# the first visit of someone who hasn't played anything: what do they like (kurai.js opens it at once) #}
+{% if ask_start %}
+<dialog id="start-styles" class="start-dialog" data-open-at-start aria-labelledby="start-title">
+  <h5 id="start-title">{{ _("Что вы любите слушать?") }}</h5>
+  <p class="small-text">{{ _("Отметьте стили из вашей библиотеки или напишите своими словами — «Моя волна» начнёт с похожего и популярного, а дальше подстроится под то, что вы слушаете.") }}</p>
+  {% set back = "home" %}{% include "partials/start_styles.html" %}
+</dialog>
+{% endif %}
+
 <section class="notes-col">
   <h6>{{ _("Уведомления") }}</h6>
   {% for n in notes %}

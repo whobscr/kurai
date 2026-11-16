@@ -8,8 +8,9 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select, update
 
 from kurai import plugins, settings
-from kurai.db.models import Job, LlmCall, Notification, Playlist
+from kurai.db.models import Job, Listen, LlmCall, Notification, Playlist
 from kurai.jobs import queue
+from kurai.recommend import start
 from kurai.web.deps import Ctx, user_required
 from kurai.web.templating import render
 
@@ -32,8 +33,12 @@ async def home(request: Request, ctx: Ctx = Depends(user_required)):
     await ctx.db.execute(update(Notification).where(Notification.user_id == ctx.user.id).values(read=True))
     await ctx.db.commit()
     wave = next((p for p in playlists if p.kind == "wave"), None)
+    # a listener who hasn't played anything and wasn't asked yet: what do they like (the wave starts from it)
+    ask_start = ctx.user.start_asked_at is None and not (await ctx.db.execute(
+        select(Listen.track_id).where(Listen.user_id == ctx.user.id).limit(1))).first()
     return render(request, "home.html", ctx, wave=wave, mixes=[p for p in playlists if p.kind != "wave"], notes=notes,
-                  wave_on=await settings.get(ctx.db, "wave.enabled"))
+                  wave_on=await settings.get(ctx.db, "wave.enabled"),
+                  styles=await start.library_styles(ctx.db) if ask_start else [], ask_start=ask_start)
 
 
 @router.post("/playlists/{playlist_id}/feedback")

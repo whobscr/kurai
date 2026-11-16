@@ -54,6 +54,11 @@ class User(Base):
     telegram_link_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the code is valid an hour
     notify_push: Mapped[bool] = mapped_column(Boolean, default=True)
     notify_telegram: Mapped[bool] = mapped_column(Boolean, default=True)
+    # what they said they like before listening to anything (recommend/start.py): styles of the library, own words;
+    # None: not asked yet
+    start_styles: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    start_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    start_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _now()
 
     @property
@@ -248,3 +253,15 @@ class LlmCall(Base):
     seconds: Mapped[float] = mapped_column(Float)
     ok: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = _now()
+
+
+class Popularity(Base):
+    """How much the world listens to an artist or an album (ListenBrainz's listens), by MusicBrainz id: what's popular
+    in the library before anyone here has played anything (recommend/popularity.py)."""
+
+    __tablename__ = "popularity"
+
+    mbid: Mapped[str] = mapped_column(String(36), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # "artist" | "release_group"
+    listens: Mapped[int] = mapped_column(BigInteger, default=0)
+    updated_at: Mapped[datetime] = _now()

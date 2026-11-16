@@ -18,6 +18,7 @@ from kurai.audio import analyze as audio_analyze
 from kurai.audio import client as audio_client
 from kurai.db.models import Job, LlmCall, User
 from kurai.i18n import _
+from kurai.integrations import public_data
 from kurai.jobs import queue, window
 from kurai.web.deps import Ctx, admin_required
 from kurai.web.routes import apps
@@ -49,6 +50,9 @@ CORE_MANUAL_JOBS = {
     "sync_listens": (_("Прослушивания"),
                      _("Забрать прослушивания, звёзды и оценки всех из Navidrome. Само — раз в 30 минут; вкусы "
                        "пересчитываются ночью.")),
+    "popularity": (_("Популярность (ListenBrainz)"),
+                   _("Узнать у ListenBrainz, сколько в мире слушают альбомы исполнителей из библиотеки (до 150 "
+                     "исполнителей за раз, каждого — раз в месяц). Само — раз в 3 часа; нужен токен ListenBrainz.")),
 }
 
 
@@ -76,7 +80,8 @@ def manual_jobs() -> dict[str, tuple[str, str]]:
 # which settings each tab's form may write, and their types
 FIELDS: dict[str, dict[str, type]] = {
     "general": {"ui.default_accent": str, "night.start": str, "night.end": str, "playlists.per_night": int,
-                "wave.enabled": bool, "telegram.enabled": bool, "telegram.token": str},
+                "wave.enabled": bool, "telegram.enabled": bool, "telegram.token": str, "listenbrainz.token": str,
+                "musicbrainz.contact": str},
     "models": {"llm.enabled": bool, "llm.provider": str, "llm.server_type": str, "llm.base_url": str,
                "llm.api_key": str, "llm.model": str, "llm.timeout": int, "llm.parallel": int,
                "embed.provider": str, "embed.base_url": str, "embed.api_key": str, "embed.model": str,
@@ -279,6 +284,12 @@ async def check(what: str, ctx: Ctx = Depends(admin_required)):
             if await settings.get(ctx.db, "audio.clap"):
                 vectors = await audio_client.clap_vectors(ctx.db, ["calm piano at night"])
                 detail += _("; CLAP: {d} измерений").format(d=len(vectors[0]))
+        elif what == "public_data":  # a known artist's most played albums: the token and the route at once
+            albums = await (await public_data.client(ctx.db)).top_release_groups(public_data.KNOWN_ARTIST)
+            detail = _("альбомов: {n}").format(n=len(albums))
+        elif what == "musicbrainz":
+            tags = await (await public_data.client(ctx.db)).artist_tags(public_data.KNOWN_ARTIST)
+            detail = ", ".join(t for t, _n in tags[:3]) or _("ответ без тегов")
         elif what in CHECK_URLS:
             url = await _check_url(ctx.db, what)
             async with await outbound.session_for(ctx.db, what, 20) as s, s.get(url) as resp:

@@ -567,3 +567,109 @@ def datetime_now():
     from datetime import UTC, datetime
 
     return datetime.now(UTC)
+
+
+async def test_a_new_listener_is_asked_what_they_like_and_the_wave_starts_from_it(client, db, navidrome, monkeypatch):
+    """Nothing played: «Для вас» asks for styles of the library; the answers make a first taste (the styles' tracks and
+    the own words), and the wave is made of it with the library's popular tracks between. Without answers either,
+    the popular tracks alone."""
+    from kurai import security
+    from kurai.db.models import Listen, Taste
+    from kurai.recommend import library, start, wave
+
+    class Words:
+        async def embed(self, texts):
+            return [np.eye(8)[2].tolist() for _ in texts]  # «jazz» in the test's space
+
+    async def embedder(db):
+        return Words()
+
+    monkeypatch.setattr(start.llm, "embed_model", embedder)
+    model_name = await settings.get(db, "embed.model")
+    for i in range(30):
+        genre, axis = ("Jazz", 2) if i < 15 else ("Metal", 3)
+        db.add(Track(id=f"cs{i}", title=f"Start {i}", artist=f"{genre} band {i % 5}", album="S", duration=200,
+                     genres=[genre], embedding=(np.eye(8)[axis] * 5 + 0.05 * i).tolist(), embedding_model=model_name))
+    neo = User(username="neo", display_name="Нео", password_hash=security.hash_password("neo-password"),
+               navidrome_id="nd-neo", navidrome_password=security.encrypt("nd"))
+    db.add(neo)
+    await db.commit()
+    # someone else's plays make «popular»
+    db.add_all([Listen(user_id=1, track_id=f"cs{i}", play_count=50 - i) for i in range(20, 26)])
+    await db.commit()
+
+    assert set(await start.library_styles(db)) >= {"Jazz", "Metal"}
+    await login(client, "neo", "neo-password")
+    home = (await client.get("/")).text
+    assert 'id="start-styles"' in home and 'value="Jazz"' in home
+    token = csrf_of(home)
+    r = await client.post("/me/start", data={"csrf": token, "style": ["Jazz", "not a style"], "text": "тихий джаз"})
+    assert r.headers["location"] == "/"
+    await db.refresh(neo)
+    assert neo.start_styles == ["Jazz"] and neo.start_text == "тихий джаз" and neo.start_asked_at
+    job = (await db.execute(select(Job).where(Job.dedupe_key == f"wave-start:{neo.id}"))).scalar_one()
+    assert job.payload == {"retaste": True}
+    assert 'id="start-styles"' not in (await client.get("/")).text  # asked once
+    assert 'value="Jazz" checked' in (await client.get("/me")).text  # changed later in «Кабинет»
+
+    built = await library.build_taste(db, neo)
+    assert built["from_answers"] and built["tracks_used"] == 0
+    taste = await db.get(Taste, neo.id)
+    assert int(np.argmax(taste.vector)) == 2 and taste.top_artists[0]["name"].startswith("Jazz")
+    result = await wave.build(db, neo)
+    ids = (await db.execute(select(Playlist.track_ids).where(Playlist.user_id == neo.id,
+                                                              Playlist.kind == "wave"))).scalar_one()
+    assert result["popular"] > 0 and "cs20" in ids  # the most played, between
+    ours = [int(i[2:]) for i in ids if i.startswith("cs")]
+    jazz, metal = [n for n in ours if n < 15], [n for n in ours if n >= 15]
+    assert len(jazz) >= 10 and len(jazz) > len(metal)  # but mostly what the answers point at
+
+    # no answers and nothing played: the popular tracks alone
+    await db.delete(taste)
+    neo.start_styles, neo.start_text = [], ""
+    await db.commit()
+    alone = await wave.build(db, neo)
+    assert alone["popular"] == alone["tracks"] > 0
+
+
+async def test_the_worlds_popularity_fills_in_and_leads_when_nobody_here_has_played(db, monkeypatch):
+    """ListenBrainz's listens of the library's artists' albums are stored a part at a time; with no plays here, the
+    popular tracks are those of the most listened albums (an unknown album: a tenth of its artist's)."""
+    from kurai.db.models import Popularity
+    from kurai.recommend import popularity, start
+
+    assert "skipped" in await popularity.refresh(db)  # no token: nothing asked
+    await settings.put(db, {"listenbrainz.token": "t"})
+    db.add_all([Track(id="lb1", title="Hit", artist="Big", album="Famous", artist_mbid="art-big",
+                      release_group_mbid="rg-famous"),
+                Track(id="lb2", title="Deep cut", artist="Big", album="Obscure", artist_mbid="art-big",
+                      release_group_mbid="rg-obscure"),
+                Track(id="lb3", title="Other", artist="Small", album="Small album", artist_mbid="art-small")])
+    await db.commit()
+    asked = []
+
+    class World:
+        async def top_release_groups(self, mbid):
+            asked.append(mbid)
+            return {"art-big": [{"mbid": "rg-famous", "listens": 900000}, {"mbid": "rg-obscure", "listens": 1000}],
+                    "art-small": [{"mbid": "rg-small-other", "listens": 50}]}.get(mbid, [])
+
+    async def client(db_):
+        return World()
+
+    monkeypatch.setattr(popularity.public_data, "client", client)
+    monkeypatch.setattr(popularity, "PER_RUN", 1)
+    first = await popularity.refresh(db)
+    assert first["artists"] == 1 and first["left"] >= 1  # a part at a time
+    while (await popularity.refresh(db))["left"]:
+        pass
+    assert {"art-big", "art-small"} <= set(asked)
+    big = await db.get(Popularity, "art-big")
+    assert big.kind == "artist" and big.listens == 901000
+    again = len(asked)
+    await popularity.refresh(db)
+    assert len(asked) == again  # not asked again before a month
+
+    # nobody here has played these: the world decides (other tests' plays come first, so only ours are compared)
+    order = [t for t in await start.popular(db, 200, set()) if t.startswith("lb")]
+    assert order[0] == "lb1" and order.index("lb2") > order.index("lb1")

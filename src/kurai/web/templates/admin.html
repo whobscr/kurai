@@ -29,6 +29,12 @@
   {{ switch("telegram.enabled", _("Бот включён")) }}
   {{ secret("telegram.token", _("Токен бота (от @BotFather)")) }}
   <p class="small-text">{{ _("Сеть бота — на вкладке «Шлюз» (прокси и DNS).") }}</p>
+  <h6>{{ _("Открытые данные о музыке") }}</h6>
+  <p class="small-text">{{ _("ListenBrainz знает, что люди слушают больше всего: по нему Kurai раз в несколько часов узнаёт популярность альбомов исполнителей из вашей библиотеки — с неё начинается «Моя волна» у новых слушателей. MusicBrainz — каталог с тегами исполнителей. Оба бесплатные; сеть — на вкладке «Шлюз».") }}</p>
+  {{ secret("listenbrainz.token", _("Токен ListenBrainz")) }}
+  <p class="small-text">{{ _("Без токена ListenBrainz популярность не отдаёт. Войдите на listenbrainz.org (учётная запись MusicBrainz) → Settings → «User token».") }}</p>
+  {{ text("musicbrainz.contact", _("Контакт для MusicBrainz (e-mail или сайт)"), help=_("MusicBrainz просит указывать контакт в запросах.")) }}
+  <div class="row wrap">{{ check("public_data", _("Проверить ListenBrainz")) }}{{ check("musicbrainz", _("Проверить MusicBrainz")) }}</div>
 {{ form_end() }}</article>
 
 {% elif tab == "models" %}

@@ -15,6 +15,7 @@ from kurai.config import get_config
 from kurai.db.models import Listen, Taste, Track, TrackAudio, User
 from kurai.i18n import _
 from kurai.integrations.navidrome import Account, Navidrome, song_fields
+from kurai.recommend import start
 from kurai.recommend.vectors import listen_weight, taste_vector
 
 log = logging.getLogger(__name__)
@@ -135,7 +136,8 @@ async def sync_listens(db: AsyncSession, user: User) -> dict:
 
 
 async def build_taste(db: AsyncSession, user: User) -> dict:
-    """The user's taste vectors (from the tags' text and, once analysed, from the sound) and top artists."""
+    """The user's taste vectors (from the tags' text and, once analysed, from the sound) and top artists; what they
+    said they like at the start is a prior that fades as they play more (start.py)."""
     model_name = await settings.get(db, "embed.model")
     rows = (await db.execute(
         select(Listen, Track, TrackAudio.effnet).join(Track, Track.id == Listen.track_id)
@@ -160,6 +162,11 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
     vector = taste_vector(text_vectors, text_weights)
     sound = taste_vector(sound_vectors, sound_weights)
     top = [{"name": a, "weight": round(w, 2)} for a, w in sorted(artists.items(), key=lambda kv: -kv[1])[:20]]
+    first = await start.first_taste(db, user) if user.start_asked_at else None
+    if first is not None:
+        vector = start.with_prior(vector, first["text"], len(text_vectors))
+        sound = start.with_prior(sound, first["sound"], len(sound_vectors))
+        top = top or first["top_artists"]
     stmt = insert(Taste).values(user_id=user.id, vector=vector.tolist() if vector is not None else None,
                                 embedding_model=model_name, audio_vector=sound.tolist() if sound is not None else None,
                                 top_artists=top, tracks_used=len(text_vectors), updated_at=now)
@@ -167,7 +174,8 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
         k: stmt.excluded[k] for k in ("vector", "embedding_model", "audio_vector", "top_artists", "tracks_used",
                                       "updated_at")}))
     await db.commit()
-    return {"tracks_used": len(text_vectors), "has_vector": vector is not None, "by_sound": len(sound_vectors)}
+    return {"tracks_used": len(text_vectors), "has_vector": vector is not None, "by_sound": len(sound_vectors),
+            "from_answers": first is not None}
 
 
 async def active_users(db: AsyncSession) -> list[User]:

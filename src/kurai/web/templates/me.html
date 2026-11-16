@@ -29,6 +29,12 @@
   {% endif %}
 </article>
 
+<article class="round" id="start">
+  <h6>{{ _("Что вы любите слушать") }}</h6>
+  <p class="small-text">{{ _("С этого Kurai начинает, пока вы почти ничего не слушали; чем больше вы слушаете, тем меньше это значит.") }}</p>
+  {% set back = "me" %}{% include "partials/start_styles.html" %}
+</article>
+
 <article class="round" id="totp">
   <h6>{{ _("Двухфакторный вход") }}</h6>
   {% if new_codes %}
