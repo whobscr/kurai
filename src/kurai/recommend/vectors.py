@@ -1,8 +1,10 @@
 """The recommendation arithmetic, without the database: taste vectors, the joint vector space, choosing a varied set
-of tracks (MMR), and ordering them so neighbours sound alike. Pure functions, so they're easy to test."""
+of tracks (MMR), ordering them so neighbours sound alike, and shuffling them with artists spread out. Pure functions,
+so they're easy to test."""
 
 import math
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
@@ -195,4 +197,27 @@ def arrange(tracks: list[Candidate], smooth: bool = True, artist_gap: int = 1) -
             nxt = options[0]
         ordered.append(nxt)
         remaining.remove(nxt)
+    return ordered
+
+
+def shuffle_apart[T](items: list[T], artist: Callable[[T], str], rng: random.Random | None = None) -> list[T]:
+    """A random order with no artist twice in a row wherever the items allow it (no artist has more than half of
+    them). Each next item is a random one of another artist than the last, an artist with more left being likelier;
+    an artist with at least half of what's left must come now, or its items would end up side by side."""
+    rng = rng or random.Random()
+    groups: dict[str, list[T]] = {}
+    for item in items:
+        groups.setdefault((artist(item) or "").casefold(), []).append(item)
+    for group in groups.values():
+        rng.shuffle(group)
+    ordered: list[T] = []
+    last = None
+    while groups:
+        left = sum(len(g) for g in groups.values())
+        allowed = [a for a in groups if a != last] or [last]
+        crowded = [a for a in allowed if 2 * len(groups[a]) >= left]
+        last = rng.choice(crowded) if crowded else rng.choices(allowed, [len(groups[a]) for a in allowed])[0]
+        ordered.append(groups[last].pop())
+        if not groups[last]:
+            del groups[last]
     return ordered

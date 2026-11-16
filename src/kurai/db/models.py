@@ -59,6 +59,9 @@ class User(Base):
     start_styles: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     start_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     start_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # «Любимое»: how many tracks, and whether the night makes it anew
+    favorites_size: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
+    favorites_nightly: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = _now()
 
     @property
@@ -182,7 +185,8 @@ class Playlist(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    kind: Mapped[str] = mapped_column(String(16))  # "wave" | "nightly" | "ask" | "starter" | "saved" (the user's own)
+    # "wave" | "nightly" | "ask" | "starter" | "saved" (the user's own) | "favorites" («Любимое», one a user)
+    kind: Mapped[str] = mapped_column(String(16))
     name: Mapped[str] = mapped_column(Text)
     description: Mapped[str] = mapped_column(Text, default="")
     track_ids: Mapped[list] = mapped_column(JSONB, default=list)

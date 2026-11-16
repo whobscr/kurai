@@ -35,9 +35,24 @@
   {% set back = "me" %}{% include "partials/start_styles.html" %}
 </article>
 
+<article class="round" id="favorites">
+  <h6>{{ _("Любимое") }}</h6>
+  <p class="small-text">{{ _("Плейлист из ваших любимых треков вперемешку: сначала с ♥ и оценками 4–5, потом самые слушаемые; с 👎 — никогда. Один исполнитель не звучит два раза подряд, если треков других хватает.") }}</p>
+  {% if favorites %}<p class="small-text">{{ _("Собран {when}: {n} треков.").format(when=favorites.created_at | local, n=favorites.track_ids | length) }}</p>{% endif %}
+  <form method="post" action="/me/favorites">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field label border round"><input type="number" name="size" min="{{ favorites_sizes[0] }}" max="{{ favorites_sizes[1] }}"
+      value="{{ user.favorites_size }}" required><label>{{ _("Сколько треков") }}</label></div>
+    <label class="checkbox"><input type="checkbox" name="nightly" {{ 'checked' if user.favorites_nightly }}><span>{{ _("Собирать заново каждую ночь") }}</span></label>
+    <nav class="row wrap">
+      <button class="round" name="build" value="1"><i>favorite</i><span>{{ _("Собрать") }}</span></button>
+      <button class="round border">{{ _("Сохранить") }}</button></nav>
+  </form>
+</article>
+
 <article class="round" id="forget">
   <h6>{{ _("Забыть прослушивания") }}</h6>
-  <p class="small-text">{{ _("Курай начнёт узнавать ваш вкус с нуля: забудет, что и сколько раз вы слушали, ♥, 👎 и оценки, пропуски в «Моей волне». Ответы в «Что вы любите слушать» и плейлисты Курая останутся.") }}</p>
+  <p class="small-text">{{ _("Курай начнёт узнавать ваш вкус с нуля: забудет, что и сколько раз вы слушали, ♥, 👎 и оценки, пропуски в «Моей волне». Ответы в «Что вы любите слушать» и плейлисты Курая останутся, кроме «Любимого».") }}</p>
   <p class="small-text">{{ _("Для этого ваша учётная запись в музыкальных приложениях создаётся заново, с тем же именем и паролем. Вместе со старой удалятся и счётчики прослушиваний, ♥ и оценки в приложениях, плейлисты, созданные в самих приложениях, очередь воспроизведения и подключённые там Last.fm или ListenBrainz. Отменить это нельзя.") }}</p>
   <form method="post" action="/me/forget">
     <input type="hidden" name="csrf" value="{{ csrf }}">

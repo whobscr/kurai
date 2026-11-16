@@ -60,6 +60,8 @@ async def _nightly(db, job: Job) -> dict:
                    "taste": await library.build_taste(db, user),
                    "related": await related.refresh(db, user),
                    "playlists": await playlists.nightly(db, user)}
+            if user.favorites_nightly:
+                out["favorites"] = await playlists.build_favorites(db, user, create=False)
             if wave_on:  # a fresh wave for the new day, from the new taste
                 out["wave"] = await wave.build(db, user)
             return out

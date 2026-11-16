@@ -70,8 +70,8 @@ async def set_password(db: AsyncSession, user: User, password: str) -> None:
 async def forget_listens(db: AsyncSession, user: User) -> None:
     """«Забыть прослушивания». Navidrome can't clear an account's plays, so the user's music account is made anew,
     with the same name and password (the music apps go on logging in): Navidrome deletes the old one's plays, stars,
-    ratings, playlists and play queue with it. Kurai forgets its copy of them, the wave's plays and skips and the
-    taste, writes its own playlists into the new account and makes the taste (from «Что вы любите слушать» only)
+    ratings, playlists and play queue with it. Kurai forgets its copy of them, the wave's plays and skips, the taste
+    and «Любимое», writes its own playlists into the new account and makes the taste (from «Что вы любите слушать» only)
     and the wave anew. The old account's id is let go before the new one is made, so after a failure halfway a
     second try only makes the account."""
     account = user_account(user)
@@ -87,6 +87,7 @@ async def forget_listens(db: AsyncSession, user: User) -> None:
         await db.execute(delete(model).where(model.user_id == user.id))
     await db.execute(update(Playlist).where(Playlist.user_id == user.id).values(navidrome_id=None))
     await db.commit()
+    await playlists.build_favorites(db, user, create=False)  # «Любимое» has nothing left: it goes
     for playlist in (await db.execute(select(Playlist).where(Playlist.user_id == user.id))).scalars():
         try:
             await playlists.write(db, user, playlist)

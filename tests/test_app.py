@@ -1254,3 +1254,74 @@ async def test_forgetting_the_listens_makes_the_music_account_anew(client, db, n
     assert saved.navidrome_id != "old-pl" and navidrome.playlists[saved.navidrome_id] == ("Своё", ["fg1"])
     job = (await db.execute(select(Job).where(Job.dedupe_key == f"wave-start:{fay.id}"))).scalar_one()
     assert job.payload == {"retaste": True}
+
+
+async def test_favorites_are_built_by_the_button_and_every_night_unless_switched_off(client, db, navidrome,
+                                                                                    monkeypatch):
+    """«Любимое»: ♥ and ratings of 4–5 first, then the most played, never a 👎, as many as the user set; shuffled with
+    no artist twice in a row; made anew each night only while the user lets it and only if they have it; forgetting
+    the listens removes it."""
+    from kurai import accounts, security
+    from kurai.jobs import worker
+    from kurai.recommend import playlists
+
+    for i in range(20):
+        db.add(Track(id=f"fv{i}", title=f"Fav {i}", artist=f"Fav artist {i % 3}", album="F", duration=200))
+    gus = User(username="gus", display_name="Гас", password_hash=security.hash_password("gus-password"),
+               navidrome_id="nd-gus", navidrome_password=security.encrypt("gus-nd"))
+    db.add(gus)
+    await db.commit()
+    db.add_all([Listen(user_id=gus.id, track_id="fv0", starred=True), Listen(user_id=gus.id, track_id="fv1", rating=5),
+                Listen(user_id=gus.id, track_id="fv2", play_count=90, rating=1),  # 👎: never
+                Listen(user_id=gus.id, track_id="fv3", rating=3)]  # neither liked nor played
+               + [Listen(user_id=gus.id, track_id=f"fv{i}", play_count=i) for i in range(4, 20)])
+    await db.commit()
+    await login(client, "gus", "gus-password")
+    token = csrf_of((await client.get("/me")).text)
+
+    r = await client.post("/me/favorites", data={"csrf": token, "size": "3", "build": "1"})  # the night: off
+    assert "«Любимое» собрано: 10 треков" in r.text  # 10 at least
+    gus_id = gus.id
+    db.expire_all()
+    gus = await db.get(User, gus_id)
+    assert gus.favorites_size == 10 and gus.favorites_nightly is False
+    fav = (await db.execute(select(Playlist).where(Playlist.user_id == gus_id, Playlist.kind == "favorites"))
+           ).scalar_one()
+    assert set(fav.track_ids) == {"fv0", "fv1"} | {f"fv{i}" for i in range(12, 20)}  # liked, then the most played
+    assert navidrome.playlists[fav.navidrome_id] == ("Любимое", fav.track_ids)
+    assert "Любимое" in (await client.get("/")).text
+
+    fav_id = fav.id
+
+    async def night():
+        await worker._nightly(db, Job(kind="nightly"))
+        db.expire_all()
+        return (await db.get(Playlist, fav_id)).created_at
+
+    async def nothing(*args):
+        return {}
+
+    # the night's other steps aren't this test's
+    for module, name in ((worker.library, "sync_library"), (worker.library, "embed_tracks"),
+                         (worker.library, "sync_listens"), (worker.library, "build_taste"),
+                         (worker.related, "refresh"), (playlists, "nightly")):
+        monkeypatch.setattr(module, name, nothing)
+    built = fav.created_at
+    assert await night() == built  # switched off: left as it is
+    await client.post("/me/favorites", data={"csrf": token, "size": "300", "nightly": "on"})  # only saved
+    assert await night() > built
+    gus = await db.get(User, gus_id)
+    assert gus.favorites_size == 300 and gus.favorites_nightly
+    fav = await db.get(Playlist, fav_id)
+    assert len(fav.track_ids) == 18 and "fv2" not in fav.track_ids and "fv3" not in fav.track_ids
+    artists = [int(t[2:]) % 3 for t in fav.track_ids]
+    assert all(a != b for a, b in zip(artists, artists[1:], strict=False))
+
+    await accounts.forget_listens(db, gus)  # nothing liked left: it goes
+    assert (await db.execute(select(Playlist).where(Playlist.user_id == gus_id,
+                                                    Playlist.kind == "favorites"))).first() is None
+    await worker._nightly(db, Job(kind="nightly"))
+    assert (await db.execute(select(Playlist).where(Playlist.user_id == gus_id,
+                                                    Playlist.kind == "favorites"))).first() is None
+    r = await client.post("/me/favorites", data={"csrf": token, "size": "50", "build": "1"})
+    assert "Пока не из чего собрать" in r.text

@@ -1,5 +1,5 @@
 """«Личный кабинет»: the user's look (accent colour, light / dark), what they like to listen to, the optional TOTP with
-recovery codes, Telegram, notifications and web push, and forgetting what they listened to."""
+recovery codes, Telegram, notifications and web push, «Любимое», and forgetting what they listened to."""
 
 import re
 from datetime import UTC, datetime
@@ -8,14 +8,15 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from kurai import accounts, notify, outbound, security, settings
-from kurai.db.models import PushSubscription
+from kurai.db.models import Playlist, PushSubscription
 from kurai.i18n import _
 from kurai.integrations.navidrome import NavidromeError
 from kurai.jobs import queue
-from kurai.recommend import start
+from kurai.recommend import playlists, start
 from kurai.web.deps import Ctx, user_required
 from kurai.web.templating import render
 
@@ -31,8 +32,11 @@ async def _page(request: Request, ctx: Ctx, **values):
     bot = None
     if ctx.user.telegram_link_code:
         bot = await _bot_username(ctx)
+    favorites = (await ctx.db.execute(select(Playlist).where(Playlist.user_id == ctx.user.id,
+                                                             Playlist.kind == playlists.FAVORITES))).scalars().first()
     return render(request, "me.html", ctx, bot=bot, push_key=await settings.get(ctx.db, "webpush.public_key"),
-                  styles=await start.library_styles(ctx.db), **values)
+                  styles=await start.library_styles(ctx.db), favorites=favorites,
+                  favorites_sizes=playlists.FAVORITES_SIZES, **values)
 
 
 async def _bot_username(ctx: Ctx) -> str | None:
@@ -134,6 +138,27 @@ async def start_styles(request: Request, ctx: Ctx = Depends(user_required)):
     ctx.user.start_asked_at = datetime.now(UTC)
     await ctx.db.commit()
     return back
+
+
+@router.post("/favorites")
+async def favorites(request: Request, size: int = Form(50), nightly: str = Form(""), build: str = Form(""),
+                    ctx: Ctx = Depends(user_required)):
+    """«Любимое»: how many tracks and whether the night makes it anew; «Собрать» also makes it now."""
+    low, high = playlists.FAVORITES_SIZES
+    ctx.user.favorites_size = min(max(size, low), high)
+    ctx.user.favorites_nightly = nightly == "on"
+    await ctx.db.commit()
+    if not build:
+        return RedirectResponse("/me#favorites", 303)
+    try:
+        count = await playlists.build_favorites(ctx.db, ctx.user)
+    except NavidromeError as e:
+        await ctx.db.rollback()
+        return await _page(request, ctx, message=_("Не получилось: {e}. Попробуйте ещё раз.").format(e=e))
+    if not count:
+        return await _page(request, ctx, message=_("Пока не из чего собрать: поставьте ♥ или послушайте что-нибудь."))
+    return await _page(request, ctx, message=_("«Любимое» собрано: {n} треков — на странице «Для вас» и в "
+                                               "музыкальных приложениях.").format(n=count))
 
 
 @router.post("/forget")

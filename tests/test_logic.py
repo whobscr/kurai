@@ -1,5 +1,7 @@
 """The pure parts: recommendation arithmetic, the night window, the gateway's routes, security, model answers."""
 
+import random
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
@@ -14,6 +16,7 @@ from kurai.recommend.vectors import (
     arrange,
     listen_weight,
     mmr_select,
+    shuffle_apart,
     taste_vector,
 )
 
@@ -335,3 +338,22 @@ def test_job_results_read_as_written():
 
     html = templates.env.from_string("{{ r | readable }}").render(r={"skipped": "вкус ещё не известен", "x": "<b>"})
     assert "вкус ещё не известен" in html and "\\u0432" not in html and "&lt;b&gt;" in html
+
+
+def test_shuffle_apart_shuffles_with_no_artist_twice_in_a_row_wherever_possible():
+    """«Любимое»'s order: everything kept, a different order each time, and never more neighbours of one artist than
+    the counts force (an artist with more than half the tracks can't be kept apart entirely)."""
+    rng = random.Random(7)
+    for _ in range(2000):
+        n = rng.randint(1, 40)
+        artists = [rng.choice("ABCDEFG"[:rng.randint(1, 7)]) for _ in range(n)]
+        ordered = shuffle_apart(artists, lambda a: a, rng)
+        assert sorted(ordered) == sorted(artists)
+        side_by_side = sum(a == b for a, b in zip(ordered, ordered[1:], strict=False))
+        assert side_by_side == max(0, 2 * max(Counter(artists).values()) - n - 1)
+    tracks = [(i, "ABCDE"[i % 5]) for i in range(30)]
+    def by_artist(t):
+        return t[1]
+
+    assert shuffle_apart(tracks, by_artist, random.Random(1)) != shuffle_apart(tracks, by_artist, random.Random(2))
+    assert shuffle_apart([], lambda t: t) == []

@@ -16,12 +16,14 @@ from kurai.db.models import Listen, Playlist, Taste, Track, TrackAudio, User
 from kurai.i18n import _
 from kurai.recommend import mixing, related, retrieval
 from kurai.recommend.library import navidrome, user_account
-from kurai.recommend.vectors import Candidate, adjust, arrange, blend, mmr_select, normalize
+from kurai.recommend.vectors import Candidate, adjust, arrange, blend, mmr_select, normalize, shuffle_apart
 
 log = logging.getLogger(__name__)
 
 # the generated playlists removed when older than their setting's days (0: kept), but the liked ones
 KEEP_DAYS = {"nightly": "playlists.keep_days", "ask": "ask.keep_days"}
+FAVORITES = "favorites"  # «Любимое»: one a user, made anew by the user's «Собрать» and (if they let it) every night
+FAVORITES_SIZES = (10, 300)
 ASK_MAX_TRACKS = 60
 NAME_SCHEMA = {
     "type": "object",
@@ -163,6 +165,42 @@ async def nightly(db: AsyncSession, user: User, count: int | None = None) -> dic
         await db.commit()  # each mix on its own: one written into Navidrome is kept even if the next one fails
         made.append(name)
     return {"playlists": made}
+
+
+async def favorite_tracks(db: AsyncSession, user: User) -> list[tuple[str, str]]:
+    """The user's most liked tracks, (id, artist), as many as they set: ♥ and ratings of 4–5 first, then the most
+    played; never a 👎 (a rating of 1–2)."""
+    liked = Listen.starred | (Listen.rating >= 4)
+    return [tuple(row) for row in (await db.execute(
+        select(Track.id, Track.artist).join(Listen, Listen.track_id == Track.id)
+        .where(Listen.user_id == user.id, Listen.rating.not_in((1, 2)), liked | (Listen.play_count > 0))
+        .order_by(liked.desc(), Listen.play_count.desc(), Listen.last_played.desc().nulls_last(), Track.id)
+        .limit(user.favorites_size))).all()]
+
+
+async def build_favorites(db: AsyncSession, user: User, create: bool = True) -> int | None:
+    """«Любимое» made anew: the favourite tracks shuffled, no artist twice in a row where they allow it, written into
+    Navidrome. `create`: make it when the user has none (else only an existing one is renewed: the night's work, so
+    one removed with ✕ stays removed). With nothing to put in it, it's removed. The number of its tracks; None when
+    there's no such playlist."""
+    playlist = (await db.execute(select(Playlist).where(Playlist.user_id == user.id, Playlist.kind == FAVORITES))
+                ).scalars().first()
+    if playlist is None and not create:
+        return None
+    tracks = await favorite_tracks(db, user)
+    if not tracks:
+        if playlist is not None:
+            await remove(db, user, playlist)
+        return 0
+    if playlist is None:
+        playlist = Playlist(user_id=user.id, kind=FAVORITES, name=_("Любимое"),
+                            description=_("Ваши любимые и самые слушаемые треки вперемешку"))
+        db.add(playlist)
+    playlist.track_ids = [track_id for track_id, _artist in shuffle_apart(tracks, lambda t: t[1])]
+    playlist.created_at = datetime.now(UTC)  # «Для вас» shows it with the fresh mixes
+    await write(db, user, playlist)
+    await db.commit()
+    return len(playlist.track_ids)
 
 
 async def remove_old(db: AsyncSession) -> dict:
