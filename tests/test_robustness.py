@@ -336,37 +336,38 @@ async def test_artists_without_ids_in_their_tags_get_them_by_name_and_keep_them(
     from kurai.integrations import public_data
     from kurai.recommend import artist_ids
 
-    db.add_all([Track(id="ai-1", title="Bad Liar", artist="Imagine Dragons", album="Origins"),
-                Track(id="ai-2", title="Believer", artist="Imagine Dragons feat. Lil Wayne", album="Evolve"),
-                Track(id="ai-3", title="Ribs", artist="Lorde", album="Pure Heroine"),
-                Track(id="ai-4", title="Creep", artist="Radiohead", album="Pablo Honey", artist_mbid="rh-tag"),
-                Track(id="ai-5", title="Nothing", artist="Nobody Known", album="X")])
+    db.add_all([Track(id="ai-1", title="Bad Liar", artist="Ids Dragons", album="Origins"),
+                Track(id="ai-2", title="Believer", artist="Ids Dragons feat. Lil Wayne", album="Evolve"),
+                Track(id="ai-3", title="Ribs", artist="Ids Lorde", album="Pure Heroine"),
+                Track(id="ai-4", title="Creep", artist="Ids Radio", album="Pablo Honey", artist_mbid="rh-tag"),
+                Track(id="ai-5", title="Nothing", artist="Ids Nobody", album="X")])
     await db.commit()
     asked = []
 
     class MusicBrainz:
         async def artist_id(self, name, titles):
             asked.append((name, titles))
-            return {"Imagine Dragons": "id-mbid", "Lorde": "lorde-mbid"}.get(name)
+            return {"Ids Dragons": "id-mbid", "Ids Lorde": "lorde-mbid"}.get(name)
 
     async def client(db):
         return MusicBrainz()
 
     monkeypatch.setattr(public_data, "client", client)
+    monkeypatch.setattr(artist_ids, "PER_RUN", 10_000)  # other tests' artists are due too
     result = await artist_ids.look_up(db)
-    # the one with the most tracks first, by the first credited artist; Radiohead's tags have an id already
-    assert [name for name, _ in asked if name in ("Imagine Dragons", "Lorde", "Nobody Known", "Radiohead")] == [
-        "Imagine Dragons", "Lorde", "Nobody Known"]
-    assert ("Imagine Dragons", ["Bad Liar", "Believer"]) in asked
+    # the one with the most tracks first, by the first credited artist; Ids Radio's tags have an id already
+    assert [name for name, _ in asked if name in ("Ids Dragons", "Ids Lorde", "Ids Nobody", "Ids Radio")] == [
+        "Ids Dragons", "Ids Lorde", "Ids Nobody"]
+    assert ("Ids Dragons", ["Bad Liar", "Believer"]) in asked
     assert result["tracks"] >= 3
     db.expire_all()
     ids = dict((await db.execute(select(Track.id, Track.artist_mbid).where(Track.id.like("ai-%")))).all())
     assert ids == {"ai-1": "id-mbid", "ai-2": "id-mbid", "ai-3": "lorde-mbid", "ai-4": "rh-tag", "ai-5": None}
-    assert (await db.get(ArtistId, "nobody known")).mbid is None  # not found: remembered, asked again later
+    assert (await db.get(ArtistId, "ids nobody")).mbid is None  # not found: remembered, asked again later
 
     asked.clear()
     await artist_ids.look_up(db)
-    assert not [a for a in asked if a[0] in ("Imagine Dragons", "Lorde", "Nobody Known")]  # once is enough
+    assert not [a for a in asked if a[0] in ("Ids Dragons", "Ids Lorde", "Ids Nobody")]  # once is enough
     # a library sync writes Navidrome's (empty) ids again: the ones found come back
     await db.execute(update(Track).where(Track.id.in_(["ai-1", "ai-3"])).values(artist_mbid=None))
     await artist_ids.apply(db)

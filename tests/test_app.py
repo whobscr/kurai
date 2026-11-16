@@ -100,6 +100,67 @@ async def test_ask_plans_with_the_model_and_picks_tracks_by_vectors(db, navidrom
     assert name == "Тихий вечер" and written == playlist.track_ids
 
 
+async def test_ask_for_a_language_takes_only_its_tracks_even_if_fewer(db, navidrome, monkeypatch):
+    """Told by the writing of the artist, title or album, or by a genre tag; a request for Chinese leaves Japanese out
+    (kana), one for Ukrainian takes only what has its own letters; not padded with other languages."""
+    from kurai import llm
+    from kurai.recommend import playlists
+
+    model_name = await settings.get(db, "embed.model")
+    rng = np.random.default_rng(7)
+    centre = rng.normal(size=8)
+    tracks = [("ru1", "Кино", "Группа крови", []), ("ru2", "Земфира", "Хочешь?", []),
+              ("ru3", "Сплин", "Выхода нет", []), ("uk1", "Океан Ельзи", "Обійми", []),
+              ("zh1", "周杰伦", "晴天", []), ("zh2", "Jay Chou", "稻香", []), ("ja1", "宇多田ヒカル", "First Love", []),
+              ("ko1", "BTS", "Spring Day", ["K-Pop"]), ("ko2", "아이유", "밤편지", []),
+              ("en1", "Coldplay", "Yellow", ["rock"]), ("en2", "Lorde", "Ribs", ["pop"])]
+    for tid, artist, title, genres in tracks:
+        db.add(Track(id=f"lang-{tid}", title=title, artist=artist, album="", duration=240, genres=genres,
+                     embedding=(centre + 0.05 * rng.normal(size=8)).tolist(), embedding_model=model_name))
+    user = User(username="lena", display_name="Lena", password_hash="x", navidrome_id="nd-lena",
+                navidrome_password=__import__("kurai").security.encrypt("pw"))
+    db.add(user)
+    await db.commit()
+    plan = {}
+
+    async def fake_complete_json(db_, task, system, prompt, schema, max_tokens=2000):
+        return {"intent": "playlist", "answer": "", "mood_text": "music", "sound_en": "music", "seed_artists": [],
+                "exclude_artists": [], "minutes": 60, "name": "Язык", "bpm_min": 0, "bpm_max": 0, "energy": "any",
+                "vocals": "any", "scripts": [], "letters": "", "language_tags": [], **plan}
+
+    class FakeEmbedder:
+        name = model_name
+
+        async def embed(self, texts):
+            return [centre.tolist()]
+
+    async def fake_embed_model(db_):
+        return FakeEmbedder()
+
+    monkeypatch.setattr(llm, "complete_json", fake_complete_json)
+    monkeypatch.setattr(llm, "embed_model", fake_embed_model)
+
+    async def ours(**asked) -> tuple[set[str], dict]:
+        plan.clear()
+        plan.update(asked)
+        result = await playlists.ask(db, user, "музыка на языке")
+        if "playlist_id" not in result:
+            return set(), result
+        ids = (await db.get(Playlist, result["playlist_id"])).track_ids
+        return {t.removeprefix("lang-") for t in ids if t.startswith("lang-")}, result
+
+    got, result = await ours(scripts=["cyrillic"], language_tags=["russian"])
+    assert got == {"ru1", "ru2", "ru3", "uk1"} and result["short"]  # 4 tracks for an hour: not padded
+    assert (await ours(scripts=["cyrillic"], letters="іїєґ"))[0] == {"uk1"}
+    assert (await ours(scripts=["han"]))[0] == {"zh1", "zh2"}  # Utada's kana: Japanese, not Chinese
+    assert (await ours(scripts=["kana"]))[0] == {"ja1"}
+    assert (await ours(scripts=["hangul"], language_tags=["k-pop"]))[0] == {"ko1", "ko2"}
+    got, result = await ours(scripts=["arabic"])
+    assert got == set() and "не нашлось музыки на этом языке" in result["answer"]
+    got, result = await ours()  # no language asked: everything near, the playlist full
+    assert {"en1", "en2", "ru1"} <= got and not result["short"]
+
+
 # ---------- the web app ----------
 
 

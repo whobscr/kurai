@@ -108,6 +108,8 @@ async def _ask(db, job: Job) -> dict:
     result = await playlists.ask(db, user, job.payload["text"])
     if "playlist_id" in result:
         text = _("Плейлист «{name}» готов — он уже в вашем плеере").format(name=result["name"])
+        if result.get("short"):
+            text += _(". На этом языке нашлось только {n} треков").format(n=result["tracks"])
         await notify(db, user.id, text, "/", telegram=not chat)
         if chat:
             await send_telegram(db, chat, text, "/")

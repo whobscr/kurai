@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import func, select
+from sqlalchemy import Text, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import settings
@@ -19,6 +19,42 @@ from kurai.recommend.vectors import Candidate, Joint, mean_unit, weights_of
 
 POOL = 300
 SPACES = ("text", "sound", "clap")
+
+
+# the writing systems a language can be told by (the request's model picks them): their Unicode ranges
+SCRIPTS = {
+    "cyrillic": ["\u0400-\u04ff"],
+    "han": ["\u3400-\u4dbf", "\u4e00-\u9fff", "\uf900-\ufaff"],
+    "kana": ["\u3040-\u30ff"],
+    "hangul": ["\u1100-\u11ff", "\u3130-\u318f", "\uac00-\ud7af"],
+    "arabic": ["\u0600-\u06ff", "\u0750-\u077f"],
+    "hebrew": ["\u0590-\u05ff"],
+    "greek": ["\u0370-\u03ff"],
+    "georgian": ["\u10a0-\u10ff"],
+    "armenian": ["\u0530-\u058f"],
+    "thai": ["\u0e00-\u0e7f"],
+    "devanagari": ["\u0900-\u097f"],
+}
+
+
+def language_filter(scripts: Collection[str] = (), letters: str = "", tags: Collection[str] = ()):
+    """The tracks in a language, as far as their text and tags tell: the artist, title or album written in one of the
+    `scripts` (or, more narrowly, holding one of the `letters`: «іїєґ» for Ukrainian among the Cyrillic), or a genre
+    containing one of the `tags` («k-pop», «chanson»). None: nothing to tell it by."""
+    text = func.concat_ws(" ", Track.artist, Track.title, Track.album)
+    conditions = []
+    letters = "".join(ch for ch in letters if ch.isalpha())
+    if letters:
+        conditions.append(text.op("~")("[" + letters + "]"))
+    elif ranges := [r for s in scripts for r in SCRIPTS.get(s, [])]:
+        written = text.op("~")("[" + "".join(ranges) + "]")
+        if "han" in scripts and "kana" not in scripts:  # Japanese has the same characters, and kana besides
+            written = and_(written, text.op("!~")("[" + "".join(SCRIPTS["kana"]) + "]"))
+        conditions.append(written)
+    genres = cast(Track.genres, Text)
+    for tag in {t.strip().casefold() for t in tags if t.strip()}:
+        conditions.append(genres.ilike("%" + tag.replace("\\", "").replace("%", "").replace("_", "\\_") + "%"))
+    return or_(*conditions) if conditions else None
 
 
 def _column(space: str):
@@ -84,10 +120,12 @@ async def seeds(db: AsyncSession, j: Joint, artists: list[str], limit: int = 200
 
 async def candidates(db: AsyncSession, j: Joint, queries: dict[str, np.ndarray], user: User | None = None,
                      rest_days: float | None = None, exclude_artists: set[str] | None = None,
-                     only_artists: Collection[str] | None = None, pool: int = POOL) -> list[Candidate]:
+                     only_artists: Collection[str] | None = None, language=None,
+                     pool: int = POOL) -> list[Candidate]:
     """The tracks near the (centred) queries, best first; relevance and vector are in the joint space. With a user
     and `rest_days`: without what they played within those days and what they disliked. `only_artists`: just their
-    tracks (names, any case; compared as kurai/artists.py's keys, guests and all)."""
+    tracks (names, any case; compared as kurai/artists.py's keys, guests and all). `language`: language_filter's
+    condition, only the tracks it holds for."""
     text_model = await settings.get(db, "embed.model")
     queries = {s: q for s, q in queries.items() if q is not None and s in j.weights}
     if not queries:
@@ -104,6 +142,8 @@ async def candidates(db: AsyncSession, j: Joint, queries: dict[str, np.ndarray],
         filters.append(Track.artist_key.not_in({artist_key(a) for a in exclude_artists}))
     if only_artists is not None:
         filters.append(Track.artist_key.in_({artist_key(a) for a in only_artists}))
+    if language is not None:
+        filters.append(language)
     ids: set[str] = set()
     for space, q in queries.items():
         # the nearest by raw cosine: the query moved back from the centred space is close enough for a pool

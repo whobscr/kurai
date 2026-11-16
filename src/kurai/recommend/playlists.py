@@ -47,9 +47,12 @@ PLAN_SCHEMA = {
         "bpm_max": {"type": "integer"},
         "energy": {"type": "string", "enum": ["any", "calm", "medium", "energetic"]},
         "vocals": {"type": "string", "enum": ["any", "instrumental", "vocal"]},
+        "scripts": {"type": "array", "items": {"type": "string", "enum": list(retrieval.SCRIPTS)}},
+        "letters": {"type": "string"},
+        "language_tags": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["intent", "answer", "mood_text", "sound_en", "seed_artists", "exclude_artists", "minutes", "name",
-                 "bpm_min", "bpm_max", "energy", "vocals"],
+                 "bpm_min", "bpm_max", "energy", "vocals", "scripts", "letters", "language_tags"],
     "additionalProperties": False,
 }
 
@@ -256,6 +259,13 @@ ASK_RULES = (
     "минуту, 0 — без границы (быстрое, для бега и тренировки — bpm_min 120; медленное — bpm_max 95; если темп не "
     "важен — оба 0); energy — calm (спокойное, для сна, фон), medium, energetic (бодрое, тренировка, вечеринка) или "
     "any; vocals — instrumental (без слов, без вокала), vocal или any. "
+    "Язык — только если просят музыку на определённом языке или одной страны (иначе scripts и language_tags пустые, "
+    "letters — пустая строка): scripts — письменности этого языка (cyrillic — русский, украинский и другие на "
+    "кириллице; han — китайский; kana — японский; hangul — корейский; arabic, hebrew, greek, georgian, armenian, thai, "
+    "devanagari); letters — буквы, которые есть только в этом языке среди языков той же письменности (украинский — "
+    "«іїєґ», белорусский — «ў», казахский — «әғқңөұүһ»; для русского, китайского и прочих — пустая строка); "
+    "language_tags — 2–6 слов жанровых тегов этого языка по-английски и на нём самом, строчными (русский: «russian», "
+    "«русский рок», «шансон»; корейский: «k-pop», «korean»; французский: «french», «chanson»). "
     "Если это вопрос: intent=answer, answer — ответ, остальные строки пустые, minutes=0, bpm 0, energy и vocals any.")
 
 
@@ -298,7 +308,14 @@ async def ask(db: AsyncSession, user: User, text: str) -> dict:
         queries["clap"] = mix_query(j, "clap", [(described, 0.75), (seeds.get("clap"), 0.25)])
     if "sound" in j.weights:  # the sound of the named artists; the taste's only as much as it's set to count
         queries["sound"] = mix_query(j, "sound", [(seeds.get("sound"), 0.6), (taste.get("sound"), mix.taste_weight)])
-    candidates = await retrieval.candidates(db, j, queries, user, exclude_artists=set(plan["exclude_artists"]))
+    # a language asked for: only its tracks, even if fewer than the minutes asked
+    language = retrieval.language_filter(plan.get("scripts") or [], plan.get("letters") or "",
+                                         plan.get("language_tags") or [])
+    candidates = await retrieval.candidates(db, j, queries, user, exclude_artists=set(plan["exclude_artists"]),
+                                            language=language)
+    if not candidates and language is not None:
+        return {"answer": _("В библиотеке не нашлось музыки на этом языке: Курай узнаёт язык по написанию имён "
+                            "исполнителей, названий и альбомов и по жанрам в тегах.")}
     if not candidates:
         return {"answer": _("В библиотеке пока нет подходящих треков с векторами (идёт индексация?).")}
     # a model may leave out what the schema asks (not every server enforces it): then nothing is asked of the sound
@@ -323,10 +340,13 @@ async def ask(db: AsyncSession, user: User, text: str) -> dict:
     await write(db, user, playlist)
     await db.commit()
     # what the model planned and how many tracks met it: on «Задачи», to see why a playlist came out as it did
+    language_plan = {k: plan.get(k) for k in ("scripts", "letters", "language_tags") if plan.get(k)}
     return {"playlist_id": playlist.id, "name": playlist.name, "tracks": len(chosen),
             "fitting": sum(verdicts.get(c.id) is True for c in chosen),
+            # a language's tracks fewer than the minutes asked: said with the «ready» message
+            "short": language is not None and len(chosen) < need,
             "plan": {"mood_text": plan["mood_text"], "sound_en": plan.get("sound_en", ""),
-                     "seed_artists": plan["seed_artists"], **asked}}
+                     "seed_artists": plan["seed_artists"], **asked, **language_plan}}
 
 
 async def explain(db: AsyncSession, user: User, track_id: str) -> str:
