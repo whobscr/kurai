@@ -156,6 +156,12 @@
     </div>
     <nav class="right-align"><button type="button" class="round" data-close-keys>{{ _("Понятно") }}</button></nav>
   </dialog>
+  {# shown once on each Android phone (kurai.js): its battery saver may stop the music with the screen off #}
+  <dialog class="battery-tip" id="battery-tip" aria-labelledby="battery-tip-title">
+    <h6 id="battery-tip-title">{{ _("Чтобы музыка не останавливалась") }}</h6>
+    <div class="battery-tip-body">{% include "partials/battery_tip.html" %}</div>
+    <form method="dialog" class="right-align"><button class="round" autofocus>{{ _("Понятно") }}</button></form>
+  </dialog>
 {% endblock %}
 </body>
 </html>

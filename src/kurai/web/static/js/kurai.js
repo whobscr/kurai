@@ -36,6 +36,7 @@
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent)
     || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const phone = matchMedia("(pointer: coarse)").matches;
+  const android = /Android/i.test(navigator.userAgent);
   // Yandex Browser can't install a web app: its «add to the home screen» makes a plain shortcut (no own window, no
   // push), whatever it offers; the page sends its users to Chrome or another browser that can
   const yandex = /YaBrowser|YaApp/i.test(navigator.userAgent);
@@ -315,7 +316,8 @@
     });
     document.addEventListener("submit", (e) => {
       const form = e.target;
-      if (e.defaultPrevented || form.hasAttribute("data-reload") || (form.target && form.target !== "_self")) return;
+      if (e.defaultPrevented || form.hasAttribute("data-reload") || (form.target && form.target !== "_self")
+          || (form.getAttribute("method") || "").toLowerCase() === "dialog") return;  // a dialog's own: it closes it
       const url = new URL(form.getAttribute("action") || location.href, location.href);
       if (!ours(url)) return;
       e.preventDefault();
@@ -332,4 +334,12 @@
   }
 
   init(document);
+
+  // ---------- Android's battery savers put the browser to sleep with the screen off, and the music stops: said once
+  // on each phone, after any question the page asks first (the next page then) ----------
+  const batteryTip = document.getElementById("battery-tip");
+  if (batteryTip && android && store.get("kurai.battery.tip") !== "1" && !document.querySelector("dialog[open]")) {
+    batteryTip.addEventListener("close", () => store.set("kurai.battery.tip", "1"), {once: true});
+    batteryTip.showModal();
+  }
 })();

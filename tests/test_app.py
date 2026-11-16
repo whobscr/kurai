@@ -1370,3 +1370,19 @@ async def test_one_artist_with_many_guests_is_still_one_artist_in_the_wave(db):
     await db.commit()
     resting = await version(artist_rest_hours=24, artist_rest_shape=8, artist_max=2)
     assert not any(a.startswith("Star") for a in resting), resting  # heard just now: the pause holds them all
+
+
+async def test_the_battery_saver_tip_is_on_every_page_in_the_cabinet_and_in_the_help(client, db):
+    """Android phones' battery savers stop the music with the screen off: kurai.js shows the window once on each
+    Android phone; «Кабинет → Приложение на телефоне» and the help keep the same steps."""
+    from kurai import security
+
+    db.add(User(username="bea", display_name="Би", password_hash=security.hash_password("bea-password")))
+    await db.commit()
+    await login(client, "bea", "bea-password")
+    page = (await client.get("/history")).text
+    assert 'id="battery-tip"' in page and "Без ограничений" in page and 'method="dialog"' in page
+    me = (await client.get("/me")).text
+    assert 'id="battery"' in me and "Ограничения фонового использования" in me
+    docs = (await client.get("/docs/user/start")).text
+    assert 'id="battery"' in docs and "Контроль активности" in docs

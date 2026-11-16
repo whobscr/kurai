@@ -348,6 +348,13 @@ footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto a
 #player-prev { grid-area: prev; margin: 0; }
 /* repeat: lit while on; «repeat_one» says it's the track */
 .player-repeat.on { color: var(--primary); background: var(--primary-container); }
+/* the text scrolls on a small phone; the title and «Понятно» stay in sight */
+dialog.battery-tip { inline-size: min(32rem, 94vw); max-block-size: 90dvh; display: flex; flex-direction: column;
+  gap: .5rem; overflow: hidden; }
+dialog.battery-tip h6, dialog.battery-tip form { margin: 0; flex: none; }
+.battery-tip-body { flex: 1; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; }
+.battery-steps { padding-inline-start: 1.25rem; }
+.battery-steps li { margin-block: .35rem; }
 dialog.player-keys { inline-size: min(34rem, 94vw); display: flex; flex-direction: column; gap: .5rem;
   overflow: hidden; max-block-size: min(80vh, 40rem); }
 dialog.player-keys header { padding: 0; min-block-size: 0; flex: none; }

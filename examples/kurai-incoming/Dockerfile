@@ -1,5 +1,5 @@
 # Kurai with this plugin: Kurai's image of the version the plugin is for, plus the plugin in one small layer.
-ARG KURAI_VERSION=1.8.2
+ARG KURAI_VERSION=1.8.3
 FROM ghcr.io/astral-sh/uv:0.9.7 AS uv
 
 FROM ghcr.io/whobscr/kurai:${KURAI_VERSION}
