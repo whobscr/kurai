@@ -49,14 +49,16 @@
   {% for p in mixes %}
   {% set icon, kind_label = kinds.get(p.kind, ("queue_music", "")) %}
   <article class="mix mix-{{ p.kind }}">
-    <button type="button" class="cover shape {{ shapes[p.id % (shapes | length)] }}" data-play="{{ p.id }}" title="{{ _('Слушать') }}">
-      <i class="when-stopped">{{ icon }}</i><i class="when-playing">pause</i></button>
+    <div class="cover shape {{ shapes[p.id % (shapes | length)] }}"><i>{{ icon }}</i></div>
     <div class="mix-text">
       <span class="kicker">{{ kind_label }}</span>
       <h6>{{ p.name }}</h6>
       {% if p.description %}<p class="small-text">{{ p.description }}</p>{% endif %}
       <div class="row small-text"><span class="max">{{ p.track_ids | length }} {{ _("треков") }} · {{ p.created_at | local("%d.%m") }}</span>{{ rate(p) }}</div>
     </div>
+    {# the playlist's own play button (pause while it plays) #}
+    <button type="button" class="circle mix-play" data-play="{{ p.id }}" title="{{ _('Слушать') }}" aria-label="{{ _('Слушать «{name}»').format(name=p.name) }}">
+      <i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
   </article>
   {% else %}
   <p class="small-text">{{ _("Пока пусто. Ночью Kurai соберёт миксы по вашему вкусу, а подборку по словам можно попросить в «Спросить».") }}</p>

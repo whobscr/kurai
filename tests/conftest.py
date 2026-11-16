@@ -41,6 +41,7 @@ class FakeNavidrome:
         self.users: dict[str, str] = {}
         self.playlists: dict[str, tuple[str, list[str]]] = {}
         self.scrobbles: list[tuple[str, str]] = []
+        self.ratings: dict[tuple[str, str], tuple[bool, int]] = {}
 
     async def ensure_admin(self, account):
         return False
@@ -60,6 +61,9 @@ class FakeNavidrome:
 
     async def scrobble(self, account, song_id, at_ms):
         self.scrobbles.append((account.username, song_id))
+
+    async def rate(self, account, song_id, starred, rating):
+        self.ratings[(account.username, song_id)] = (starred, rating)
 
     async def save_playlist(self, account, name, track_ids, playlist_id=None, comment=""):
         pid = playlist_id or f"pl{len(self.playlists) + 1}"

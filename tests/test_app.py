@@ -673,3 +673,56 @@ async def test_the_worlds_popularity_fills_in_and_leads_when_nobody_here_has_pla
     # nobody here has played these: the world decides (other tests' plays come first, so only ours are compared)
     order = [t for t in await start.popular(db, 200, set()) if t.startswith("lb")]
     assert order[0] == "lb1" and order.index("lb2") > order.index("lb1")
+
+
+async def test_likes_dislikes_and_the_history(client, db, navidrome):
+    """♥ stars a track (in Navidrome and Kurai), 👎 rates it 1 and is a skip of the wave; ♥ takes back only a 👎's low
+    rating; a play from the web player is in «История» at once, which plays on from any of its tracks."""
+    from kurai import security
+    from kurai.db.models import Listen, WaveEvent
+
+    for i in range(3):
+        db.add(Track(id=f"h{i}", title=f"Track {i}", artist="Hist", album="H", duration=200))
+    hana = User(username="hana", display_name="Хана", password_hash=security.hash_password("hana-password"),
+                navidrome_id="nd-hana", navidrome_password=security.encrypt("nd"))
+    db.add(hana)
+    await db.commit()
+    db.add(Listen(user_id=hana.id, track_id="h2", play_count=1, rating=4))
+    await db.commit()
+    await login(client, "hana", "hana-password")
+    page = (await client.get("/history")).text
+    assert "Пока пусто" in page and 'href="/history"' in page  # in the menu, empty yet
+    form = {"X-CSRF-Token": csrf_of(page)}
+
+    # a play in the web player: in the history at once
+    await client.post("/player/event", json={"track_id": "h0", "seconds": 190}, headers=form)
+    page = (await client.get("/history")).text
+    assert "Track 0" in page and 'data-play="history" data-start="h0"' in page
+    queue = (await client.get("/player/queue/history")).json()
+    assert [t["id"] for t in queue["tracks"]] == ["h0"] and queue["tracks"][0]["liked"] is False
+
+    liked = await client.post("/player/rate", json={"track_id": "h0", "value": "like"}, headers=form)
+    assert liked.json() == {"liked": True, "disliked": False} and navidrome.ratings[("hana", "h0")] == (True, 0)
+    assert 'data-rate="like" data-track="h0"' in (await client.get("/history")).text
+    disliked = await client.post("/player/rate", json={"track_id": "h1", "value": "dislike"}, headers=form)
+    assert disliked.json() == {"liked": False, "disliked": True} and navidrome.ratings[("hana", "h1")] == (False, 1)
+    await client.post("/player/rate", json={"track_id": "h1", "value": "none"}, headers=form)
+    assert navidrome.ratings[("hana", "h1")] == (False, 0)  # the 👎's rating taken back
+    await client.post("/player/rate", json={"track_id": "h2", "value": "like"}, headers=form)
+    assert navidrome.ratings[("hana", "h2")] == (True, 4)  # a 4★ from an app stays
+    unknown = await client.post("/player/rate", json={"track_id": "h2", "value": "love"}, headers=form)
+    assert unknown.status_code == 404
+
+    # 👎 on what plays: a skip of the wave however long it played
+    await settings.put(db, {"wave.enabled": True})
+    r = await client.post("/player/event", json={"track_id": "h1", "seconds": 190, "disliked": True}, headers=form)
+    assert r.json()["skipped"] is True
+    event = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == hana.id, WaveEvent.track_id == "h1"))
+             ).scalar_one()
+    assert event.skipped
+
+    # «Плейлисты»: each with its own play button
+    mix = Playlist(user_id=hana.id, kind="nightly", name="Ночной", track_ids=["h0", "h2"])
+    db.add(mix)
+    await db.commit()
+    assert f'class="circle mix-play" data-play="{mix.id}"' in (await client.get("/")).text

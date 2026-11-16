@@ -12,7 +12,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from kurai import settings
-from kurai.db.models import Job, Playlist, Track
+from kurai.db.models import Job, Listen, Playlist, Track
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER, Account, NavidromeError
 from kurai.jobs import queue as jobs
@@ -22,6 +22,8 @@ from kurai.web.deps import Ctx, user_required
 from kurai.web.routes.misc import MEDIA_HEADERS
 
 router = APIRouter(prefix="/player")
+HISTORY = 100  # the tracks of «История» the player plays on through
+RATINGS = ("like", "dislike", "none")  # ♥, 👎, neither
 log = logging.getLogger(__name__)
 COVER_SIZE = "600"
 
@@ -33,11 +35,18 @@ def _account(ctx: Ctx) -> Account:
     return account
 
 
+def track_item(t: Track, listen: Listen | None) -> dict:
+    """A track as the player needs it, with the user's ♥ and 👎 (a rating of 1–2)."""
+    return {"id": t.id, "title": t.title, "artist": t.artist, "album": t.album, "duration": t.duration,
+            "liked": bool(listen and listen.starred), "disliked": bool(listen and listen.rating in (1, 2))}
+
+
 async def _tracks(ctx: Ctx, ids: list[str]) -> list[dict]:
     """The playlist's tracks Kurai knows, in its order."""
-    rows = {t.id: t for t in (await ctx.db.execute(select(Track).where(Track.id.in_(ids)))).scalars()}
-    return [{"id": t.id, "title": t.title, "artist": t.artist, "album": t.album, "duration": t.duration}
-            for t in (rows.get(i) for i in ids) if t is not None]
+    rows = {t.id: (t, listen) for t, listen in (await ctx.db.execute(
+        select(Track, Listen).outerjoin(Listen, (Listen.track_id == Track.id) & (Listen.user_id == ctx.user.id))
+        .where(Track.id.in_(ids)))).all()}
+    return [track_item(*rows[i]) for i in ids if i in rows]
 
 
 async def _wave_state(ctx: Ctx) -> dict:
@@ -57,8 +66,12 @@ async def _wave_state(ctx: Ctx) -> dict:
 
 @router.get("/queue/{which}")
 async def queue(which: str, ctx: Ctx = Depends(user_required)):
-    """«wave» (the user's wave as it is now) or a playlist's id: its tracks, and its version (the player compares it to
-    learn that the wave was rebuilt)."""
+    """«wave» (the user's wave as it is now), «history» (what they played last) or a playlist's id: its tracks, and
+    its version (the player compares it to learn that the wave was rebuilt)."""
+    if which == "history":
+        rows = await library.recent_listens(ctx.db, ctx.user, HISTORY)
+        return {"id": "history", "kind": "history", "name": _("История"), "description": "", "version": "",
+                "tracks": [track_item(t, listen) for t, listen in rows]}
     if which == "wave":
         playlist = (await ctx.db.execute(select(Playlist).where(Playlist.user_id == ctx.user.id,
                                                                 Playlist.kind == "wave")
@@ -92,21 +105,43 @@ async def cover(track_id: str, ctx: Ctx = Depends(user_required)):
 
 
 @router.post("/event")
-async def event(track_id: str = Body(), seconds: int = Body(), ctx: Ctx = Depends(user_required)):
-    """A track gave way to the next one (or the player stopped) after `seconds` of playing: played on or skipped."""
+async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = Body(False),
+                ctx: Ctx = Depends(user_required)):
+    """A track gave way to the next one (or the player stopped) after `seconds` of playing: played on or skipped
+    (a 👎 is a skip however long it played). A play counts in Navidrome and in «История» at once."""
     track = await ctx.db.get(Track, track_id)
     if track is None:
         raise HTTPException(404)
     now = datetime.now(UTC)
     seconds = max(0, seconds)
-    skipped = seconds < wave.SKIP_SHARE * (track.duration or wave.DEFAULT_DURATION)
+    skipped = disliked or seconds < wave.SKIP_SHARE * (track.duration or wave.DEFAULT_DURATION)
     if not skipped:
+        await library.note_listen(ctx.db, ctx.user, track_id, played_at=now)
         try:
             await library.navidrome().scrobble(_account(ctx), track_id, int(now.timestamp() * 1000))
-        except NavidromeError as e:  # the play still counts for the wave
+        except NavidromeError as e:  # the play still counts for the wave and the history
             log.warning("scrobble: %s", e)
     rebuilding = False
     if await settings.get(ctx.db, "wave.enabled"):
         rebuilding = bool(await wave.record(ctx.db, [(ctx.user.username, track_id, skipped, seconds)], now))
     return {"skipped": skipped, "rebuilding": rebuilding}
 
+
+@router.post("/rate")
+async def rate(track_id: str = Body(), value: str = Body(), ctx: Ctx = Depends(user_required)):
+    """♥ («like»: a star), 👎 («dislike»: a rating of 1) or neither («none»), in Navidrome (so every music app sees it)
+    and in Kurai at once; the nightly taste weighs them (a star like several plays, a low rating against)."""
+    if value not in RATINGS or await ctx.db.get(Track, track_id) is None:
+        raise HTTPException(404)
+    before = (await ctx.db.execute(select(Listen.rating).where(Listen.user_id == ctx.user.id,
+                                                               Listen.track_id == track_id))).scalar() or 0
+    # 👎 is a rating of 1; ♥ or neither take only a 👎's low rating back (a 4★ set in an app stays)
+    starred = value == "like"
+    rating = 1 if value == "dislike" else 0 if before in (1, 2) else before
+    listen = await library.note_listen(ctx.db, ctx.user, track_id, starred=starred, rating=rating)
+    try:
+        await library.navidrome().rate(_account(ctx), track_id, starred, rating)
+    except NavidromeError as e:  # kept in Kurai; the next sync would bring Navidrome's back, so it's said
+        log.warning("rate: %s", e)
+        raise HTTPException(502, _("Navidrome не сохранил оценку: {e}").format(e=e)) from e
+    return {"liked": listen.starred, "disliked": listen.rating in (1, 2)}

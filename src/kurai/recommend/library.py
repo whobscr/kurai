@@ -178,6 +178,31 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
             "from_answers": first is not None}
 
 
+async def recent_listens(db: AsyncSession, user: User, limit: int, offset: int = 0) -> list[tuple[Track, Listen]]:
+    """What the user played last, in any app (Navidrome's last plays; the web player's at once): «История»."""
+    return list((await db.execute(
+        select(Track, Listen).join(Listen, Listen.track_id == Track.id)
+        .where(Listen.user_id == user.id, Listen.last_played.is_not(None))
+        .order_by(Listen.last_played.desc(), Track.id).limit(limit).offset(offset))).all())
+
+
+async def note_listen(db: AsyncSession, user: User, track_id: str, **values) -> Listen:
+    """The user's record of a track changed at once (a play, a ♥, a rating), not waiting for the next sync with
+    Navidrome, which is told too and brings the same back. `played_at`: one more play then."""
+    listen = (await db.execute(select(Listen).where(Listen.user_id == user.id, Listen.track_id == track_id))
+              ).scalar_one_or_none() or Listen(user_id=user.id, track_id=track_id, play_count=0, starred=False,
+                                               rating=0)
+    played_at = values.pop("played_at", None)
+    if played_at is not None:
+        listen.play_count = (listen.play_count or 0) + 1
+        listen.last_played = played_at
+    for key, value in values.items():
+        setattr(listen, key, value)
+    db.add(listen)
+    await db.commit()
+    return listen
+
+
 async def active_users(db: AsyncSession) -> list[User]:
     return list((await db.execute(select(User).where(User.active.is_(True)).order_by(User.id))).scalars())
 

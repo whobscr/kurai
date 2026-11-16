@@ -260,7 +260,8 @@ dialog.sheet::backdrop { opacity: 1; visibility: visible; background: color-mix(
 dialog.sheet header { padding: 0; min-block-size: 0; }
 dialog.sheet h5 { margin: 0; font-weight: 600; }
 dialog.sheet .mix { flex: none; }
-.mix .cover { border: 0; cursor: pointer; padding: 0; }
+.mix-play { flex: none; align-self: center; margin: 0; inline-size: 3rem; block-size: 3rem;
+  background: var(--primary); color: var(--on-primary); }
 
 .notes-col { margin: 0; padding: 1.25rem; border-radius: 2rem 2rem .5rem 2rem;
   background: var(--surface-container-high); display: flex; flex-direction: column; gap: .5rem; }
@@ -295,8 +296,9 @@ nav.bottom > a.main-nav > i { inline-size: 3.25rem !important; block-size: 3.25r
 nav:is(.left, .bottom) > a.main-nav.active > i { outline: .2rem solid var(--primary-container); outline-offset: .15rem; }
 
 /* ---------- the player's bar: under the page (above the phone's menu), while something plays ---------- */
-footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas:
-  "cover text source toggle next" "cover progress progress progress progress"; align-items: center; column-gap: .75rem;
+footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto auto; grid-template-areas:
+  "cover text source rate toggle next" "cover progress progress progress progress progress"; align-items: center;
+  column-gap: .75rem;
   padding: .6rem 1rem; margin: 0; min-block-size: 0; border-radius: 1.5rem 1.5rem 0 0; z-index: 11;
   background: var(--surface-container-high); box-shadow: 0 -.25rem 1rem color-mix(in srgb, var(--shadow, #000) 18%, transparent); }
 .player-cover { grid-area: cover; inline-size: 3.5rem; block-size: 3.5rem; border-radius: .9rem; object-fit: cover;
@@ -312,7 +314,9 @@ footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto a
 .player-progress input { flex: 1; min-inline-size: 0; accent-color: var(--primary); }
 @media (max-width: 600px) { .player-source { display: none; }
   footer.player { grid-template-columns: auto minmax(0, 1fr) auto auto;
-    grid-template-areas: "cover text toggle next" "progress progress progress progress"; padding: .5rem .75rem; } }
+    grid-template-areas: "cover text toggle next" "progress progress progress progress" "rate rate rate rate";
+    padding: .5rem .75rem .25rem; }
+  .player-rate { justify-content: center; gap: 1.5rem; } }
 
 /* ---------- what a listener likes: the question on «Для вас» and its section in «Кабинет» ---------- */
 dialog.start-dialog { inline-size: min(40rem, 94vw); max-block-size: 92dvh; inset-block-start: 4dvh; transition: none; }
@@ -328,3 +332,30 @@ dialog.start-dialog h5 { margin: 0 0 .25rem; font-weight: 600; }
   border-color: transparent; }
 .style-chip input:checked + span::before { content: "✓"; margin-inline-end: .35rem; }
 .style-chip input:focus-visible + span { outline: .15rem solid var(--primary); outline-offset: .1rem; }
+
+/* ---------- ♥ and 👎 (the player's bar, «История»): filled while on ---------- */
+.rate { margin: 0; }
+.rate.on > i { font-variation-settings: "FILL" 1; }
+.rate[data-rate="like"].on > i { color: var(--primary); }
+.rate[data-rate="dislike"].on > i { color: var(--error); }
+.player-rate { grid-area: rate; display: flex; align-items: center; gap: 0; }
+.player-rate .button { margin: 0; }
+
+/* ---------- «История»: one row a track, its cover the play button ---------- */
+.history { padding: .5rem; }
+.history-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: .75rem;
+  padding: .4rem .5rem; border-radius: 1rem; }
+.history-row + .history-row { border-block-start: 1px solid var(--outline-variant, var(--outline)); border-radius: 0; }
+.history-cover { position: relative; inline-size: 3rem; block-size: 3rem; padding: 0; margin: 0; border: 0;
+  border-radius: .75rem; overflow: hidden; cursor: pointer; background: var(--primary-container); }
+.history-cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.history-cover > i { position: absolute; inset: 0; margin: auto; color: var(--on-primary); opacity: 0;
+  background: color-mix(in srgb, var(--primary) 70%, transparent); border-radius: 50%; inline-size: 2rem;
+  block-size: 2rem; display: flex; align-items: center; justify-content: center; }
+.history-cover:hover > i.when-stopped, .history-cover:focus-visible > i.when-stopped,
+.history-cover.playing > i.when-playing { opacity: 1; }
+.history-text { display: flex; flex-direction: column; min-inline-size: 0; line-height: 1.3rem; }
+.history-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-start: .3rem;
+  margin-inline-start: -.3rem; }
+.history-rate { display: flex; }
+@media (max-width: 600px) { .history-when { display: none; } .history-row { grid-template-columns: auto minmax(0, 1fr) auto; } }

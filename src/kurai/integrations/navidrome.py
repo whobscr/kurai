@@ -192,6 +192,11 @@ class Navidrome:
         """A play of the song, counted in Navidrome (its play count, last play) as if a music app reported it."""
         await self._subsonic(account, "scrobble", [("id", song_id), ("time", str(at_ms)), ("submission", "true")])
 
+    async def rate(self, account: Account, song_id: str, starred: bool, rating: int) -> None:
+        """The user's star (♥ in most apps) and rating (0: none, 1–5) of a song."""
+        await self._subsonic(account, "star" if starred else "unstar", [("id", song_id)])
+        await self._subsonic(account, "setRating", [("id", song_id), ("rating", str(rating))])
+
     async def download(self, account: Account, song_id: str, dest: str) -> None:
         """The song's original file (Subsonic «download»), streamed to `dest`."""
         url, params = self.signed(account, "download", [("id", song_id)])

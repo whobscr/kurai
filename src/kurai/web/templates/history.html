@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "partials/track_macros.html" import rate_buttons with context %}
+{% block title %}{{ _("История") }}{% endblock %}
+{% block heading %}{{ _("История") }}{% endblock %}
+{% block lead %}<p class="lead">{{ _("Что вы слушали — в Kurai и в музыкальных приложениях. «Нравится» и «Не нравится» учитываются во вкусе и видны во всех приложениях.") }}</p>{% endblock %}
+{% block content %}
+{% if rows %}
+<article class="round history">
+  {% for t, listen in rows %}
+  <div class="history-row">
+    {# plays from here on down the list #}
+    <button type="button" class="history-cover" data-play="history" data-start="{{ t.id }}" title="{{ _('Слушать отсюда') }}">
+      <img src="/player/cover/{{ t.id }}" alt="" loading="lazy">
+      <i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
+    <div class="history-text">
+      <b>{{ t.title }}</b>
+      <span class="small-text">{{ t.artist }}{% if t.album %} · {{ t.album }}{% endif %}</span>
+    </div>
+    <span class="small-text history-when" title="{{ _('Прослушиваний: {n}').format(n=listen.play_count) }}">{{ listen.last_played | local("%d.%m %H:%M") }}</span>
+    <div class="history-rate">{{ rate_buttons(t.id, listen.starred, listen.rating in (1, 2)) }}</div>
+  </div>
+  {% endfor %}
+</article>
+<nav class="row pager">
+  {% if page > 1 %}<a class="button border round" href="/history?page={{ page - 1 }}"><i>chevron_left</i><span>{{ _("Новее") }}</span></a>{% endif %}
+  <span class="max small-text">{{ _("Страница {n}").format(n=page) }}</span>
+  {% if older %}<a class="button border round" href="/history?page={{ page + 1 }}"><span>{{ _("Старее") }}</span><i>chevron_right</i></a>{% endif %}
+</nav>
+{% else %}
+<article class="round empty"><i>history</i>
+  <p>{{ _("Пока пусто. Включите «Мою волну» на странице «Для вас» — дослушанные треки появятся здесь.") }}</p>
+  <a class="button round" href="/"><i>waves</i><span>{{ _("Для вас") }}</span></a></article>
+{% endif %}
+{% endblock %}

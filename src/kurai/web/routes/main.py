@@ -1,5 +1,5 @@
-"""The pages every user has: «Для вас» (the wave's big button, the playlists, notifications), «Спросить», and the PWA's
-share target."""
+"""The pages every user has: «Для вас» (the wave's big button, the playlists, notifications), «Спросить», «История», and
+the PWA's share target."""
 
 from urllib.parse import quote
 
@@ -10,11 +10,12 @@ from sqlalchemy import select, update
 from kurai import plugins, settings
 from kurai.db.models import Job, Listen, LlmCall, Notification, Playlist
 from kurai.jobs import queue
-from kurai.recommend import start
+from kurai.recommend import library, start
 from kurai.web.deps import Ctx, user_required
 from kurai.web.templating import render
 
 router = APIRouter()
+HISTORY_PAGE = 50
 
 
 async def typical_seconds(ctx: Ctx, task: str) -> int | None:
@@ -39,6 +40,14 @@ async def home(request: Request, ctx: Ctx = Depends(user_required)):
     return render(request, "home.html", ctx, wave=wave, mixes=[p for p in playlists if p.kind != "wave"], notes=notes,
                   wave_on=await settings.get(ctx.db, "wave.enabled"),
                   styles=await start.library_styles(ctx.db) if ask_start else [], ask_start=ask_start)
+
+
+@router.get("/history")
+async def history(request: Request, page: int = 1, ctx: Ctx = Depends(user_required)):
+    """«История»: what the user played last, in any app, HISTORY_PAGE a page, with ♥ and 👎 and a way to play on."""
+    page = max(1, page)
+    rows = await library.recent_listens(ctx.db, ctx.user, HISTORY_PAGE + 1, (page - 1) * HISTORY_PAGE)
+    return render(request, "history.html", ctx, rows=rows[:HISTORY_PAGE], page=page, older=len(rows) > HISTORY_PAGE)
 
 
 @router.post("/playlists/{playlist_id}/feedback")

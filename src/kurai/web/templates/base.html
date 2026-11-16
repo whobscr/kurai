@@ -19,8 +19,9 @@
 </head>
 <body data-accent="{{ accent }}" data-mode="{{ mode }}" data-csrf="{{ csrf }}" class="{% block body_class %}{% endblock %}">
 {% block shell %}
+  {% from "partials/track_macros.html" import rate_buttons with context %}
   {# the first entry is the app's main one: drawn as a circle of the accent colour (kurai.css: .main-nav) #}
-  {% set nav = [("/", "waves", _("Для вас")), ("/ask", "chat", _("Спросить"))]
+  {% set nav = [("/", "waves", _("Для вас")), ("/ask", "chat", _("Спросить")), ("/history", "history", _("История"))]
      + nav_extra + [("/me", "person", _("Кабинет"))] %}
   {% if user and user.is_admin %}{% set nav = nav + [("/admin", "tune", _("Система"))] %}{% endif %}
   <nav class="left m l">
@@ -79,6 +80,8 @@
       <span class="small-text" id="player-artist"></span>
     </div>
     <span class="chip small player-source" id="player-source"><i>waves</i><span></span></span>
+    <div class="player-rate">{{ rate_buttons("") }}
+      <a class="button circle transparent" href="/history" title="{{ _('История') }}"><i>history</i></a></div>
     <button type="button" class="circle player-toggle" id="player-toggle" title="{{ _('Пауза / играть') }}"><i>play_arrow</i></button>
     <button type="button" class="circle transparent" id="player-next" title="{{ _('Следующий') }}"><i>skip_next</i></button>
     <div class="player-progress">
@@ -90,6 +93,8 @@
       data-pending="{{ _('Собираю волну по вашему вкусу…') }}" data-updated="{{ _('Волна обновилась в {t} — по тому, что вы слушаете') }}"
       data-now="{{ _('Сейчас: {track}') }}" data-error="{{ _('Не получилось включить:') }}" data-wave="{{ _('Моя волна') }}"></audio>
   </footer>
+  {# what went wrong with a ♥ or 👎 (player.js) #}
+  <div class="snackbar error" id="player-error"></div>
 {% endblock %}
 </body>
 </html>

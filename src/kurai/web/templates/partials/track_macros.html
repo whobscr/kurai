@@ -1,0 +1,8 @@
+{# ♥ and 👎 of one track (player.js posts them to /player/rate and keeps every pair of the same track in step);
+   `track_id` empty: the player's bar sets it for what plays #}
+{% macro rate_buttons(track_id, liked=false, disliked=false) %}
+<button type="button" class="circle transparent rate {{ 'on' if liked }}" data-rate="like" data-track="{{ track_id }}"
+  title="{{ _('Нравится') }}" aria-pressed="{{ 'true' if liked else 'false' }}"><i>favorite</i></button>
+<button type="button" class="circle transparent rate {{ 'on' if disliked }}" data-rate="dislike" data-track="{{ track_id }}"
+  title="{{ _('Не нравится — пропустить') }}" aria-pressed="{{ 'true' if disliked else 'false' }}"><i>thumb_down</i></button>
+{% endmacro %}
