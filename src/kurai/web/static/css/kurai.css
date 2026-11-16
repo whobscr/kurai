@@ -60,10 +60,12 @@ nav:is(.left, .bottom) > a.active:not(.button, .chip) > i { background-color: va
 .hero-art .a1 { inline-size: 13rem; block-size: 13rem; right: -3rem; bottom: -6.5rem; background: var(--tertiary-container); opacity: .9; }
 .hero-art .a2 { inline-size: 7rem; block-size: 7rem; right: 11rem; top: -2.5rem; background: var(--primary-container); opacity: .55; }
 .hero-art .a3 { inline-size: 3.25rem; block-size: 3.25rem; right: 9rem; bottom: 1rem; background: var(--tertiary); opacity: .8; }
-/* a drawn picture (art/hero/*.svg, 3:1): the band's height at its right edge, fading out towards the title */
+/* a drawn picture (art/hero/*.svg, 3:1): the band's height, left of the buttons (when they're there), fading out
+   towards the title and, a little, towards the right edge */
 .hero-art svg { position: absolute; right: 0; top: 0; block-size: 100%; inline-size: auto; aspect-ratio: 3;
-  max-inline-size: none; -webkit-mask-image: linear-gradient(to right, transparent, #000 40%);
-  mask-image: linear-gradient(to right, transparent, #000 40%); }
+  max-inline-size: none; -webkit-mask-image: linear-gradient(to right, transparent, #000 40%, #000 88%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 40%, #000 88%, transparent); }
+.hero:has(.hero-tools) .hero-art svg { right: 7rem; }
 /* the band's buttons: one pill of the accent with a shadow, readable over any shape behind it; the logout form
    steps aside (display: contents), so both buttons are siblings and line up */
 .hero-tools { position: relative; z-index: 1; display: flex; align-items: center; gap: .25rem; flex: none;
