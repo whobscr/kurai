@@ -4,7 +4,7 @@ version = "1.2.2"
 description = "A self-hosted music server that learns tastes and makes playlists"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "AGPL-3.0-or-later"
+license = "MIT"
 dependencies = [
     "aiodns>=4.0.4",
     "aiogram>=3.31.0",

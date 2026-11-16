@@ -3,7 +3,7 @@ name = "kurai-incoming"
 version = "1.2.2"
 description = "An example Kurai plugin: albums put into an «incoming» folder go into the library after an admin's approval"
 requires-python = ">=3.12"
-license = "AGPL-3.0-or-later"
+license = "MIT"
 # a plugin runs inside Kurai's environment: it depends on Kurai (pinned to the versions it was written for) and uses
 # Kurai's libraries (SQLAlchemy, FastAPI, pydantic-settings…) without listing them again
 dependencies = ["kurai>=1.0.0,<2"]

@@ -131,5 +131,5 @@ async def subsonic(path: str, request: Request):
 
 @router.get("/about")
 async def about():
-    return {"name": "Kurai", "version": __version__, "license": "AGPL-3.0-or-later",
+    return {"name": "Kurai", "version": __version__, "license": "MIT",
             "source": "https://github.com/whobscr/kurai"}
