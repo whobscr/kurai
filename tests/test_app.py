@@ -779,5 +779,6 @@ async def test_the_name_is_in_the_pages_language(client):
     assert '<span class="wordmark">Курай</span>' in home and "· Курай</title>" in home
     for path in ("/", "/me", "/history", "/ask", "/admin/general", "/admin/apps", "/docs/user/start",
                  "/docs/user/wave", "/docs/admin/architecture", "/docs/changelog"):
-        assert not re.findall(r"\bKurai\b", (await client.get(path)).text), path
+        # «Kurai» quoted as the English name (the changelog says so) is the only Latin one allowed
+        assert not re.findall(r"(?<!«)\bKurai\b", (await client.get(path)).text), path
     assert (await client.get("/manifest.webmanifest")).json()["name"] == "Курай"
