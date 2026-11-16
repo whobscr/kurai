@@ -287,3 +287,28 @@ async def test_an_answer_asked_in_telegram_is_sent_back_there(db, monkeypatch):
     assert sent == [(42, "Да, есть.")]
     await db.delete(await db.get(User, user.id))
     await db.commit()
+
+
+async def test_what_ended_a_request_is_logged_but_not_a_refusal(database, caplog):
+    """SQLAlchemy closes the session in a task of its own: should that fail, only the request's own line says why."""
+    import httpx
+    from fastapi import Depends, FastAPI, HTTPException
+
+    from kurai.web.deps import get_db
+
+    app = FastAPI()
+
+    @app.get("/broken")
+    async def broken(db=Depends(get_db)):
+        raise RuntimeError("the query failed")
+
+    @app.get("/refused")
+    async def refused(db=Depends(get_db)):
+        raise HTTPException(404)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+                                 base_url="http://t") as c:
+        await c.get("/broken")
+        await c.get("/refused")
+    lines = [r.getMessage() for r in caplog.records if r.name == "kurai"]
+    assert lines == ["GET /broken ended by RuntimeError('the query failed')"]

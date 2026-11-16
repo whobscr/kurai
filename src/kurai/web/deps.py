@@ -2,12 +2,15 @@
 HTMX request (a token per session, in a hidden field or the X-CSRF-Token header)."""
 
 import hmac
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from kurai import db as database
 from kurai import security
@@ -25,9 +28,20 @@ class PasswordChangeRequired(Exception):
     """The first admin (admin / admin) and users whose password an admin reset must change it first."""
 
 
-async def get_db() -> AsyncIterator[AsyncSession]:
+# how a request ends on purpose (a refusal, a redirect to log in, a wrong parameter): not worth a line in the log
+_EXPECTED = (StarletteHTTPException, LoginRequired, PasswordChangeRequired, RequestValidationError)
+
+
+async def get_db(request: Request) -> AsyncIterator[AsyncSession]:
     async with database.session() as db:
-        yield db
+        try:
+            yield db
+        except BaseException as e:
+            # SQLAlchemy closes the session in a task of its own: should closing fail too, the log would show only
+            # that, not what ended the request (a query's error, the browser dropping the request…)
+            if not isinstance(e, _EXPECTED):
+                logging.getLogger("kurai").warning("%s %s ended by %r", request.method, request.url.path, e)
+            raise
 
 
 @dataclass
