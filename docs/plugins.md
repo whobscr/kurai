@@ -90,6 +90,7 @@ plugin = plugins.Plugin(
 | `manual_jobs` | `{kind: label}` or `{kind: (label, what it does)}`: buttons on «Задачи» that run a job at once; the second form shows one line under the button. |
 | `router` | A FastAPI `APIRouter` with your pages and form actions. |
 | `nav` | `((path, icon, label), …)`: entries in everyone's menu (icons are Material Symbols names). |
+| `music_tabs` | `((path, label), …)`: tabs of «Музыка», after Kurai's own «В библиотеке». Each tab is a page of your router; in its template, `{% set music_tab = "<its path>" %}{% include "partials/music_tabs.html" %}` draws the strip with it open. |
 | `admin_tabs` | Tabs of «Системные настройки» (see below). |
 | `checks` | «Проверить» buttons, `{name: async (db) -> str}`: return what to show, raise on a problem. |
 | `apps` | Admin pages of other programs, shown on «Приложения» behind Kurai's login (`plugins.App`). |
@@ -155,6 +156,9 @@ async def page(request: Request, ctx: Ctx = Depends(user_required)):
 - Forms carry the token: `<input type="hidden" name="csrf" value="{{ csrf }}">`; HTMX requests send it by themselves.
 - A page template extends Kurai's: `{% extends "base.html" %}` with the blocks `title`, `heading` and `content`.
 - Every user-facing text is wrapped in `_()`, in templates and in code, even before there are translations.
+- A page about music people look for (since 1.4) can be a tab of «Музыка» instead of a menu entry: put it under
+  `/music/…`, list it in `music_tabs`, and draw Kurai's tab strip at the top of its template (see the example's
+  «Входящие» tab, `/music/incoming`).
 
 ## System settings tabs
 

@@ -391,3 +391,13 @@ dialog.start-dialog h5 { margin: 0 0 .25rem; font-weight: 600; }
   margin-inline-start: -.3rem; }
 .history-rate { display: flex; }
 @media (max-width: 600px) { .history-when { display: none; } .history-row { grid-template-columns: auto minmax(0, 1fr) auto; } }
+
+/* ---------- «Музыка»: the library search; its rows are «История»'s ---------- */
+.music-kinds { margin-block-start: .75rem; }
+.music-artist { padding: .5rem .5rem .75rem; }
+.music-artist h6 { margin: 0; font-weight: 600; }
+.music-row .kicker, .music-artist .kicker { color: var(--secondary); font-size: .65rem; }
+/* a playlist's ✕, in its card's corner */
+.mix { position: relative; }
+.mix-delete { position: absolute; inset-block-start: .35rem; inset-inline-end: .35rem; margin: 0; }
+.mix-delete button { margin: 0; }

@@ -16,7 +16,7 @@ from kurai.db.models import Job, Listen, Playlist, Track
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER, Account, NavidromeError
 from kurai.jobs import queue as jobs
-from kurai.recommend import library, mixing, wave
+from kurai.recommend import library, mixing, search, wave
 from kurai.web import upstream
 from kurai.web.deps import Ctx, user_required
 from kurai.web.routes.misc import MEDIA_HEADERS
@@ -85,10 +85,17 @@ async def _unheard_wave(ctx: Ctx, playlist: Playlist) -> list[str] | None:
     return ids or None
 
 
-@router.get("/queue/{which}")
+@router.get("/queue/{which:path}")
 async def queue(which: str, ctx: Ctx = Depends(user_required)):
-    """«wave» (the user's wave as it is now), «history» (what they played last) or a playlist's id: its tracks, and
-    its version (the player compares it to learn that the wave was rebuilt)."""
+    """«wave» (the user's wave as it is now), «history» (what they played last), a playlist's id, or a set the user
+    chose in the library search («artist:…», «album:…», «track:…», kind «set»: the player goes on into the wave after
+    it): its tracks, and its version (the player compares it to learn that the wave was rebuilt)."""
+    if which.partition(":")[0] in search.KINDS:
+        name, ids = await search.tracks_of(ctx.db, which)
+        if not ids:
+            raise HTTPException(404)
+        return {"id": which, "kind": "set", "name": name, "description": "", "version": "",
+                "tracks": await _tracks(ctx, ids)}
     if which == "history":
         rows = await library.recent_listens(ctx.db, ctx.user, HISTORY)
         return {"id": "history", "kind": "history", "name": _("История"), "description": "", "version": "",
@@ -133,9 +140,10 @@ async def cover(track_id: str, ctx: Ctx = Depends(user_required)):
 
 @router.post("/event")
 async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = Body(False),
-                ctx: Ctx = Depends(user_required)):
+                chosen: bool = Body(False), ctx: Ctx = Depends(user_required)):
     """A track gave way to the next one (or the player stopped) after `seconds` of playing: played on or skipped
-    (a 👎 is a skip however long it played). A play counts in Navidrome and in «История» at once."""
+    (a 👎 is a skip however long it played). A play counts in Navidrome and in «История» at once. A track the user
+    chose themselves (`chosen`: the library search) skipped without a 👎 says nothing of their taste: not counted."""
     track = await ctx.db.get(Track, track_id)
     if track is None:
         raise HTTPException(404)
@@ -143,6 +151,8 @@ async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = 
     seconds = max(0, seconds)
     skip_share = (await mixing.load(ctx.db, "wave")).skip_share
     skipped = disliked or seconds < skip_share * (track.duration or wave.DEFAULT_DURATION)
+    if skipped and chosen and not disliked:
+        return {"skipped": True, "rebuilding": False}
     if not skipped:
         await library.note_listen(ctx.db, ctx.user, track_id, played_at=now)
         try:

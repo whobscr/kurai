@@ -13,7 +13,7 @@ from kurai import db as database
 from kurai import plugins, settings
 from kurai.i18n import _
 from kurai.web.deps import LoginRequired, PasswordChangeRequired, context, set_session_cookie
-from kurai.web.routes import admin, apps, auth, main, me, misc, player
+from kurai.web.routes import admin, apps, auth, main, me, misc, music, player
 from kurai.web.templating import ROOT, doodle, render
 
 ERRORS = {
@@ -39,7 +39,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Kurai", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.default_accent = settings.defaults()["ui.default_accent"]
     app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
-    for module in (auth, main, me, player, admin, apps, misc):
+    for module in (auth, main, me, music, player, admin, apps, misc):
         app.include_router(module.router)
     for plugin in plugins.plugins():
         if plugin.router is not None:

@@ -1,0 +1,5 @@
+{# «Музыка»'s tabs: the library search, then the plugins' (Plugin.music_tabs); `music_tab`: the path of the open one #}
+<div class="tabs left-align">
+  {% for href, label in [("/music", _("В библиотеке"))] + music_tabs %}
+  <a href="{{ href }}" class="{{ 'active' if href == music_tab }}">{{ label }}</a>{% endfor %}
+</div>

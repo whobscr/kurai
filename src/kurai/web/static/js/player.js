@@ -2,7 +2,9 @@
 // while the pages change (kurai.js swaps only the page). Each track that gives way to the next is reported, played on or
 // skipped; the wave is rebuilt from that on the server, and the player takes the new version's tracks as the next ones
 // (asking after each report and every half a minute), without a gap. Buttons with data-play="wave" or a playlist's id
-// start it (data-start: from that track of it, as in «История»), or pause and resume what they started. ♥ and 👎
+// start it (data-start: from that track of it, as in «История»), or pause and resume what they started; data-play
+// "artist:…", "album:…" or "track:…" is a set chosen in the library search: played to its end, then on into the wave,
+// and a skip of what was chosen isn't told as one (a 👎 is). ♥ and 👎
 // (data-rate, data-track) rate a track. Repeat (off, the playlist, the track; the wave has no end, so no playlist
 // repeat there), the previous track, the volume and the keys (the «Клавиши» dialog lists them) are the player's too.
 // The phone's lock screen and headphones control it as well (Media Session).
@@ -24,7 +26,7 @@
     body: JSON.stringify(data)});
   const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-  let source = null;  // {which: "wave" or a playlist's id, name, version}
+  let source = null;  // {which: "wave", a playlist's id or a chosen set, name, version, chosen}
   let tracks = [], index = 0;
   let played = 0, lastTime = 0;  // seconds the current track really played (seeking doesn't count)
   let failures = 0;
@@ -63,7 +65,7 @@
   };
 
   async function fetchQueue(which) {
-    const response = await fetch(`/player/queue/${which}`, {credentials: "same-origin"});
+    const response = await fetch(`/player/queue/${encodeURIComponent(which)}`, {credentials: "same-origin"});
     if (response.redirected) { location.assign(response.url); return null; }  // logged out
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || response.status);
@@ -93,7 +95,8 @@
     try {
       const data = await load(which);
       if (!data || !data.tracks.length) return;
-      source = {which, name: data.kind === "wave" ? say("wave") : data.name, version: data.version};
+      source = {which, name: data.kind === "wave" ? say("wave") : data.name, version: data.version,
+        chosen: data.kind === "set"};
       tracks = which === "wave" ? data.tracks.filter((t) => !heard.has(t.id)) : data.tracks;
       if (!tracks.length) tracks = data.tracks;
       index = Math.max(0, startId ? tracks.findIndex((t) => t.id === startId) : 0);
@@ -136,7 +139,7 @@
     if (!t || (played < 1 && !disliked)) return;
     const seconds = Math.round(played);
     played = 0;
-    post("/player/event", {track_id: t.id, seconds, disliked}, true)
+    post("/player/event", {track_id: t.id, seconds, disliked, chosen: source.chosen}, true)
       .then((r) => (r.ok ? r.json() : {}))
       .then((r) => { if (r.rebuilding && isWave()) followRebuild(); })
       .catch(() => {});
@@ -149,6 +152,7 @@
     if (index < tracks.length) playCurrent();
     else if (isWave()) refresh().then(() => { if (index < tracks.length) playCurrent(); });
     else if (repeat === "all" && tracks.length) { index = 0; playCurrent(); }
+    else if (source.chosen) { index = tracks.length - 1; start("wave"); }  // a chosen set over: on into the wave
     else { audio.pause(); index = tracks.length - 1; }
   }
 

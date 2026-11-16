@@ -1,0 +1,14 @@
+{# A tab of «Музыка» (Plugin.music_tabs): a whole page of its own, with Kurai's tab strip on top. #}
+{% extends "base.html" %}
+{% block title %}{{ _("Музыка") }}{% endblock %}
+{% block heading %}{{ _("Музыка") }}{% endblock %}
+{% block content %}
+{% set music_tab = "/music/incoming" %}{% include "partials/music_tabs.html" %}
+<article class="round">
+  {% if not albums %}<p>{{ _("Сейчас в библиотеку ничего не переносится.") }}</p>{% endif %}
+  {% for a in albums %}
+  <div><b>{{ a.artist or "?" }} — {{ a.title }}</b>
+    <div class="small-text">{{ _("ждёт одобрения") if a.status == "new" else _("скоро будет в библиотеке") }}</div></div>
+  {% endfor %}
+</article>
+{% endblock %}

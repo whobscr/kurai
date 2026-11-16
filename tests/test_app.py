@@ -210,7 +210,8 @@ async def test_pages_docs_errors_and_pwa(client):
     assert manifest["share_target"]["action"] == "/share"
     assert (await client.get("/share", params={"text": "Radiohead OK Computer"})).headers["location"].startswith(
         "/ask?text=Radiohead")  # no plugin offers a page for it
-    assert "/music" not in (await client.get("/")).text  # no plugin, no «Музыка»
+    music = (await client.get("/music")).text  # «Музыка» without a plugin: the library search alone
+    assert 'href="/music"' in music and "В библиотеке" in music and 'href="/music/' not in music
     assert (await client.get("/login")).headers["location"] == "/"  # logged in already
     client.cookies.clear()
     page = (await client.get("/login")).text
@@ -734,9 +735,10 @@ async def test_the_worlds_popularity_fills_in_and_leads_when_nobody_here_has_pla
     assert "skipped" in await popularity.refresh(db)  # no token: nothing asked
     await settings.put(db, {"listenbrainz.token": "t"})
     db.add_all([Track(id="lb1", title="Hit", artist="Big", album="Famous", artist_mbid="art-big",
-                      release_group_mbid="rg-famous"),
-                Track(id="lb2", title="Deep cut", artist="Big", album="Obscure", artist_mbid="art-big",
-                      release_group_mbid="rg-obscure"),
+                      release_group_mbid="rg-famous", recording_mbid="rec-hit"),
+                Track(id="lb2", title="Deep Cut (Remastered 2011)", artist="Big", album="Obscure",
+                      artist_mbid="art-big", release_group_mbid="rg-obscure"),
+                Track(id="lb4", title="Unknown", artist="Small", album="Small album", artist_mbid="art-small"),
                 Track(id="lb3", title="Other", artist="Small", album="Small album", artist_mbid="art-small")])
     await db.commit()
     asked = []
@@ -746,6 +748,12 @@ async def test_the_worlds_popularity_fills_in_and_leads_when_nobody_here_has_pla
             asked.append(mbid)
             return {"art-big": [{"mbid": "rg-famous", "listens": 900000}, {"mbid": "rg-obscure", "listens": 1000}],
                     "art-small": [{"mbid": "rg-small-other", "listens": 50}]}.get(mbid, [])
+
+        async def top_recordings(self, mbid):
+            # by its recording's id, by its title (brackets and case aside); the most played of a title's recordings
+            return {"art-big": [{"mbid": "rec-hit", "title": "Renamed hit", "listens": 5000},
+                                {"mbid": "rec-deep", "title": "deep cut", "listens": 70},
+                                {"mbid": "rec-deep-live", "title": "Deep Cut [Live]", "listens": 90}]}.get(mbid, [])
 
     async def client(db_):
         return World()
@@ -759,6 +767,8 @@ async def test_the_worlds_popularity_fills_in_and_leads_when_nobody_here_has_pla
     assert {"art-big", "art-small"} <= set(asked)
     big = await db.get(Popularity, "art-big")
     assert big.kind == "artist" and big.listens == 901000
+    tracks = {t.id: t.listens for t in (await db.execute(select(Track).where(Track.id.like("lb%")))).scalars()}
+    assert tracks == {"lb1": 5000, "lb2": 90, "lb3": 0, "lb4": 0}
     again = len(asked)
     await popularity.refresh(db)
     assert len(asked) == again  # not asked again before a month
@@ -927,3 +937,101 @@ async def test_listened_together_artists_are_found_and_mixed_into_the_wave(db, n
     assert len(together) >= 5 and {c.artist for c in together} <= {"Alt Two", "Elec Three", "Far Four"}
     await settings.put(db, {"mix.wave.related_depth": 1, "mix.wave.related_share": 0.15, "mix.wave.new_share": 0.4})
     await db.commit()
+
+
+async def test_the_library_search_plays_what_was_chosen_then_the_wave(client, db, navidrome):
+    """«Музыка → В библиотеке»: artists (with every album), albums and tracks by every word of the query, or only the
+    kinds ticked; an artist plays most played first, an album in its order, then the player goes on into the wave; a
+    chosen track skipped isn't a skip of the wave, a 👎 of it is."""
+    from kurai import security
+    from kurai.db.models import WaveEvent
+
+    db.add_all([
+        Track(id="lib1", title="Paranoid Android", artist="Radiohead", album="OK Computer", album_id="al-ok", year=1997,
+              disc_number=1, track_number=2, listens=500, duration=200),
+        Track(id="lib2", title="Airbag", artist="Radiohead", album="OK Computer", album_id="al-ok", year=1997,
+              disc_number=1, track_number=1, listens=100, duration=200),
+        Track(id="lib3", title="Creep", artist="Radiohead", album="Pablo Honey", album_id="al-pablo", year=1993,
+              disc_number=1, track_number=2, listens=9000, duration=200),
+        Track(id="lib4", title="Computer Love", artist="Kraftwerk", album="Computer World", album_id="al-cw",
+              year=1981, duration=200),
+        Track(id="lib5", title="100%_sure", artist="Odd", album="Odd", album_id="al-odd", duration=200)])
+    sam = User(username="sam", display_name="Сэм", password_hash=security.hash_password("sam-password"),
+               navidrome_id="nd-sam", navidrome_password=security.encrypt("nd"))
+    db.add(sam)
+    await db.commit()
+    await login(client, "sam", "sam-password")
+
+    page = (await client.get("/music")).text
+    assert 'href="/music"' in page and "В библиотеке" in page  # in the menu, its first tab
+    page = (await client.get("/music", params={"q": "radiohead"})).text
+    assert 'data-play="artist:Radiohead"' in page and 'data-play="album:al-ok"' in page
+    assert 'data-play="album:al-pablo"' in page and "исполнители — 1" in page
+    page = (await client.get("/music", params={"q": "computer"})).text  # albums and tracks, each said what it is
+    assert "Альбом" in page and 'data-play="album:al-cw"' in page and 'data-play="track:lib4"' in page
+    page = (await client.get("/music", params={"q": "computer", "kind": "track"})).text
+    assert 'data-play="track:lib4"' in page and 'data-play="album:al-ok"' not in page
+    assert 'data-play="track:lib5"' in (await client.get("/music", params={"q": "0%_s"})).text  # no wildcards
+    assert 'data-play="track:lib1"' not in (await client.get("/music", params={"q": "%"})).text
+    assert "ничего не нашлось" in (await client.get("/music", params={"q": "no such"})).text
+
+    artist = (await client.get("/player/queue/artist:Radiohead")).json()
+    assert artist["kind"] == "set" and [t["id"] for t in artist["tracks"]] == ["lib3", "lib1", "lib2"]
+    album = (await client.get("/player/queue/album:al-ok")).json()
+    assert album["name"] == "OK Computer" and [t["id"] for t in album["tracks"]] == ["lib2", "lib1"]
+    assert [t["id"] for t in (await client.get("/player/queue/track:lib4")).json()["tracks"]] == ["lib4"]
+    assert (await client.get("/player/queue/album:nope")).status_code == 404
+
+    form = {"X-CSRF-Token": csrf_of(page)}
+    skipped = await client.post("/player/event", json={"track_id": "lib1", "seconds": 5, "chosen": True}, headers=form)
+    disliked = await client.post("/player/event", json={"track_id": "lib2", "seconds": 5, "chosen": True,
+                                                        "disliked": True}, headers=form)
+    played = await client.post("/player/event", json={"track_id": "lib3", "seconds": 190, "chosen": True},
+                               headers=form)
+    assert skipped.json()["skipped"] and disliked.json()["skipped"] and not played.json()["skipped"]
+    events = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == sam.id))).scalars().all()
+    assert sorted((e.track_id, e.skipped) for e in events) == [("lib2", True), ("lib3", False)]
+    assert navidrome.scrobbles[-1] == ("sam", "lib3")
+
+
+async def test_a_playlist_is_removed_and_its_rating_taken_back(client, db, navidrome):
+    """The (x) in «Плейлисты» removes a playlist at once (from Navidrome too; not the wave); 👍 or 👎 pressed again is
+    taken back; both open the sheet again."""
+    from kurai import security
+
+    removed = []
+
+    async def delete_playlist(account, playlist_id):
+        removed.append(playlist_id)
+
+    navidrome.delete_playlist = delete_playlist
+    rae = User(username="rae", display_name="Рэй", password_hash=security.hash_password("rae-password"),
+               navidrome_id="nd-rae", navidrome_password=security.encrypt("nd"))
+    db.add(rae)
+    await db.commit()
+    mix = Playlist(user_id=rae.id, kind="ask", name="Бодрое", track_ids=[], navidrome_id="nd-pl-1")
+    wave = Playlist(user_id=rae.id, kind="wave", name="Моя волна", track_ids=[])
+    other = Playlist(user_id=1, kind="ask", name="Чужое", track_ids=[])
+    db.add_all([mix, wave, other])
+    await db.commit()
+    await login(client, "rae", "rae-password")
+    page = (await client.get("/")).text
+    assert f'action="/playlists/{mix.id}/delete"' in page and f'action="/playlists/{wave.id}/delete"' not in page
+    token = csrf_of(page)
+
+    async def rate(value):
+        r = await client.post(f"/playlists/{mix.id}/feedback", data={"csrf": token, "value": value, "sheet": "1"})
+        assert r.headers["location"] == "/?playlists=1"
+        await db.refresh(mix)
+        return mix.feedback
+
+    assert [await rate(1), await rate(1), await rate(-1), await rate(1)] == [1, 0, -1, 1]
+    assert "data-open-at-start" in (await client.get("/?playlists=1")).text
+
+    assert (await client.post(f"/playlists/{wave.id}/delete", data={"csrf": token})).status_code == 404
+    assert (await client.post(f"/playlists/{other.id}/delete", data={"csrf": token})).status_code == 404
+    r = await client.post(f"/playlists/{mix.id}/delete", data={"csrf": token})
+    assert r.status_code == 303 and removed == ["nd-pl-1"]
+    ids = (mix.id, wave.id)
+    db.expire_all()
+    assert await db.get(Playlist, ids[0]) is None and await db.get(Playlist, ids[1]) is not None

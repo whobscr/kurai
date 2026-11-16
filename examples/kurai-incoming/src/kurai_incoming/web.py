@@ -1,12 +1,14 @@
-"""The plugin's web part: the data its admin tab shows, and the approve / reject buttons on it."""
+"""The plugin's web part: its tab of «Музыка» (what's coming into the library), the data its admin tab shows, and the
+approve / reject buttons on it."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from kurai.i18n import _
 from kurai.jobs import queue
-from kurai.web.deps import Ctx, admin_required
+from kurai.web.deps import Ctx, admin_required, user_required
 from kurai.web.routes.admin import back
+from kurai.web.templating import render
 from kurai_incoming.models import IncomingAlbum
 
 router = APIRouter()
@@ -16,6 +18,14 @@ async def tab_data(db) -> dict:
     """Extra values for the tab's template (AdminTab.data)."""
     rows = (await db.execute(select(IncomingAlbum).order_by(IncomingAlbum.found_at.desc()).limit(100))).scalars().all()
     return {"albums": rows}
+
+
+@router.get("/music/incoming")
+async def music_tab(request: Request, ctx: Ctx = Depends(user_required)):
+    """A tab of «Музыка» (Plugin.music_tabs): the albums on their way into the library, for everyone."""
+    rows = (await ctx.db.execute(select(IncomingAlbum).where(IncomingAlbum.status.in_(("new", "approved")))
+                                 .order_by(IncomingAlbum.found_at.desc()).limit(100))).scalars().all()
+    return render(request, "incoming/music_incoming.html", ctx, albums=rows)
 
 
 @router.post("/admin/incoming/{album_id}/{verdict}")

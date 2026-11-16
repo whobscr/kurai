@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "partials/track_macros.html" import rate_buttons with context %}
+{% block title %}{{ _("Музыка") }}{% endblock %}
+{% block heading %}{{ _("Музыка") }}{% endblock %}
+{% block content %}
+{% set music_tab = "/music" %}{% include "partials/music_tabs.html" %}
+{% set kind_labels = {"artist": _("Исполнители"), "album": _("Альбомы"), "track": _("Треки")} %}
+
+<article class="round">
+  <form method="get" action="/music">
+    <div class="row">
+      <div class="field label prefix border round max"><i>search</i><input name="q" value="{{ q }}" required maxlength="200">
+        <label>{{ _("Найти в библиотеке") }}</label></div>
+      <button class="round">{{ _("Найти") }}</button>
+    </div>
+    {# off by default: everything is searched; a ticked kind narrows it #}
+    <div class="style-chips music-kinds">
+      {% for key, label in kind_labels.items() %}
+      <label class="style-chip"><input type="checkbox" name="kind" value="{{ key }}" {{ 'checked' if key in kinds }}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+  </form>
+  {% if not q %}
+  <p class="small-text">{{ _("Поиск по музыке, которая уже есть в библиотеке. У исполнителя — все его альбомы и кнопка «Слушать всё» (сначала самые популярные треки), у альбома и трека — своя кнопка. Когда найденное доиграет, дальше играет «Моя волна».") }}</p>
+  {% elif not found %}
+  <p>{{ _("В библиотеке ничего не нашлось по запросу «{q}».").format(q=q) }}
+    {% for href, label in music_tabs %}<a class="link" href="{{ href }}?q={{ q | urlencode }}">{{ _("Поискать во вкладке «{tab}»").format(tab=label) }}</a>{% endfor %}</p>
+  {% else %}
+  {# what was found, in a few words: the hint the filters are off by default for #}
+  <p class="small-text">{{ _("Найдено") }}:
+    {% for items, label in ((found.artists, _("исполнители — {n}")), (found.albums, _("альбомы — {n}")),
+                            (found.tracks, _("треки — {n}"))) if items %}{{ label.format(n=items | length) }}{{ ", " if not loop.last }}{% endfor %}</p>
+  {% endif %}
+</article>
+
+{% macro play_cover(which, cover, title) %}
+<button type="button" class="history-cover" data-play="{{ which }}" title="{{ title }}">
+  <img src="/player/cover/{{ cover }}" alt="" loading="lazy">
+  <i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
+{% endmacro %}
+{% macro album_row(a, with_artist) %}
+<div class="history-row music-row">
+  {{ play_cover("album:" ~ a.id, a.cover, _("Слушать альбом")) }}
+  <div class="history-text">
+    <span class="kicker">{{ _("Альбом") }}</span>
+    <b>{{ a.title }}</b>
+    <span class="small-text">{% if with_artist %}{{ a.artist }} · {% endif %}{% if a.year %}{{ a.year }} · {% endif %}{{ _("треков: {n}").format(n=a.tracks) }}</span>
+  </div>
+</div>
+{% endmacro %}
+
+{% for artist in found.artists %}
+<article class="round history">
+  <div class="row music-artist">
+    <button type="button" class="circle mix-play" data-play="artist:{{ artist.name }}" title="{{ _('Слушать всё') }}"
+            aria-label="{{ _('Слушать всё: {name}').format(name=artist.name) }}">
+      <i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
+    <div class="max history-text">
+      <span class="kicker">{{ _("Исполнитель") }}</span>
+      <h6>{{ artist.name }}</h6>
+      <span class="small-text">{{ _("альбомов в библиотеке: {n}").format(n=artist.albums | length) }} · {{ _("«Слушать всё» — сначала самые популярные треки") }}</span>
+    </div>
+  </div>
+  {% for a in artist.albums %}{{ album_row(a, false) }}{% endfor %}
+</article>
+{% endfor %}
+
+{% if found.albums %}
+<article class="round history">
+  {% for a in found.albums %}{{ album_row(a, true) }}{% endfor %}
+</article>
+{% endif %}
+
+{% if found.tracks %}
+<article class="round history">
+  {% for t in found.tracks %}
+  {% set listen = listens.get(t.id) %}
+  <div class="history-row music-row">
+    {{ play_cover("track:" ~ t.id, t.id, _("Слушать")) }}
+    <div class="history-text">
+      <span class="kicker">{{ _("Трек") }}</span>
+      <b>{{ t.title }}</b>
+      <span class="small-text">{{ t.artist }}{% if t.album %} · {{ t.album }}{% endif %}</span>
+    </div>
+    <div class="history-rate">{{ rate_buttons(t.id, listen and listen.starred, listen and listen.rating in (1, 2)) }}</div>
+  </div>
+  {% endfor %}
+</article>
+{% endif %}
+{% endblock %}

@@ -98,6 +98,11 @@ class Track(Base):
     album_id: Mapped[str] = mapped_column(String(64), default="")
     artist_mbid: Mapped[str | None] = mapped_column(String(36))
     release_group_mbid: Mapped[str | None] = mapped_column(String(36))
+    recording_mbid: Mapped[str | None] = mapped_column(String(36))
+    disc_number: Mapped[int | None] = mapped_column(Integer)
+    track_number: Mapped[int | None] = mapped_column(Integer)
+    # how much the world listens to this recording (ListenBrainz, recommend/popularity.py); None: not asked yet
+    listens: Mapped[int | None] = mapped_column(BigInteger)
     path: Mapped[str] = mapped_column(Text, default="")
     duration: Mapped[int] = mapped_column(Integer, default=0)  # seconds
     year: Mapped[int | None] = mapped_column(Integer)

@@ -82,6 +82,10 @@ async def test_an_approved_album_moves_into_the_library(client, db, tmp_path, mo
     check = (await client.post("/admin/check/incoming", headers={"X-CSRF-Token": token})).json()
     assert check["ok"] and "папок: 2" in check["detail"]
 
+    music = (await client.get("/music/incoming")).text  # its tab of «Музыка», after Kurai's own
+    assert 'href="/music"' in music and 'href="/music/incoming"' in music and "Band — Album" in music
+    assert 'href="/music/incoming"' in (await client.get("/music")).text
+
     await client.post(f"/admin/incoming/{album.id}/approve", data={"csrf": token})
     assert (await db.execute(select(Job).where(Job.dedupe_key == "incoming_scan"))).scalars().first()
     assert await incoming.scan(db) == {"found": 0, "moved": 1}

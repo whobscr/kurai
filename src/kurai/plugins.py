@@ -2,10 +2,10 @@
 entry point group «kurai.plugins»; installed into Kurai's environment (or image), it is found at start.
 
 The core asks the plugins what they add, at fixed places: settings and secrets, outbound gateway subsystems, jobs
-(recurring, at start, by hand, and steps of the night's work after the users' tastes and mixes), web pages and the
-menu, system settings tabs, «Проверить» checks, apps' admin pages behind Kurai's login, templates, docs, Telegram
-handlers (tried before «Спросить»), the share target, and database tables (the plugin's own Alembic history, in its
-own version table, migrated after Kurai's).
+(recurring, at start, by hand, and steps of the night's work after the users' tastes and mixes), web pages, the menu
+and tabs of «Музыка», system settings tabs, «Проверить» checks, apps' admin pages behind Kurai's login, templates,
+docs, Telegram handlers (tried before «Спросить»), the share target, and database tables (the plugin's own Alembic
+history, in its own version table, migrated after Kurai's).
 
 An admin can switch an installed plugin off on «Системные настройки → Плагины»: it then adds nothing (its settings, data
 and tables stay, still migrated). The switches are read once at start; the web and the worker restart on a change.
@@ -74,6 +74,7 @@ class Plugin:
     manual_jobs: dict[str, str | tuple[str, str]] = field(default_factory=dict)
     router: Any = None  # a FastAPI APIRouter with its pages and actions
     nav: tuple[tuple[str, str, str], ...] = ()  # (path, icon, label) in everyone's menu
+    music_tabs: tuple[tuple[str, str], ...] = ()  # (path, label): tabs of «Музыка», after «В библиотеке»
     admin_tabs: dict[str, AdminTab] = field(default_factory=dict)
     checks: dict[str, Check] = field(default_factory=dict)  # «Проверить» buttons, by name
     apps: dict[str, App] = field(default_factory=dict)

@@ -5,11 +5,15 @@
 {# each mix gets a cover shape of its own (by its number) and a colour by what made it #}
 {% set shapes = ["sided-cookie9", "sunny", "flower", "burst", "gem", "puffy", "soft-boom", "sided-cookie6", "clamshell", "pentagon"] %}
 {% set kinds = {"ask": ("auto_awesome", _("По просьбе")), "nightly": ("nights_stay", _("Ночной микс"))} %}
-{% macro rate(p) %}
+{# 👍 and 👎; the one on, pressed again, is taken back. `sheet`: in the «Плейлисты» sheet (it opens again after) #}
+{% macro rate(p, sheet=false) %}
   {% for value, icon in ((1, "thumb_up"), (-1, "thumb_down")) %}
+  {% set on = p.feedback == value %}
   <form method="post" action="/playlists/{{ p.id }}/feedback">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="value" value="{{ value }}">
-    <button class="circle small {{ 'fill' if p.feedback == value else 'transparent' }}" title="{{ _('Нравится') if value > 0 else _('Не нравится') }}"><i>{{ icon }}</i></button>
+    {% if sheet %}<input type="hidden" name="sheet" value="1">{% endif %}
+    <button class="circle small {{ 'fill' if on else 'transparent' }}" aria-pressed="{{ 'true' if on else 'false' }}"
+      title="{{ (_('Нравится — нажмите, чтобы убрать') if on else _('Нравится')) if value > 0 else (_('Не нравится — нажмите, чтобы убрать') if on else _('Не нравится')) }}"><i>{{ icon }}</i></button>
   </form>
   {% endfor %}
 {% endmacro %}
@@ -41,7 +45,7 @@
 </section>
 
 {# the other playlists, behind the «Плейлисты» button: a sheet from the side #}
-<dialog id="playlists" class="left sheet" aria-labelledby="playlists-title">
+<dialog id="playlists" class="left sheet" aria-labelledby="playlists-title" {{ 'data-open-at-start' if open_sheet }}>
   <header class="row">
     <h5 id="playlists-title" class="max">{{ _("Плейлисты") }}</h5>
     <button type="button" class="circle transparent" id="playlists-close" title="{{ _('Закрыть') }}"><i>close</i></button>
@@ -54,9 +58,14 @@
       <span class="kicker">{{ kind_label }}</span>
       <h6>{{ p.name }}</h6>
       {% if p.description %}<p class="small-text">{{ p.description }}</p>{% endif %}
-      <div class="row small-text"><span class="max">{{ p.track_ids | length }} {{ _("треков") }} · {{ p.created_at | local("%d.%m") }}</span>{{ rate(p) }}</div>
+      <div class="row small-text"><span class="max">{{ p.track_ids | length }} {{ _("треков") }} · {{ p.created_at | local("%d.%m") }}</span>{{ rate(p, true) }}</div>
     </div>
     {# the playlist's own play button (pause while it plays) #}
+    {# removed at once: a playlist can be asked for again in «Спросить» #}
+    <form method="post" action="/playlists/{{ p.id }}/delete" class="mix-delete">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="circle small transparent" title="{{ _('Удалить плейлист') }}" aria-label="{{ _('Удалить «{name}»').format(name=p.name) }}"><i>close</i></button>
+    </form>
     <button type="button" class="circle mix-play" data-play="{{ p.id }}" title="{{ _('Слушать') }}" aria-label="{{ _('Слушать «{name}»').format(name=p.name) }}">
       <i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
   </article>

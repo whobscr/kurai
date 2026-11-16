@@ -178,13 +178,18 @@ async def remove_old(db: AsyncSession) -> dict:
         old = (await db.execute(select(Playlist, User).join(User, User.id == Playlist.user_id).where(
             Playlist.kind == kind, Playlist.created_at < before, Playlist.feedback <= 0))).all()
         for playlist, user in old:
-            account = user_account(user)
-            if playlist.navidrome_id and account is not None:
-                await navidrome().delete_playlist(account, playlist.navidrome_id)
-            await db.delete(playlist)
-            await db.commit()
+            await remove(db, user, playlist)
         removed[kind] = len(old)
     return removed
+
+
+async def remove(db: AsyncSession, user: User, playlist: Playlist) -> None:
+    """A playlist gone from Kurai and from the user's Navidrome."""
+    account = user_account(user)
+    if playlist.navidrome_id and account is not None:
+        await navidrome().delete_playlist(account, playlist.navidrome_id)
+    await db.delete(playlist)
+    await db.commit()
 
 
 async def _library_summary(db: AsyncSession) -> str:

@@ -21,7 +21,8 @@
 {% block shell %}
   {% from "partials/track_macros.html" import rate_buttons with context %}
   {# the first entry is the app's main one: drawn as a circle of the accent colour (kurai.css: .main-nav) #}
-  {% set nav = [("/", "waves", _("Для вас")), ("/ask", "chat", _("Спросить")), ("/history", "history", _("История"))]
+  {% set nav = [("/", "waves", _("Для вас")), ("/ask", "chat", _("Спросить")), ("/history", "history", _("История")),
+         ("/music", "library_music", _("Музыка"))]
      + nav_extra + [("/me", "person", _("Кабинет"))] %}
   {% if user and user.is_admin %}{% set nav = nav + [("/admin", "tune", _("Система"))] %}{% endif %}
   <nav class="left m l">

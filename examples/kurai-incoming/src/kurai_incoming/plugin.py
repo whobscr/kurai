@@ -39,6 +39,7 @@ plugin = plugins.Plugin(
     manual_jobs={"incoming_scan": (_("Проверить входящие"),
                                    _("Найти новые папки во входящих и перенести одобренные. Само — раз в 30 минут."))},
     router=web.router,
+    music_tabs=(("/music/incoming", _("Входящие")),),
     admin_tabs={
         "incoming": plugins.AdminTab(_("Входящие"), "incoming/admin_incoming.html",
                                      {"incoming.dir": str, "incoming.auto_approve": bool},

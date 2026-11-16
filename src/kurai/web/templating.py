@@ -61,6 +61,7 @@ templates.env.filters["readable"] = readable
 @functools.cache
 def _plugin_globals() -> None:
     templates.env.globals["nav_extra"] = [item for p in plugins.plugins() for item in p.nav]
+    templates.env.globals["music_tabs"] = [item for p in plugins.plugins() for item in p.music_tabs]
     for p in plugins.plugins():
         templates.env.globals.update(p.template_globals)
 

@@ -3,14 +3,16 @@ the PWA's share target."""
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select, update
 
 from kurai import plugins, settings
 from kurai.db.models import Job, Listen, LlmCall, Notification, Playlist
+from kurai.i18n import _
+from kurai.integrations.navidrome import NavidromeError
 from kurai.jobs import queue
-from kurai.recommend import library, start
+from kurai.recommend import library, playlists, start
 from kurai.web.deps import Ctx, user_required
 from kurai.web.templating import render
 
@@ -26,18 +28,21 @@ async def typical_seconds(ctx: Ctx, task: str) -> int | None:
 
 
 @router.get("/")
-async def home(request: Request, ctx: Ctx = Depends(user_required)):
-    playlists = (await ctx.db.execute(select(Playlist).where(Playlist.user_id == ctx.user.id)
-                                      .order_by(Playlist.created_at.desc()).limit(24))).scalars().all()
+async def home(request: Request, open_sheet: bool = Query(False, alias="playlists"),
+               ctx: Ctx = Depends(user_required)):
+    """`?playlists=1`: the «Плейлисты» sheet opens at once (back from an action in it)."""
+    mixes = (await ctx.db.execute(select(Playlist).where(Playlist.user_id == ctx.user.id)
+                                  .order_by(Playlist.created_at.desc()).limit(24))).scalars().all()
     notes = (await ctx.db.execute(select(Notification).where(Notification.user_id == ctx.user.id)
                                   .order_by(Notification.created_at.desc()).limit(10))).scalars().all()
     await ctx.db.execute(update(Notification).where(Notification.user_id == ctx.user.id).values(read=True))
     await ctx.db.commit()
-    wave = next((p for p in playlists if p.kind == "wave"), None)
+    wave = next((p for p in mixes if p.kind == "wave"), None)
     # a listener who hasn't played anything and wasn't asked yet: what do they like (the wave starts from it)
     ask_start = ctx.user.start_asked_at is None and not (await ctx.db.execute(
         select(Listen.track_id).where(Listen.user_id == ctx.user.id).limit(1))).first()
-    return render(request, "home.html", ctx, wave=wave, mixes=[p for p in playlists if p.kind != "wave"], notes=notes,
+    return render(request, "home.html", ctx, wave=wave, mixes=[p for p in mixes if p.kind != "wave"], notes=notes,
+                  open_sheet=open_sheet,
                   wave_on=await settings.get(ctx.db, "wave.enabled"),
                   styles=await start.library_styles(ctx.db) if ask_start else [], ask_start=ask_start)
 
@@ -50,14 +55,41 @@ async def history(request: Request, page: int = 1, ctx: Ctx = Depends(user_requi
     return render(request, "history.html", ctx, rows=rows[:HISTORY_PAGE], page=page, older=len(rows) > HISTORY_PAGE)
 
 
-@router.post("/playlists/{playlist_id}/feedback")
-async def feedback(playlist_id: int, value: int = Form(...), ctx: Ctx = Depends(user_required)):
+async def _own_playlist(ctx: Ctx, playlist_id: int) -> Playlist:
     playlist = await ctx.db.get(Playlist, playlist_id)
     if playlist is None or playlist.user_id != ctx.user.id:
         raise HTTPException(404)
-    playlist.feedback = max(-1, min(1, value))
+    return playlist
+
+
+def _back(sheet: bool) -> RedirectResponse:
+    """Home, with the «Плейлисты» sheet open again when the action came from it."""
+    return RedirectResponse("/?playlists=1" if sheet else "/", 303)
+
+
+@router.post("/playlists/{playlist_id}/feedback")
+async def feedback(playlist_id: int, value: int = Form(...), sheet: bool = Form(False),
+                   ctx: Ctx = Depends(user_required)):
+    """👍 or 👎; the one already on, pressed again, is taken back."""
+    playlist = await _own_playlist(ctx, playlist_id)
+    value = max(-1, min(1, value))
+    playlist.feedback = 0 if playlist.feedback == value else value
     await ctx.db.commit()
-    return RedirectResponse("/", 303)
+    return _back(sheet)
+
+
+@router.post("/playlists/{playlist_id}/delete")
+async def delete(playlist_id: int, ctx: Ctx = Depends(user_required)):
+    """A generated playlist removed at once, from Kurai and the user's Navidrome; nothing is said of the taste by it.
+    «Моя волна» isn't one to remove: it's made again all the time."""
+    playlist = await _own_playlist(ctx, playlist_id)
+    if playlist.kind == "wave":
+        raise HTTPException(404)
+    try:
+        await playlists.remove(ctx.db, ctx.user, playlist)
+    except NavidromeError as e:  # kept, so it can be removed again: Kurai would forget the copy in Navidrome
+        raise HTTPException(502, _("Navidrome не удалил плейлист: {e}").format(e=e)) from e
+    return _back(True)
 
 
 @router.get("/ask")

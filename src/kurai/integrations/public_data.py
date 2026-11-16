@@ -131,6 +131,14 @@ class PublicData:
                             "type": rg.get("type") or "", "listens": r.get("total_listen_count", 0)})
         return out
 
+    async def top_recordings(self, artist_mbid: str) -> list[dict]:
+        """An artist's tracks by how much they're played: [{"mbid" (recording), "title", "listens"}]."""
+        data = await self._get(f"{LISTENBRAINZ}/popularity/top-recordings-for-artist/{artist_mbid}",
+                               headers=self._lb_headers())
+        return [{"mbid": r["recording_mbid"], "title": r.get("recording_name") or "",
+                 "listens": int(r.get("total_listen_count") or 0)}
+                for r in data or [] if isinstance(r, dict) and r.get("recording_mbid")]
+
     async def _musicbrainz(self, path: str, params: dict[str, Any]) -> Any:
         """A MusicBrainz request, at most one a second (its rule), through its own route."""
         wait = 1.1 - (time.monotonic() - self._last_mb)
