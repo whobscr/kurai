@@ -1325,3 +1325,48 @@ async def test_favorites_are_built_by_the_button_and_every_night_unless_switched
                                                     Playlist.kind == "favorites"))).first() is None
     r = await client.post("/me/favorites", data={"csrf": token, "size": "50", "build": "1"})
     assert "Пока не из чего собрать" in r.text
+
+
+async def test_one_artist_with_many_guests_is_still_one_artist_in_the_wave(db):
+    """Navidrome joins a track's artists into one line: «Charli XCX • Finn Keane», «Charli XCX • George Daniel»… The
+    wave's «Треков одного исполнителя в подборке», «Между треками одного исполнителя» and «Пауза для исполнителя»
+    take them as one artist (the library's sync keeps the key; seen on a real wave: five such tracks on top)."""
+    from datetime import UTC, datetime, timedelta
+
+    from kurai.db.models import Taste, WaveEvent
+    from kurai.integrations.navidrome import song_fields
+    from kurai.recommend import mixing, wave
+
+    model = await settings.get(db, "embed.model")
+    rng = np.random.default_rng(5)
+    centre = np.eye(8)[1]
+    for t in range(12):  # the closest to the taste, each with another guest
+        song = {"id": f"gs-star{t}", "title": f"Star {t}", "artist": f"Star • Guest {t}", "duration": 240}
+        fields = song_fields(song)
+        db.add(Track(**fields,
+                     embedding=(centre + 0.05 * rng.normal(size=8)).tolist(), embedding_model=model))
+    for a in range(12):
+        for t in range(3):
+            db.add(Track(id=f"gs-o{a}t{t}", title="o", artist=f"Other {a}", album="y",
+                         duration=240, embedding=(centre + 0.6 * rng.normal(size=8)).tolist(), embedding_model=model))
+    uma = User(username="uma", display_name="Ума", password_hash="x")
+    db.add(uma)
+    await db.commit()
+    db.add(Taste(user_id=uma.id, vector=centre.tolist(), embedding_model=model, tracks_used=10))
+    await db.commit()
+    now = datetime.now(UTC)
+
+    async def version(**values):
+        mix = mixing.Mix("wave", {"mix.wave.size": 15, "mix.wave.related_share": 0, "mix.wave.randomness": 0,
+                                  **{f"mix.wave.{k}": v for k, v in values.items()}})
+        return [c.artist for c in (await wave.plan(db, uma, mix, now=now)).tracks]
+
+    artists = await version(artist_rest_hours=0, artist_max=2, artist_gap=1)
+    stars = [i for i, a in enumerate(artists) if a.startswith("Star")]
+    assert len(stars) == 2, artists  # not twelve «different» artists
+    assert all(b - a > 1 for a, b in zip(stars, stars[1:], strict=False)), artists
+
+    db.add(WaveEvent(user_id=uma.id, track_id="gs-star0", skipped=False, seconds=200, at=now - timedelta(minutes=5)))
+    await db.commit()
+    resting = await version(artist_rest_hours=24, artist_rest_shape=8, artist_max=2)
+    assert not any(a.startswith("Star") for a in resting), resting  # heard just now: the pause holds them all

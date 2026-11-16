@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import settings
+from kurai.artists import artist_key
 from kurai.db.models import Taste, Track, User
 from kurai.integrations import public_data
 from kurai.integrations.public_data import PublicData, PublicDataError
@@ -101,7 +102,7 @@ async def refresh(db: AsyncSession, user: User) -> dict:
 
 
 def artists_for(taste: Taste | None, depth: int) -> dict[str, dict]:
-    """The user's related artists down to `depth`, by name in lower case."""
+    """The user's related artists down to `depth`, by their key (kurai/artists.py)."""
     if taste is None:
         return {}
-    return {a["name"].lower(): a for a in taste.related_artists or [] if a.get("depth", 1) <= depth}
+    return {artist_key(a["name"]): a for a in taste.related_artists or [] if a.get("depth", 1) <= depth}

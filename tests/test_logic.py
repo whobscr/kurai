@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from kurai import llm, outbound, security
+from kurai.artists import artist_key, main_artist
 from kurai.jobs import window
 from kurai.recommend import mixing
 from kurai.recommend.vectors import (
@@ -77,6 +78,15 @@ def test_arrange_keeps_neighbours_close_and_artists_apart():
     order = [c.artist for c in arrange(many, smooth=False, artist_gap=3)]
     assert order.index("A", 1) - order.index("A") >= 4
     assert [c.id for c in arrange(tracks, smooth=False, artist_gap=0)] == ["0", "1", "2", "3"]  # by relevance
+
+
+def test_arrange_looks_ahead_so_an_artist_isnt_left_side_by_side_at_the_end():
+    """By relevance alone B, C, A, A: the two A's would meet at the end; an artist with half of what's left goes now.
+    The same with guests in Navidrome's « • » line: one artist."""
+    tracks = [_cand(0, "B", [1, 0], 0.9), _cand(1, "C", [1, 0], 0.8), _cand(2, "A • X", [1, 0], 0.7),
+              _cand(3, "A • Y", [1, 0], 0.6)]
+    order = [c.artist[0] for c in arrange(tracks, smooth=False, artist_gap=1)]
+    assert order == ["B", "A", "C", "A"]
 
 
 def test_a_resting_artist_is_lowered_and_randomness_shuffles():
@@ -357,3 +367,12 @@ def test_shuffle_apart_shuffles_with_no_artist_twice_in_a_row_wherever_possible(
 
     assert shuffle_apart(tracks, by_artist, random.Random(1)) != shuffle_apart(tracks, by_artist, random.Random(2))
     assert shuffle_apart([], lambda t: t) == []
+
+
+def test_a_track_is_by_its_first_credited_artist():
+    """Navidrome's « • » line of a track's artists and a «feat.» guest don't make another artist of the same one."""
+    assert main_artist("Charli XCX • Charlotte Aitchison • Finn Keane") == "Charli XCX"
+    assert artist_key("Charli XCX • George Daniel") == artist_key("charli xcx") == "charli xcx"
+    assert artist_key("Daft Punk feat. Pharrell Williams") == artist_key("Daft Punk ft. Nile Rodgers") == "daft punk"
+    assert artist_key("Simon & Garfunkel") == "simon & garfunkel"  # a duo's name is one artist
+    assert artist_key("Featherstone") == "featherstone" and artist_key(None) == ""

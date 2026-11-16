@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import llm, settings
+from kurai.artists import artist_key, main_artist
 from kurai.audio import EFFNET_MODEL
 from kurai.db.models import Listen, Track, TrackAudio, User
 from kurai.recommend import popularity
@@ -54,7 +55,7 @@ async def first_taste(db: AsyncSession, user: User) -> dict | None:
             if effnet is not None:
                 sound.append(np.asarray(effnet, dtype=np.float32))
             if artist:
-                artists[artist] = artists.get(artist, 0) + 1
+                artists[main_artist(artist)] = artists.get(main_artist(artist), 0) + 1
     text_vector = mean_unit(text)
     described = ", ".join(styles) + (f". {words}" if words else "")
     try:  # the own words in the text space: as much as all the styles' tracks together
@@ -94,6 +95,7 @@ async def popular(db: AsyncSession, count: int, leave_out: set[str]) -> list[str
         rows += (await db.execute(select(Track.id, Track.artist).order_by(func.random()).limit(count * 5))).all()
     out, per_artist = [], {}
     for track_id, artist in rows:
+        artist = artist_key(artist)
         if track_id in leave_out or track_id in out or per_artist.get(artist, 0) >= POPULAR_PER_ARTIST:
             continue
         per_artist[artist] = per_artist.get(artist, 0) + 1

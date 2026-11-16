@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import db as database
 from kurai import settings
+from kurai.artists import artist_key
 from kurai.db.models import Listen, Playlist, Taste, Track, User, WaveEvent
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER
@@ -206,7 +207,7 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
         return Plan(_popular(ids), {"tracks": len(ids), "popular": len(ids)})
     skips: dict[str, int] = {}
     for e in session:
-        if e.skipped and (artist := vectors.get(e.track_id, ("", {}))[0]):
+        if e.skipped and (artist := artist_key(vectors.get(e.track_id, ("", {}))[0])):
             skips[artist] = skips.get(artist, 0) + 1
     banned = {a for a, n in skips.items() if mix.artist_skip_ban and n >= mix.artist_skip_ban}
     neighbours = related.artists_for(taste_row, mix.related_depth) if mix.related_share else {}

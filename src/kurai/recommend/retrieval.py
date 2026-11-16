@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import settings
+from kurai.artists import artist_key
 from kurai.audio import CLAP_MODEL, EFFNET_MODEL
 from kurai.db.models import Listen, Track, TrackAudio, User
 from kurai.recommend.vectors import Candidate, Joint, mean_unit, weights_of
@@ -74,7 +75,7 @@ async def seeds(db: AsyncSession, j: Joint, artists: list[str], limit: int = 200
     for space in j.weights:
         col = _column(space)
         rows = (await db.execute(_from().add_columns(col).where(
-            func.lower(Track.artist).in_([a.lower() for a in artists]), *_valid(space, text_model)).limit(limit)
+            Track.artist_key.in_({artist_key(a) for a in artists}), *_valid(space, text_model)).limit(limit)
         )).scalars().all()
         if (v := mean_unit(list(rows))) is not None:
             out[space] = v
@@ -86,7 +87,7 @@ async def candidates(db: AsyncSession, j: Joint, queries: dict[str, np.ndarray],
                      only_artists: Collection[str] | None = None, pool: int = POOL) -> list[Candidate]:
     """The tracks near the (centred) queries, best first; relevance and vector are in the joint space. With a user
     and `rest_days`: without what they played within those days and what they disliked. `only_artists`: just their
-    tracks (names, any case)."""
+    tracks (names, any case; compared as kurai/artists.py's keys, guests and all)."""
     text_model = await settings.get(db, "embed.model")
     queries = {s: q for s, q in queries.items() if q is not None and s in j.weights}
     if not queries:
@@ -100,9 +101,9 @@ async def candidates(db: AsyncSession, j: Joint, queries: dict[str, np.ndarray],
             recent = select(Listen.track_id).where(Listen.user_id == user.id, Listen.last_played >= since)
             filters.append(Track.id.not_in(recent))
     if exclude_artists:
-        filters.append(func.lower(Track.artist).not_in([a.lower() for a in exclude_artists]))
+        filters.append(Track.artist_key.not_in({artist_key(a) for a in exclude_artists}))
     if only_artists is not None:
-        filters.append(func.lower(Track.artist).in_([a.lower() for a in only_artists]))
+        filters.append(Track.artist_key.in_({artist_key(a) for a in only_artists}))
     ids: set[str] = set()
     for space, q in queries.items():
         # the nearest by raw cosine: the query moved back from the centred space is close enough for a pool

@@ -42,7 +42,21 @@
 
   let source = null;  // {which: "wave", a playlist's id, a chosen set or "queue", name, version, chosen}
   let tracks = [], index = 0;  // a track the user put in the list has `added`
-  let played = 0, lastTime = 0;  // seconds the current track really played (seeking doesn't count)
+  // seconds the current track really played: every step forward of its time, but not a seek (every seek goes
+  // through seek(), which counts up to where it was first). Counted from the time itself, not from how often
+  // «timeupdate» comes: a phone with its screen off sends it seldom, and a gap of seconds was taken for a seek, so
+  // those plays went untold
+  let played = 0, lastTime = 0;
+  const count = () => {
+    const t = audio.currentTime;
+    if (t > lastTime) played += t - lastTime;
+    lastTime = t;
+  };
+  const seek = (to) => {
+    count();
+    audio.currentTime = to;
+    lastTime = to;
+  };
   let failures = 0;
   const heard = new Set();  // this session's tracks: a new version of the wave doesn't bring them back
   const statuses = {};  // what the player says about each source (shown wherever the page has its place)
@@ -160,6 +174,11 @@
     showQueue();
   }
 
+  // who a track is by when keeping artists apart: the first credited one (as kurai/artists.py on the server; Navidrome
+  // joins a track's artists with « • », and «feat.» guests don't make another artist)
+  const artistKey = (name) => (name || "").split(" • ")[0].replace(/\s+(?:feat\.?|ft\.|featuring)\s.*$/i, "").trim()
+    .toLowerCase();
+
   const stream = (id) => `/player/stream/${encodeURIComponent(id)}`;
 
   // the track that plays after this one if nothing changes (the wave's next version is asked earlier: next())
@@ -181,6 +200,7 @@
   // a 👎 is a skip however long the track played
   function report(disliked = false) {
     const t = current();
+    if (t) count();  // up to now, whenever the last «timeupdate» came
     if (!t || (played < 1 && !disliked)) return;
     const seconds = Math.round(played);
     played = 0;
@@ -204,7 +224,7 @@
   // back: to this track's start when it has played a few seconds (as players do), else the one before
   function previous() {
     if (!current()) return;
-    if (audio.currentTime > 3 || index === 0) { audio.currentTime = 0; lastTime = 0; return; }
+    if (audio.currentTime > 3 || index === 0) { seek(0); return; }
     report();
     index -= 1;
     playCurrent();
@@ -242,7 +262,7 @@
   // too: the server doesn't know it yet) while another is left — as the server spaces a version within itself
   function spaced(upcoming, gap) {
     if (gap <= 0) return upcoming;
-    const artist = (t) => (t.artist || "").toLowerCase();
+    const artist = (t) => artistKey(t.artist);
     const recent = tracks.slice(Math.max(0, index + 1 - gap), index + 1).map(artist);
     const rest = upcoming.slice(), out = [];
     while (rest.length) {
@@ -304,7 +324,7 @@
     index = Math.min(Math.max(0, saved.index | 0), tracks.length - 1);
     playCurrent(false);
     if (saved.position > 0) {
-      audio.addEventListener("loadedmetadata", () => { audio.currentTime = saved.position; lastTime = saved.position; },
+      audio.addEventListener("loadedmetadata", () => seek(saved.position),
         {once: true});
     }
   }
@@ -464,9 +484,8 @@
     if (e.target === audio) handler(e);
   }));
   on("timeupdate", () => {
+    count();
     const t = audio.currentTime;
-    if (!audio.paused && t > lastTime && t - lastTime < 2) played += t - lastTime;
-    lastTime = t;
     const d = audio.duration || (current() && current().duration) || 0;
     if (Math.abs(t - keptAt) >= 10) {  // now and then: where it is (a reload resumes there; the lock screen shows it)
       keptAt = t;
@@ -537,7 +556,7 @@
   els.repeat.addEventListener("click", cycleRepeat);
   els.seek.addEventListener("change", () => {
     const d = audio.duration || 0;
-    if (d) audio.currentTime = (Number(els.seek.value) / 100) * d;
+    if (d) seek((Number(els.seek.value) / 100) * d);
   });
   document.addEventListener("click", (e) => {
     const button = e.target.closest("[data-play]");
@@ -546,7 +565,7 @@
   if ("mediaSession" in navigator) {
     navigator.mediaSession.setActionHandler("play", () => audio.play());
     navigator.mediaSession.setActionHandler("pause", () => audio.pause());
-    navigator.mediaSession.setActionHandler("seekto", (d) => { if (audio.duration) audio.currentTime = d.seekTime; });
+    navigator.mediaSession.setActionHandler("seekto", (d) => { if (audio.duration) seek(d.seekTime); });
     navigator.mediaSession.setActionHandler("nexttrack", () => next());
     navigator.mediaSession.setActionHandler("previoustrack", previous);
   }
@@ -559,7 +578,7 @@
     if (first) first.click();
   };
   const seekBy = (s) => {
-    if (current() && audio.duration) audio.currentTime = Math.max(0, Math.min(audio.duration - 1, audio.currentTime + s));
+    if (current() && audio.duration) seek(Math.max(0, Math.min(audio.duration - 1, audio.currentTime + s)));
   };
   const setVolume = (v) => {
     const value = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;

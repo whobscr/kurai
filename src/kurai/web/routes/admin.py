@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from starlette.background import BackgroundTask
 
 from kurai import accounts, llm, outbound, plugins, settings
+from kurai.artists import artist_key
 from kurai.audio import analyze as audio_analyze
 from kurai.audio import client as audio_client
 from kurai.db.models import Job, LlmCall, Taste, Track, User
@@ -300,9 +301,10 @@ async def preview(request: Request, profile: str, user_id: int = Form(...), ctx:
         tracks, why = (mixes[0] if mixes else [], "") if isinstance(mixes, list) else ([], mixes["skipped"])
     known = {t.id: t for t in (await ctx.db.execute(
         select(Track).where(Track.id.in_([c.id for c in tracks])))).scalars()}
-    via = {a["name"].lower(): a["via"] for a in (related.artists_for(await ctx.db.get(Taste, user.id), 2).values())}
-    rows = [(known[c.id], c, KIND_LABELS.get(c.kind, ""), via.get(known[c.id].artist.lower(), "") if c.kind == "related"
-             else "") for c in tracks if c.id in known]
+    via = {key: a["via"] for key, a in related.artists_for(await ctx.db.get(Taste, user.id), 2).items()}
+    rows = [(known[c.id], c, KIND_LABELS.get(c.kind, ""),
+             via.get(artist_key(known[c.id].artist), "") if c.kind == "related" else "")
+            for c in tracks if c.id in known]
     counts = {label: sum(c.kind == kind for c in tracks) for kind, label in KIND_LABELS.items()}
     return render(request, "partials/mix_preview.html", ctx, rows=rows, why=why, counts=counts, who=user,
                   seconds=round(time.monotonic() - started, 1), profile=profile)

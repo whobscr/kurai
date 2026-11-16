@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import llm, security, settings
+from kurai.artists import main_artist
 from kurai.audio import EFFNET_MODEL
 from kurai.config import get_config
 from kurai.db.models import Listen, Taste, Track, TrackAudio, User
@@ -165,7 +166,8 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
             sound_vectors.append(np.asarray(effnet, dtype=np.float32))
             sound_weights.append(w)
         if w > 0 and track.artist:
-            artists[track.artist] = artists.get(track.artist, 0) + w
+            name = main_artist(track.artist)  # the artist themselves, not each line of guests
+            artists[name] = artists.get(name, 0) + w
     vector = taste_vector(text_vectors, text_weights)
     sound = taste_vector(sound_vectors, sound_weights)
     top = [{"name": a, "weight": round(w, 2)} for a, w in sorted(artists.items(), key=lambda kv: -kv[1])[:20]]

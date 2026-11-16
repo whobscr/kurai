@@ -19,6 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from kurai.artists import artist_key
 from kurai.audio import CLAP_DIM, EFFNET_DIM
 
 
@@ -92,11 +93,14 @@ class Track(Base):
     """A track of the library, as Navidrome knows it."""
 
     __tablename__ = "tracks"
-    __table_args__ = (Index("ix_tracks_artist", "artist"),)
+    __table_args__ = (Index("ix_tracks_artist", "artist"), Index("ix_tracks_artist_key", "artist_key"))
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)  # Navidrome's song id
     title: Mapped[str] = mapped_column(Text)
     artist: Mapped[str] = mapped_column(Text, default="")
+    # kurai/artists.py: who it's by; made from `artist` when not given (the library's sync gives it, updates too)
+    artist_key: Mapped[str] = mapped_column(Text, server_default="",
+                                            default=lambda ctx: artist_key(ctx.get_current_parameters().get("artist")))
     album: Mapped[str] = mapped_column(Text, default="")
     album_id: Mapped[str] = mapped_column(String(64), default="")
     artist_mbid: Mapped[str | None] = mapped_column(String(36))

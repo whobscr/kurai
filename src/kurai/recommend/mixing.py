@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import settings
+from kurai.artists import artist_key
 from kurai.db.models import Listen, Track, User, WaveEvent
 from kurai.i18n import _
 from kurai.recommend.vectors import Candidate, adjust, arrange, compose, spread
@@ -201,18 +202,18 @@ def returns_after(hours: float, shape: float, key: str) -> float:
 
 async def resting_artists(db: AsyncSession, user: User, now: datetime, hours: float, shape: float = 2) -> set[str]:
     """The artists the user heard (played or skipped, any app) whose return within the pause («Пауза для
-    исполнителя») hasn't come yet, in lower case."""
+    исполнителя») hasn't come yet, by their key (kurai/artists.py)."""
     if hours <= 0:
         return set()
     since = now - timedelta(hours=hours)
     last: dict[str, datetime] = {}
-    for stmt in (select(Track.artist, func.max(WaveEvent.at)).join(WaveEvent, WaveEvent.track_id == Track.id)
-                 .where(WaveEvent.user_id == user.id, WaveEvent.at >= since).group_by(Track.artist),
-                 select(Track.artist, func.max(Listen.last_played)).join(Listen, Listen.track_id == Track.id)
-                 .where(Listen.user_id == user.id, Listen.last_played >= since).group_by(Track.artist)):
+    for stmt in (select(Track.artist_key, func.max(WaveEvent.at)).join(WaveEvent, WaveEvent.track_id == Track.id)
+                 .where(WaveEvent.user_id == user.id, WaveEvent.at >= since).group_by(Track.artist_key),
+                 select(Track.artist_key, func.max(Listen.last_played)).join(Listen, Listen.track_id == Track.id)
+                 .where(Listen.user_id == user.id, Listen.last_played >= since).group_by(Track.artist_key)):
         for artist, at in (await db.execute(stmt)).all():
-            if artist and at and (artist.lower() not in last or at > last[artist.lower()]):
-                last[artist.lower()] = at
+            if artist and at and (artist not in last or at > last[artist]):
+                last[artist] = at
     return {artist for artist, at in last.items()
             if (now - at).total_seconds() / 3600 < returns_after(hours, shape, f"{user.id}|{artist}|{at.isoformat()}")}
 
@@ -221,7 +222,7 @@ def _capacity(candidates: list[Candidate], per_artist: int) -> int:
     """How many tracks these can give with at most `per_artist` of each artist."""
     counts: dict[str, int] = {}
     for c in candidates:
-        counts[c.artist.lower()] = counts.get(c.artist.lower(), 0) + 1
+        counts[artist_key(c.artist)] = counts.get(artist_key(c.artist), 0) + 1
     return sum(min(n, per_artist) for n in counts.values())
 
 
@@ -236,13 +237,13 @@ def choose(pool: list[Candidate], near: list[Candidate], known: set[str], mix: M
     the skipped ones (`away`, their vectors) are lowered by «Отталкивание от пропущенного». Each track says which part
     it came for (`kind`)."""
     resting = resting or set()
-    awake = [c for c in pool if c.artist.lower() not in resting]
-    awake_near = [c for c in near if c.artist.lower() not in resting]
+    awake = [c for c in pool if artist_key(c.artist) not in resting]
+    awake_near = [c for c in near if artist_key(c.artist) not in resting]
     if _capacity(awake + awake_near, mix.artist_max) >= size:
         pool, near = awake, awake_near
     # the better half of the pool, the resting artists aside (they come back only to fill what's missing): what a
     # familiar track has to reach to count for the known share
-    base = [c for c in pool if c.artist.lower() not in resting] or pool
+    base = [c for c in pool if artist_key(c.artist) not in resting] or pool
     cut = statistics.median(c.relevance for c in base) if base else 0.0
     fits = {c.id for c in base if c.relevance >= cut}
     scale = spread(pool + near)

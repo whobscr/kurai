@@ -4,12 +4,15 @@ so they're easy to test."""
 
 import math
 import random
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
+
+from kurai.artists import artist_key
 
 
 def listen_weight(play_count: int, starred: bool, rating: int, last_played: datetime | None,
@@ -108,13 +111,13 @@ def mmr_select(candidates: list[Candidate], count: int, diversity: float = 0.35,
     taken = {c.id for c in chosen}
     per_artist: dict[str, int] = {}
     for c in chosen:
-        per_artist[c.artist.lower()] = per_artist.get(c.artist.lower(), 0) + 1
+        per_artist[artist_key(c.artist)] = per_artist.get(artist_key(c.artist), 0) + 1
     pool = [c for c in candidates if c.id not in taken]
     added = 0
     while pool and added < count:
         best, best_score = None, -math.inf
         for c in pool:
-            if per_artist.get(c.artist.lower(), 0) >= max_per_artist:
+            if per_artist.get(artist_key(c.artist), 0) >= max_per_artist:
                 continue
             redundancy = max((float(np.dot(normalize(c.vector), normalize(s.vector))) for s in chosen), default=0.0)
             score = (1 - diversity) * c.relevance - diversity * redundancy
@@ -123,7 +126,7 @@ def mmr_select(candidates: list[Candidate], count: int, diversity: float = 0.35,
         if best is None:
             break
         chosen.append(best)
-        per_artist[best.artist.lower()] = per_artist.get(best.artist.lower(), 0) + 1
+        per_artist[artist_key(best.artist)] = per_artist.get(artist_key(best.artist), 0) + 1
         pool.remove(best)
         added += 1
     return chosen
@@ -143,9 +146,10 @@ AWAY = 6.0  # how many spreads a track sounding like a skipped one loses at «О
 def adjust(candidates: list[Candidate], randomness: float = 0.0, resting: set[str] | None = None,
            rest_penalty: float = 0.0, rng: random.Random | None = None, scale: float | None = None,
            away: list[np.ndarray] | None = None, push: float = 0.0) -> list[Candidate]:
-    """The relevance as a mix weighs it: an artist heard lately (`resting`, lower case) lowered by `rest_penalty`
-    spreads; a track like one of `away` (the skipped ones' vectors) lowered by `push` × AWAY spreads × its likeness
-    (the cosine, from 0) to the nearest of them; random noise of `randomness` spreads added. Best first."""
+    """The relevance as a mix weighs it: an artist heard lately (`resting`, by kurai/artists.py's key) lowered by
+    `rest_penalty` spreads; a track like one of `away` (the skipped ones' vectors) lowered by `push` × AWAY spreads
+    × its likeness (the cosine, from 0) to the nearest of them; random noise of `randomness` spreads added. Best
+    first."""
     scale = scale if scale is not None else spread(candidates)
     rng = rng or random.Random()
     resting = resting or set()
@@ -153,7 +157,7 @@ def adjust(candidates: list[Candidate], randomness: float = 0.0, resting: set[st
     out = []
     for c in candidates:
         r = c.relevance
-        if c.artist.lower() in resting:
+        if artist_key(c.artist) in resting:
             r -= rest_penalty * scale * 2
         if away:
             v = normalize(c.vector)
@@ -182,15 +186,21 @@ def compose(parts: list[tuple[list[Candidate], int]], size: int, diversity: floa
 
 def arrange(tracks: list[Candidate], smooth: bool = True, artist_gap: int = 1) -> list[Candidate]:
     """The playing order: starts with the most relevant track; each next one is the most similar remaining one
-    (`smooth`) or the most relevant, with no artist of the last `artist_gap` tracks where another is left."""
+    (`smooth`) or the most relevant, with no artist of the last `artist_gap` tracks where another is left. An artist
+    with so many tracks left that they need every (gap + 1)-th place from here goes now, or they'd end up side by side
+    at the end."""
     remaining = sorted(tracks, key=lambda c: -c.relevance)
     if len(remaining) < 3:
         return remaining
     ordered = [remaining.pop(0)]
     while remaining:
         last = ordered[-1]
-        recent = {c.artist.lower() for c in ordered[-artist_gap:]} if artist_gap > 0 else set()
-        options = [c for c in remaining if c.artist.lower() not in recent] or remaining
+        recent = {artist_key(c.artist) for c in ordered[-artist_gap:]} if artist_gap > 0 else set()
+        options = [c for c in remaining if artist_key(c.artist) not in recent] or remaining
+        if artist_gap > 0:
+            left = Counter(artist_key(c.artist) for c in remaining)
+            crowded = [c for c in options if left[artist_key(c.artist)] * (artist_gap + 1) >= len(remaining)]
+            options = crowded or options
         if smooth:
             nxt = max(options, key=lambda c: float(np.dot(normalize(c.vector), normalize(last.vector))))
         else:
@@ -207,7 +217,7 @@ def shuffle_apart[T](items: list[T], artist: Callable[[T], str], rng: random.Ran
     rng = rng or random.Random()
     groups: dict[str, list[T]] = {}
     for item in items:
-        groups.setdefault((artist(item) or "").casefold(), []).append(item)
+        groups.setdefault(artist_key(artist(item)), []).append(item)
     for group in groups.values():
         rng.shuffle(group)
     ordered: list[T] = []

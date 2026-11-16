@@ -13,6 +13,7 @@ from typing import Any
 import aiohttp
 
 from kurai import outbound
+from kurai.artists import artist_key
 from kurai.i18n import _
 
 PAGE = 500
@@ -233,6 +234,7 @@ def song_fields(song: dict) -> dict[str, Any]:
         "id": song["id"],
         "title": song.get("title", ""),
         "artist": song.get("artist", ""),
+        "artist_key": artist_key(song.get("artist", "")),
         "album": song.get("album", ""),
         "album_id": song.get("albumId", ""),
         "artist_mbid": song.get("mbzArtistId") or None,
