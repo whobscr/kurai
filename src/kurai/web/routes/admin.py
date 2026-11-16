@@ -16,10 +16,11 @@ from starlette.background import BackgroundTask
 from kurai import accounts, llm, outbound, plugins, settings
 from kurai.audio import analyze as audio_analyze
 from kurai.audio import client as audio_client
-from kurai.db.models import Job, LlmCall, User
+from kurai.db.models import Job, LlmCall, Taste, Track, User
 from kurai.i18n import _
 from kurai.integrations import public_data
 from kurai.jobs import queue, window
+from kurai.recommend import mixing, playlists, related, wave
 from kurai.web.deps import Ctx, admin_required
 from kurai.web.routes import apps
 from kurai.web.templating import render
@@ -28,6 +29,8 @@ router = APIRouter(prefix="/admin")
 
 CORE_TABS = {
     "general": _("Общие"),
+    "wave": _("Волна"),
+    "playlists": _("Плейлисты"),
     "models": _("Модели"),
     "audio": _("Звук"),
     "gateway": _("Шлюз"),
@@ -37,7 +40,8 @@ CORE_TABS = {
     "jobs": _("Задачи"),
 }
 # each tab's help page, linked at its top (a plugin's tab says its own: AdminTab.docs)
-CORE_DOCS = {"general": "/docs/admin/first-run", "models": "/docs/admin/models", "audio": "/docs/admin/audio",
+CORE_DOCS = {"general": "/docs/admin/first-run", "wave": "/docs/admin/mixing#wave",
+             "playlists": "/docs/admin/mixing#playlists", "models": "/docs/admin/models", "audio": "/docs/admin/audio",
              "gateway": "/docs/admin/gateway", "users": "/docs/admin/users", "apps": "/docs/admin/apps#apps",
              "plugins": "/docs/admin/apps#plugins", "jobs": "/docs/admin/jobs"}
 # «Запустить» on «Задачи»: Kurai's own; plugins add theirs
@@ -79,9 +83,11 @@ def manual_jobs() -> dict[str, tuple[str, str]]:
 
 # which settings each tab's form may write, and their types
 FIELDS: dict[str, dict[str, type]] = {
-    "general": {"ui.default_accent": str, "night.start": str, "night.end": str, "playlists.per_night": int,
-                "wave.enabled": bool, "telegram.enabled": bool, "telegram.token": str, "listenbrainz.token": str,
-                "musicbrainz.contact": str},
+    "general": {"ui.default_accent": str, "night.start": str, "night.end": str, "telegram.enabled": bool,
+                "telegram.token": str, "listenbrainz.token": str, "musicbrainz.contact": str},
+    "wave": {"wave.enabled": bool, **mixing.fields("wave")},
+    "playlists": {"playlists.per_night": int, "playlists.keep_days": float, "ask.keep_days": float,
+                  **mixing.fields("playlists")},
     "models": {"llm.enabled": bool, "llm.provider": str, "llm.server_type": str, "llm.base_url": str,
                "llm.api_key": str, "llm.model": str, "llm.timeout": int, "llm.parallel": int,
                "embed.provider": str, "embed.base_url": str, "embed.api_key": str, "embed.model": str,
@@ -135,6 +141,13 @@ def _validate(values: dict[str, Any]) -> str | None:
         return _("Параллельных запросов — от 1 до 16")
     if any(not 0 <= values[k] <= 1 for k in ("audio.mix_weight", "audio.ask_weight") if k in values):
         return _("Доля звука — от 0 до 1")
+    if "playlists.per_night" in values and not 0 <= values["playlists.per_night"] <= 10:
+        return _("Ночных миксов — от 0 до 10")
+    if any(values[k] < 0 for k in ("playlists.keep_days", "ask.keep_days") if k in values):
+        return _("Сколько хранить — 0 (всегда) или больше")
+    for profile in mixing.PROFILES:
+        if error := mixing.validate(profile, values):
+            return error
     return None
 
 
@@ -154,6 +167,9 @@ async def _tab_data(ctx: Ctx, tab: str, page: int = 1, status: str = "") -> dict
         data["night_seconds"] = window.hours(values["night.start"], values["night.end"]) * 3600
     if tab == "users":
         data["users"] = (await db.execute(select(User).order_by(User.id))).scalars().all()
+    if tab in mixing.PROFILES:
+        data["mix_params"] = mixing.params(tab)
+        data["users"] = (await db.execute(select(User).where(User.active.is_(True)).order_by(User.id))).scalars().all()
     if tab == "apps":
         data["apps"] = list(apps.targets().items())
     if tab == "plugins":
@@ -246,6 +262,36 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
         await plugin_tab.after_save(ctx.db, values, before)
     # a new embedding model: the night's work embeds the library again (vectors of the old model aren't used)
     return back(tab, _("Сохранено"))
+
+
+# ---------- what the wave or a mix would be ----------
+
+KIND_LABELS = {"new": _("новое"), "known": _("знакомое"), "related": _("слушают вместе"), "popular": _("популярное")}
+
+
+@router.post("/preview/{profile}")
+async def preview(request: Request, profile: str, user_id: int = Form(...), ctx: Ctx = Depends(admin_required)):
+    """The next version of a user's wave, or a nightly mix as it would be made now, with the current parameters and
+    nothing saved: for the admins to see what changing them does (the users see only what they played). A part of
+    the «Волна» or «Плейлисты» tab, put in by HTMX."""
+    user = await ctx.db.get(User, user_id)
+    if profile not in mixing.PROFILES or user is None:
+        raise HTTPException(404)
+    started = time.monotonic()
+    if profile == "wave":
+        made = await wave.plan(ctx.db, user)
+        tracks, why = made.tracks, made.result.get("skipped", "")
+    else:
+        mixes = await playlists.plan_mixes(ctx.db, user, 1)
+        tracks, why = (mixes[0] if mixes else [], "") if isinstance(mixes, list) else ([], mixes["skipped"])
+    known = {t.id: t for t in (await ctx.db.execute(
+        select(Track).where(Track.id.in_([c.id for c in tracks])))).scalars()}
+    via = {a["name"].lower(): a["via"] for a in (related.artists_for(await ctx.db.get(Taste, user.id), 2).values())}
+    rows = [(known[c.id], c, KIND_LABELS.get(c.kind, ""), via.get(known[c.id].artist.lower(), "") if c.kind == "related"
+             else "") for c in tracks if c.id in known]
+    counts = {label: sum(c.kind == kind for c in tracks) for kind, label in KIND_LABELS.items()}
+    return render(request, "partials/mix_preview.html", ctx, rows=rows, why=why, counts=counts, who=user,
+                  seconds=round(time.monotonic() - started, 1), profile=profile)
 
 
 # ---------- the «Проверить» buttons ----------

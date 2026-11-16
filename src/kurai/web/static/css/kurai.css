@@ -314,8 +314,8 @@ nav.bottom > a.main-nav > i { inline-size: 3.25rem !important; block-size: 3.25r
 nav:is(.left, .bottom) > a.main-nav.active > i { outline: .2rem solid var(--primary-container); outline-offset: .15rem; }
 
 /* ---------- the player's bar: under the page (above the phone's menu), while something plays ---------- */
-footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas:
-  "cover text source toggle next" "cover bottom bottom bottom bottom"; align-items: center; column-gap: .75rem;
+footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto auto; grid-template-areas:
+  "cover text source prev toggle next" "cover bottom bottom bottom bottom bottom"; align-items: center; column-gap: .75rem;
   padding: .5rem 1rem; margin: 0; min-block-size: 0; border-radius: 1.5rem 1.5rem 0 0; z-index: 11;
   background: var(--surface-container-high); box-shadow: 0 -.25rem 1rem color-mix(in srgb, var(--shadow, #000) 18%, transparent); }
 /* Beer CSS keeps a fixed footer above the phone's bottom menu; where that menu isn't shown, at the window's edge */
@@ -329,6 +329,15 @@ footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto a
 .player-source { grid-area: source; margin: 0; }
 .player-toggle { grid-area: toggle; margin: 0; }
 #player-next { grid-area: next; margin: 0; }
+#player-prev { grid-area: prev; margin: 0; }
+/* repeat: lit while on; «repeat_one» says it's the track */
+.player-repeat.on { color: var(--primary); background: var(--primary-container); }
+dialog.player-keys { inline-size: min(34rem, 94vw); }
+dialog.player-keys td { padding: .35rem .5rem; vertical-align: top; }
+dialog.player-keys kbd { white-space: nowrap; font-family: inherit; font-weight: 600; }
+/* «Волна» and «Плейлисты»: the fine parameters folded */
+details.mix-advanced > summary { cursor: pointer; font-weight: 600; margin-block: 1rem .5rem; }
+table.mix-preview td { padding-block: .25rem; }
 .player-bottom { grid-area: bottom; display: flex; align-items: center; gap: .5rem; min-inline-size: 0; }
 .player-rate { flex: none; display: flex; align-items: center; }
 .player-rate .button { margin: 0; }
@@ -338,8 +347,10 @@ footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto a
 @media (max-width: 600px) { .player-source { display: none; }
   footer.player { grid-template-columns: auto minmax(0, 1fr) auto auto; padding: .5rem .75rem .25rem;
     grid-template-areas: "cover text toggle next" "bottom bottom bottom bottom"; }
+  /* no room beside the track: «назад» and the keys (there's no keyboard) are left out on a phone */
+  #player-prev, .player-keys-open { display: none; }
   .player-bottom { flex-direction: column-reverse; align-items: stretch; gap: 0; }
-  .player-rate { justify-content: center; gap: 1.5rem; } }
+  .player-rate { justify-content: center; gap: 1rem; } }
 
 /* ---------- what a listener likes: the question on «Для вас» and its section in «Кабинет» ---------- */
 dialog.start-dialog { inline-size: min(40rem, 94vw); max-block-size: 92dvh; inset-block-start: 4dvh; transition: none; }

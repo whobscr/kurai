@@ -63,7 +63,7 @@ async def test_one_failing_part_of_the_night_doesnt_stop_the_rest(db, monkeypatc
     monkeypatch.setattr(worker.library, "sync_listens", ok)
     monkeypatch.setattr(worker.library, "build_taste", ok)
     monkeypatch.setattr(worker.playlists, "nightly", ok)
-    monkeypatch.setattr(worker.playlists, "remove_old_mixes", ok)
+    monkeypatch.setattr(worker.playlists, "remove_old", ok)
     monkeypatch.setattr(worker.wave, "build", ok)
     job = Job(kind="nightly", payload={})
     db.add(job)

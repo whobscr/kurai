@@ -82,3 +82,39 @@ def describe_set(items: Sequence[Analysed]) -> str:
     if styles:
         parts.append("стили: " + ", ".join(s for s, _ in styles.most_common(4)))
     return "; ".join(parts)
+
+
+# «Спросить»: what a request asks of the sound, beyond its description (playlists.ask)
+ENERGETIC, CALM = 0.55, 0.4
+
+
+def energy(a: Analysed) -> float | None:
+    """How energetic a track sounds, 0..1: danceability, «party» and «aggressive» up, «relaxed» down. None unknown."""
+    moods = a.moods or {}
+    parts = [v for v in (a.danceability, moods.get("party"), moods.get("aggressive")) if v is not None]
+    if moods.get("relaxed") is not None:
+        parts.append(1 - moods["relaxed"])
+    return float(np.mean(parts)) if parts else None
+
+
+def fits(a: Analysed | None, bpm_min: int = 0, bpm_max: int = 0, wanted_energy: str = "any",
+         vocals: str = "any") -> bool | None:
+    """Whether a track's analysis meets a request's tempo (0: no bound), energy («calm» | «medium» | «energetic») and
+    vocals («instrumental» | «vocal»); None when nothing asked of it is known. The tempo estimate often reads a fast
+    track at half its speed (or a slow one at double): that counts when the energy agrees."""
+    if a is None:
+        return None
+    level = energy(a)
+    checks: list[bool] = []
+    if (bpm_min or bpm_max) and a.bpm:
+        def within(b: float) -> bool:
+            return (not bpm_min or b >= bpm_min) and (not bpm_max or b <= bpm_max)
+
+        checks.append(within(a.bpm) or (level is not None and (
+            (within(a.bpm * 2) and level >= ENERGETIC) or (within(a.bpm / 2) and level <= CALM))))
+    if wanted_energy != "any" and level is not None:
+        checks.append({"calm": level <= CALM, "energetic": level >= ENERGETIC,
+                       "medium": CALM - 0.05 <= level <= ENERGETIC + 0.1}.get(wanted_energy, True))
+    if vocals != "any" and a.voice is not None:
+        checks.append(a.voice >= 0.5 if vocals == "vocal" else a.voice < 0.5)
+    return all(checks) if checks else None

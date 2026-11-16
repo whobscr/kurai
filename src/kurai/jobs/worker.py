@@ -12,7 +12,7 @@ from kurai.db.models import Job, User
 from kurai.i18n import _
 from kurai.jobs import queue, window
 from kurai.notify import notify, send_telegram
-from kurai.recommend import library, playlists, popularity, wave
+from kurai.recommend import library, playlists, popularity, related, wave
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +58,7 @@ async def _nightly(db, job: Job) -> dict:
             user = await db.get(User, user_id)
             out = {"listens": await library.sync_listens(db, user),
                    "taste": await library.build_taste(db, user),
+                   "related": await related.refresh(db, user),
                    "playlists": await playlists.nightly(db, user)}
             if wave_on:  # a fresh wave for the new day, from the new taste
                 out["wave"] = await wave.build(db, user)
@@ -67,7 +68,7 @@ async def _nightly(db, job: Job) -> dict:
     for plugin in plugins.plugins():
         for name, plugin_step in plugin.nightly:
             await step(name, lambda plugin_step=plugin_step: plugin_step(db))
-    await step("old_mixes_removed", lambda: playlists.remove_old_mixes(db))
+    await step("old_playlists_removed", lambda: playlists.remove_old(db))
     await step("old_sessions_removed", lambda: accounts.prune_sessions(db))
     await step("old_jobs_removed", lambda: queue.prune(db))
     if failed:

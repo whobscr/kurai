@@ -3,14 +3,20 @@
 // skipped; the wave is rebuilt from that on the server, and the player takes the new version's tracks as the next ones
 // (asking after each report and every half a minute), without a gap. Buttons with data-play="wave" or a playlist's id
 // start it (data-start: from that track of it, as in «История»), or pause and resume what they started. ♥ and 👎
-// (data-rate, data-track) rate a track. The phone's lock screen and headphones control it too (Media Session).
+// (data-rate, data-track) rate a track. Repeat (off, the playlist, the track; the wave has no end, so no playlist
+// repeat there), the previous track, the volume and the keys (the «Клавиши» dialog lists them) are the player's too.
+// The phone's lock screen and headphones control it as well (Media Session).
 (() => {
   const $ = (id) => document.getElementById(id);
   const bar = $("player"), audio = $("player-audio");
   if (!bar || !audio) return;
   const els = {cover: $("player-cover"), title: $("player-title"), artist: $("player-artist"), source: $("player-source"),
-    toggle: $("player-toggle"), next: $("player-next"), seek: $("player-seek"), time: $("player-time"),
-    duration: $("player-duration")};
+    toggle: $("player-toggle"), next: $("player-next"), prev: $("player-prev"), seek: $("player-seek"),
+    time: $("player-time"), duration: $("player-duration"), repeat: $("player-repeat"), keys: $("player-keys")};
+  const store = {  // per-device remembering; private windows may refuse it
+    get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* not remembered */ } },
+  };
   const say = (key, values = {}) => Object.entries(values).reduce((s, [k, v]) => s.replace(`{${k}}`, v), audio.dataset[key]);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const post = (url, data, keepalive = false) => fetch(url, {method: "POST", keepalive, credentials: "same-origin",
@@ -27,6 +33,18 @@
   let refreshing = null;
   const current = () => tracks[index];
   const isWave = () => source && source.which === "wave";
+  const REPEATS = ["off", "all", "one"];
+  let repeat = REPEATS.includes(store.get("kurai.repeat")) ? store.get("kurai.repeat") : "off";
+  const volume = Number(store.get("kurai.volume"));
+  if (volume >= 0 && volume <= 1 && store.get("kurai.volume") !== null) audio.volume = volume;
+
+  // what a key or a button did, for a moment at the bottom
+  const note = (text) => {
+    const el = $("player-note");
+    if (!el || !text) return;
+    el.textContent = text;
+    if (typeof ui === "function") ui("#player-note", 1500);
+  };
 
   const setStatus = (which, text) => {
     statuses[which] = text;
@@ -100,6 +118,7 @@
     els.source.querySelector("span").textContent = source.name;
     els.source.querySelector("i").textContent = isWave() ? "waves" : "queue_music";
     els.duration.textContent = clock(t.duration || 0);
+    showRepeat();
     bar.querySelectorAll("[data-rate]").forEach((b) => { b.dataset.track = t.id; });
     showRating();
     if (isWave()) setStatus("wave", say("now", {track: `${t.artist} — ${t.title}`}));
@@ -129,8 +148,46 @@
     if (isWave() && index >= tracks.length - 3) refresh();  // the wave never ends: its next version is asked early
     if (index < tracks.length) playCurrent();
     else if (isWave()) refresh().then(() => { if (index < tracks.length) playCurrent(); });
+    else if (repeat === "all" && tracks.length) { index = 0; playCurrent(); }
     else { audio.pause(); index = tracks.length - 1; }
   }
+
+  // back: to this track's start when it has played a few seconds (as players do), else the one before
+  function previous() {
+    if (!current()) return;
+    if (audio.currentTime > 3 || index === 0) { audio.currentTime = 0; lastTime = 0; return; }
+    report();
+    index -= 1;
+    playCurrent();
+  }
+
+  // the track over: again (repeat one: it counts as a play), or the next
+  function ended() {
+    if (repeat === "one" && current()) {
+      report();
+      played = 0; lastTime = 0;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+      return;
+    }
+    next();
+  }
+
+  // off → the playlist → the track; the wave can't be repeated as a whole (it never ends): off → the track
+  const showRepeat = () => {
+    const shown = isWave() && repeat === "all" ? "off" : repeat;
+    els.repeat.classList.toggle("on", shown !== "off");
+    els.repeat.setAttribute("aria-pressed", shown !== "off" ? "true" : "false");
+    els.repeat.querySelector("i").textContent = shown === "one" ? "repeat_one" : "repeat";
+    return shown;
+  };
+  function cycleRepeat() {
+    const shown = showRepeat();
+    repeat = shown === "off" ? (isWave() ? "one" : "all") : shown === "all" ? "one" : "off";
+    store.set("kurai.repeat", repeat);
+    note(audio.dataset[{off: "repeatOff", all: "repeatAll", one: "repeatOne"}[showRepeat()]]);
+  }
+  showRepeat();
 
   // the wave's newest version: its tracks not yet heard become the ones after the current track
   async function refresh() {
@@ -175,7 +232,7 @@
   });
   audio.addEventListener("seeked", () => { lastTime = audio.currentTime; });
   audio.addEventListener("playing", () => { failures = 0; });
-  audio.addEventListener("ended", () => next());
+  audio.addEventListener("ended", ended);
   audio.addEventListener("play", syncButtons);
   audio.addEventListener("pause", syncButtons);
   audio.addEventListener("error", () => {
@@ -223,6 +280,8 @@
   // ---------- the bar's buttons, the page's buttons, the lock screen ----------
   els.toggle.addEventListener("click", () => { if (audio.paused) audio.play(); else audio.pause(); });
   els.next.addEventListener("click", () => next());
+  els.prev.addEventListener("click", previous);
+  els.repeat.addEventListener("click", cycleRepeat);
   els.seek.addEventListener("change", () => {
     const d = audio.duration || 0;
     if (d) audio.currentTime = (Number(els.seek.value) / 100) * d;
@@ -235,7 +294,54 @@
     navigator.mediaSession.setActionHandler("play", () => audio.play());
     navigator.mediaSession.setActionHandler("pause", () => audio.pause());
     navigator.mediaSession.setActionHandler("nexttrack", () => next());
+    navigator.mediaSession.setActionHandler("previoustrack", previous);
   }
+
+  // ---------- the keys, as in other web players; by the key's place (e.code), so the layout doesn't matter ----------
+  const typing = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  const toggle = () => {
+    if (current()) { if (audio.paused) audio.play(); else audio.pause(); return; }
+    const first = document.querySelector("#page [data-play]");  // nothing yet: the page's first play button
+    if (first) first.click();
+  };
+  const seekBy = (s) => {
+    if (current() && audio.duration) audio.currentTime = Math.max(0, Math.min(audio.duration - 1, audio.currentTime + s));
+  };
+  const setVolume = (v) => {
+    audio.muted = false;
+    audio.volume = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;
+    store.set("kurai.volume", String(audio.volume));
+    note(say("volume", {n: Math.round(audio.volume * 100)}));
+  };
+  const rateCurrent = (kind) => {
+    const button = bar.querySelector(`[data-rate="${kind}"]`);
+    if (current() && button && button.dataset.track) rate(button);
+  };
+  const showKeys = () => { if (els.keys && !els.keys.open) els.keys.showModal(); };
+  document.addEventListener("click", (e) => {
+    if (e.target.closest(".player-keys-open")) showKeys();
+    if (e.target.closest("[data-close-keys]") || e.target === els.keys) els.keys.close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || typing(e.target)) return;
+    if (e.key === "?" || (e.code === "Slash" && e.shiftKey)) { e.preventDefault(); showKeys(); return; }
+    if (document.querySelector("dialog[open]")) return;  // a dialog's own keys (Esc, Tab) come first
+    const playing = !!current();
+    const keys = {
+      Space: toggle, KeyK: toggle,
+      ArrowRight: () => (e.shiftKey ? next() : seekBy(10)), ArrowLeft: () => (e.shiftKey ? previous() : seekBy(-10)),
+      KeyN: () => next(), KeyP: previous,
+      ArrowUp: () => setVolume(audio.volume + 0.1), ArrowDown: () => setVolume(audio.volume - 0.1),
+      KeyM: () => { audio.muted = !audio.muted; note(audio.muted ? audio.dataset.muted : say("volume", {n: Math.round(audio.volume * 100)})); },
+      KeyL: () => rateCurrent("like"), KeyD: () => rateCurrent("dislike"), KeyR: cycleRepeat,
+    };
+    const action = keys[e.code];
+    // with nothing playing, only «play» means anything: the arrows still scroll the page
+    if (!action || (!playing && !["Space", "KeyK"].includes(e.code))) return;
+    if (e.code === "Space" && e.target.closest && e.target.closest("button, a, summary")) e.target.blur();
+    e.preventDefault();
+    action();
+  });
   document.addEventListener("kurai:page", syncButtons);
   window.addEventListener("pagehide", report);
 })();

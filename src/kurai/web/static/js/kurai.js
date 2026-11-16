@@ -55,6 +55,13 @@
 
   // ---------- each page's pieces (run at load and after every move to another page) ----------
   function init(root) {
+    // floating labels: Beer CSS keeps a label up over a filled field by its placeholder (an empty one is enough), but
+    // gives one to a multi-line field only in some browsers (not Chrome on a computer): there the label fell back over
+    // the text as soon as the field lost focus. Every labelled field gets one here, the ones of later pages too
+    root.querySelectorAll(".field.label > :is(input, textarea):not([placeholder])").forEach((el) => {
+      el.placeholder = " ";
+    });
+
     // the band's light / dark switch: the other mode at once, remembered for the account
     const modeToggle = root.querySelector("#mode-toggle");
     if (modeToggle) modeToggle.addEventListener("click", () => {
@@ -176,6 +183,16 @@
 
     initPush(root);
   }
+
+  // Enter sends the form from a multi-line field too, as from a one-line one (Shift+Enter: a new line); its form's
+  // main button is pressed, so HTMX or the page's own submit takes it as usual
+  document.addEventListener("keydown", (e) => {
+    const field = e.target;
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.isComposing
+        || field.tagName !== "TEXTAREA" || !field.form) return;
+    e.preventDefault();
+    if (field.form.reportValidity()) field.form.requestSubmit();
+  });
 
   // a tap outside an open «i» closes it
   document.addEventListener("click", (e) => {

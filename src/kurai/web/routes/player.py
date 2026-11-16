@@ -16,7 +16,7 @@ from kurai.db.models import Job, Listen, Playlist, Track
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER, Account, NavidromeError
 from kurai.jobs import queue as jobs
-from kurai.recommend import library, wave
+from kurai.recommend import library, mixing, wave
 from kurai.web import upstream
 from kurai.web.deps import Ctx, user_required
 from kurai.web.routes.misc import MEDIA_HEADERS
@@ -65,12 +65,14 @@ async def _wave_state(ctx: Ctx) -> dict:
 
 
 async def _unheard_wave(ctx: Ctx, playlist: Playlist) -> list[str] | None:
-    """The wave's tracks without what the user heard lately (wave.HEARD), so coming back to it never starts with a
-    track just played. Less than half left: a fresh version is made (it comes as a new version); nothing left: None
-    (wait for it), unless a version made since found nothing new either (a small library): then it plays as it is."""
-    heard = await wave.recently_heard(ctx.db, ctx.user, datetime.now(UTC))
+    """The wave's tracks without what the user heard within a track's pause («Волна»), so coming back to it never
+    starts with a track just played. Less than half left: a fresh version is made (it comes as a new version); nothing
+    left: None (wait for it), unless a version made since found nothing new either (a small library): then it plays
+    as it is."""
+    mix = await mixing.load(ctx.db, "wave")
+    heard = await wave.recently_heard(ctx.db, ctx.user, datetime.now(UTC), mix.track_rest_days)
     ids = [i for i in playlist.track_ids if i not in heard]
-    if len(ids) >= wave.SIZE // 2:
+    if len(ids) >= mix.size // 2:
         return ids
     last = (await ctx.db.execute(select(Job).where(Job.user_id == ctx.user.id, Job.kind == "wave")
                                  .order_by(Job.id.desc()))).scalars().first()
@@ -139,7 +141,8 @@ async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = 
         raise HTTPException(404)
     now = datetime.now(UTC)
     seconds = max(0, seconds)
-    skipped = disliked or seconds < wave.SKIP_SHARE * (track.duration or wave.DEFAULT_DURATION)
+    skip_share = (await mixing.load(ctx.db, "wave")).skip_share
+    skipped = disliked or seconds < skip_share * (track.duration or wave.DEFAULT_DURATION)
     if not skipped:
         await library.note_listen(ctx.db, ctx.user, track_id, played_at=now)
         try:

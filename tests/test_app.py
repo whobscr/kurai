@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import func, select
 
 from kurai import settings
-from kurai.db.models import Job, Playlist, Setting, Track, User
+from kurai.db.models import Job, Listen, Playlist, Setting, Track, User
 
 pytestmark = pytest.mark.usefixtures("database")
 
@@ -380,6 +380,91 @@ async def test_wave_follows_plays_and_skips(db, navidrome):
         Playlist.user_id == user.id, Playlist.kind == "wave"))).scalar_one() == 1
 
 
+async def test_the_wave_and_playlists_tabs_save_check_and_preview(client, db, navidrome):
+    """The mixing parameters are saved per profile and checked; the preview shows a user's next wave with where each
+    track comes from, and changes nothing of theirs; only admins reach it."""
+    from kurai import security
+
+    model_name = await settings.get(db, "embed.model")
+    rng = np.random.default_rng(11)
+    for i in range(20):
+        db.add(Track(id=f"pv{i}", title=f"Preview {i}", artist=f"Preview artist {i % 7}", album="P", duration=200,
+                     embedding=(np.eye(8)[4] * 5 + 0.1 * rng.normal(size=8)).tolist(), embedding_model=model_name))
+    vera = User(username="vera", display_name="Вера", password_hash=security.hash_password("vera-password"),
+                navidrome_id="nd-vera", navidrome_password=security.encrypt("nd"))
+    db.add(vera)
+    await db.commit()
+    db.add(Listen(user_id=vera.id, track_id="pv0", play_count=5, starred=True))
+    await db.commit()
+    from kurai.recommend import library
+
+    await library.build_taste(db, vera)
+
+    await login(client, "admin", "a-long-password")
+    page = await client.get("/admin/wave")
+    assert page.status_code == 200 and "Доля нового" in page.text and "Тонкая настройка" in page.text
+    assert 'name="mix.wave.now_weight"' in page.text and "Вера (vera)" in page.text
+    assert 'name="mix.wave.taste_weight"' not in page.text  # «Спросить»'s, on «Плейлисты»
+    token = csrf_of(page.text)
+    form_values = {"csrf": token, "wave.enabled": "on", **{k: str(v) for k, v in mixing_defaults("wave").items()}}
+    r = await client.post("/admin/wave", data={**form_values, "mix.wave.new_share": "0.9"})
+    assert "не больше 1" in httpx.URL(r.headers["location"]).params["message"]  # with the related share: over 1
+    r = await client.post("/admin/wave", data={**form_values, "mix.wave.new_share": "0.6", "mix.wave.smooth": ""})
+    assert httpx.URL(r.headers["location"]).params["message"] == "Сохранено"
+    assert await settings.get(db, "mix.wave.new_share") == 0.6 and await settings.get(db, "mix.wave.smooth") is False
+    playlists_tab = (await client.get("/admin/playlists")).text
+    assert "Хранить плейлисты «Спросить»" in playlists_tab and "Действует и на «Спросить»" in playlists_tab
+
+    preview = await client.post("/admin/preview/wave", data={"csrf": token, "user_id": str(vera.id)})
+    assert preview.status_code == 200 and "Preview" in preview.text and "новое" in preview.text
+    assert "pv0" not in preview.text  # what she played is left out like in the real wave
+    assert not (await db.execute(select(Playlist).where(Playlist.user_id == vera.id))).first()  # nothing saved
+    mix = await client.post("/admin/preview/playlists", data={"csrf": token, "user_id": str(vera.id)})
+    assert mix.status_code == 200 and "Preview" in mix.text
+    await settings.put(db, {"mix.wave.new_share": 0.4, "mix.wave.smooth": True})
+    await db.commit()
+
+    client.cookies.clear()
+    await login(client, "vera", "vera-password")
+    assert (await client.post("/admin/preview/wave", data={"csrf": csrf_of((await client.get("/")).text),
+                                                           "user_id": str(vera.id)})).status_code == 403
+
+
+def mixing_defaults(profile):
+    from kurai.recommend import mixing
+
+    return {k: ("on" if v is True else "" if v is False else v) for k, v in mixing.defaults().items()
+            if k.startswith(f"mix.{profile}.")}
+
+
+async def test_generated_playlists_are_kept_as_long_as_set(db, navidrome):
+    from datetime import UTC, datetime, timedelta
+
+    from kurai import security
+    from kurai.recommend import playlists
+
+    owner = User(username="keeper", display_name="K", password_hash="x", navidrome_id="nd-keeper",
+                 navidrome_password=security.encrypt("pw"))
+    db.add(owner)
+    await db.commit()
+    old = datetime.now(UTC) - timedelta(days=20)
+    for kind, feedback in (("nightly", 0), ("nightly", 1), ("ask", 0), ("wave", 0)):
+        db.add(Playlist(user_id=owner.id, kind=kind, name=kind, track_ids=[], feedback=feedback, created_at=old))
+    await db.commit()
+
+    def kinds():
+        return select(Playlist.kind).where(Playlist.user_id == owner.id).order_by(Playlist.kind)
+
+    assert await playlists.remove_old(db) == {"nightly": 1}  # «Спросить»'s kept for good by default; 👍 stays
+    assert sorted((await db.execute(kinds())).scalars()) == ["ask", "nightly", "wave"]
+    await settings.put(db, {"ask.keep_days": 7, "playlists.keep_days": 30})
+    await db.commit()
+    assert await playlists.remove_old(db) == {"nightly": 0, "ask": 1}
+    assert sorted((await db.execute(kinds())).scalars()) == ["nightly", "wave"]
+    await settings.put(db, {"ask.keep_days": 0, "playlists.keep_days": 14})
+    await db.commit()
+
+
 async def test_jobs_are_paged_filtered_and_pruned(client, db):
     from datetime import UTC, datetime, timedelta
 
@@ -392,7 +477,8 @@ async def test_jobs_are_paged_filtered_and_pruned(client, db):
     await db.commit()
     await login(client, "admin", "a-long-password")
     first = (await client.get("/admin/jobs")).text
-    assert "Старее" in first and "Новее" not in first and first.count("<tr>") == 31  # the head and 30 jobs
+    rows = first.split('<table class="stripes">')[1].split("</table>")[0].count("<tr>")
+    assert "Старее" in first and "Новее" not in first and rows == 31  # the head and 30 jobs
     assert "Забрать список треков из Navidrome" in first  # each button says what it does
     second = (await client.get("/admin/jobs", params={"page": 2})).text
     assert "Новее" in second and "Страница 2" in second
@@ -618,6 +704,9 @@ async def test_a_new_listener_is_asked_what_they_like_and_the_wave_starts_from_i
     assert built["from_answers"] and built["tracks_used"] == 0
     taste = await db.get(Taste, neo.id)
     assert int(np.argmax(taste.vector)) == 2 and taste.top_artists[0]["name"].startswith("Jazz")
+    # a version smaller than the library, five tracks an artist: what the answers point at can lead
+    await settings.put(db, {"mix.wave.size": 20, "mix.wave.artist_max": 5})
+    await db.commit()
     result = await wave.build(db, neo)
     ids = (await db.execute(select(Playlist.track_ids).where(Playlist.user_id == neo.id,
                                                               Playlist.kind == "wave"))).scalar_one()
@@ -632,6 +721,8 @@ async def test_a_new_listener_is_asked_what_they_like_and_the_wave_starts_from_i
     await db.commit()
     alone = await wave.build(db, neo)
     assert alone["popular"] == alone["tracks"] > 0
+    await settings.put(db, {"mix.wave.size": 40, "mix.wave.artist_max": 2})
+    await db.commit()
 
 
 async def test_the_worlds_popularity_fills_in_and_leads_when_nobody_here_has_played(db, monkeypatch):
@@ -737,10 +828,9 @@ async def test_coming_back_to_the_wave_never_starts_with_what_was_just_heard(cli
 
     from kurai import security
     from kurai.db.models import Listen, WaveEvent
-    from kurai.recommend import wave
 
     await settings.put(db, {"wave.enabled": True})
-    ids = [f"rw{i}" for i in range(wave.SIZE)]
+    ids = [f"rw{i}" for i in range(40)]
     for i in ids:
         db.add(Track(id=i, title=i, artist="Again", album="A", duration=200))
     rina = User(username="rina", display_name="Рина", password_hash=security.hash_password("rina-password"),
@@ -769,7 +859,7 @@ async def test_coming_back_to_the_wave_never_starts_with_what_was_just_heard(cli
     db.add_all([WaveEvent(user_id=rina.id, track_id=i, skipped=True, seconds=5, at=now) for i in ids[-3:]])
     job.status, job.finished_at = "done", datetime.now(UTC)
     await db.commit()
-    assert len((await client.get("/player/queue/wave")).json()["tracks"]) == wave.SIZE
+    assert len((await client.get("/player/queue/wave")).json()["tracks"]) == 40
 
 
 async def test_the_name_is_in_the_pages_language(client):
@@ -782,3 +872,58 @@ async def test_the_name_is_in_the_pages_language(client):
         # «Kurai» quoted as the English name (the changelog says so) is the only Latin one allowed
         assert not re.findall(r"(?<!«)\bKurai\b", (await client.get(path)).text), path
     assert (await client.get("/manifest.webmanifest")).json()["name"] == "Курай"
+
+
+async def test_listened_together_artists_are_found_and_mixed_into_the_wave(db, navidrome, monkeypatch):
+    """ListenBrainz's neighbours of a user's favourites (depth 1, and the neighbours' own at depth 2) that the library
+    has are kept for the user, the favourites left out; the wave takes its share of them, however they sound."""
+    from kurai import security
+    from kurai.db.models import Taste
+    from kurai.recommend import library, related, wave
+
+    model_name = await settings.get(db, "embed.model")
+    rows = [("lt-rock", "Rock One", "rock-1", np.eye(8)[5]), ("lt-alt", "Alt Two", "alt-2", np.eye(8)[6]),
+            ("lt-elec", "Elec Three", "elec-3", np.eye(8)[7]), ("lt-far", "Far Four", "far-4", np.eye(8)[7])]
+    for i in range(6):
+        for prefix, artist, mbid, axis in rows:
+            db.add(Track(id=f"{prefix}{i}", title=f"{artist} {i}", artist=artist, album="L", duration=200,
+                         artist_mbid=mbid, embedding=(axis * 5 + 0.05 * i).tolist(), embedding_model=model_name))
+    lia = User(username="lia", display_name="Лия", password_hash="x", navidrome_id="nd-lia",
+               navidrome_password=security.encrypt("pw"))
+    db.add(lia)
+    await db.commit()
+    db.add_all([Listen(user_id=lia.id, track_id=f"lt-rock{i}", play_count=9, starred=True) for i in range(3)])
+    await db.commit()
+    await library.build_taste(db, lia)
+
+    asked = []
+
+    class FakeListenBrainz:
+        async def similar_artists(self, mbid, limit=30):
+            asked.append(mbid)
+            return {"rock-1": [{"mbid": "alt-2", "name": "Alt Two", "score": 100},
+                               {"mbid": "elec-3", "name": "Elec Three", "score": 50},
+                               {"mbid": "not-here", "name": "Elsewhere", "score": 80}],
+                    "alt-2": [{"mbid": "far-4", "name": "Far Four", "score": 10}]}.get(mbid, [])
+
+    async def client(db_):
+        return FakeListenBrainz()
+
+    monkeypatch.setattr(related.public_data, "client", client)
+    result = await related.refresh(db, lia)
+    taste = await db.get(Taste, lia.id)
+    names = [a["name"] for a in taste.related_artists]
+    assert result["related"] == 2 and names == ["Alt Two", "Elec Three"] and asked == ["rock-1"]
+    assert taste.related_artists[0]["via"] == "Rock One"
+
+    await settings.put(db, {"mix.wave.related_depth": 2, "mix.wave.related_share": 0.5, "mix.wave.new_share": 0.5})
+    await db.commit()
+    await related.refresh(db, lia)
+    await db.refresh(taste)
+    far = next(a for a in taste.related_artists if a["name"] == "Far Four")
+    assert far["depth"] == 2 and far["via"] == "Alt Two"
+    made = await wave.plan(db, lia)
+    together = [c for c in made.tracks if c.kind == "related"]
+    assert len(together) >= 5 and {c.artist for c in together} <= {"Alt Two", "Elec Three", "Far Four"}
+    await settings.put(db, {"mix.wave.related_depth": 1, "mix.wave.related_share": 0.15, "mix.wave.new_share": 0.4})
+    await db.commit()

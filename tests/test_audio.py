@@ -95,6 +95,7 @@ async def _library(db, rng, n=40):
         db.add(TrackAudio(track_id=f"au{i}", size=1000 + i,
                           effnet=_unit((calm_s if calm else loud_s) + 0.3 * rng.normal(size=EFFNET_DIM)),
                           effnet_model=EFFNET_MODEL, moods={"relaxed": 0.9 if calm else 0.1},
+                          bpm=72.0 if calm else 150.0, danceability=0.2 if calm else 0.8,
                           clap=_unit((calm_c if calm else loud_c) + 0.3 * rng.normal(size=CLAP_DIM)),
                           clap_model=CLAP_MODEL))
     await db.commit()
@@ -131,7 +132,8 @@ async def test_mixes_follow_the_sound_when_the_tags_say_nothing(db, navidrome, m
     monkeypatch.setattr(llm, "complete_json", fake_name)
     await settings.put(db, {"audio.mix_weight": 0.9})
     await db.commit()
-    result = await playlists.nightly(db, user, count=1, size=10)
+    await settings.put(db, {"mix.playlists.size": 10})
+    result = await playlists.nightly(db, user, count=1)
     assert result["playlists"] == ["Тихо"]
     playlist = (await db.execute(select(Playlist).where(Playlist.user_id == user.id))).scalars().one()
     calm = [int(t[2:]) < 20 for t in playlist.track_ids]
@@ -181,6 +183,47 @@ async def test_ask_finds_tracks_by_a_description_of_their_sound(db, navidrome, m
 
     monkeypatch.setattr(client, "clap_text", down)
     assert "playlist_id" in await playlists.ask(db, user, "что-нибудь громкое")
+
+
+@pytest.mark.usefixtures("database", "audio_on")
+async def test_ask_keeps_to_the_tempo_asked_even_against_the_listeners_taste(db, navidrome, monkeypatch):
+    """«Быстрое для тренировки» from someone who plays only calm music, where the description's search can't tell fast
+    from slow: the tempo and energy the model names are checked against the analysis, and the taste weighs little."""
+    from kurai import llm
+    from kurai.audio import client
+    from kurai.db.models import Listen
+    from kurai.recommend import library, playlists
+
+    await _library(db, np.random.default_rng(4))
+    user = await _user(db, "fit")
+    for i in range(0, 10):  # only calm tracks played
+        db.add(Listen(user_id=user.id, track_id=f"au{i}", play_count=10, starred=True))
+    await db.commit()
+    await library.build_taste(db, user)
+
+    async def plan(db_, task, system, prompt, schema, max_tokens=2000):
+        assert "bpm_min" in prompt and "bpm_min" in schema["required"]
+        return {"intent": "playlist", "answer": "", "mood_text": "быстрая музыка для тренировки",
+                "sound_en": "fast energetic workout music", "seed_artists": [], "exclude_artists": [], "minutes": 30,
+                "name": "Тренировка", "bpm_min": 120, "bpm_max": 0, "energy": "energetic", "vocals": "any"}
+
+    class RandomText:
+        async def embed(self, texts):
+            return [np.random.default_rng(5).normal(size=8).tolist()]
+
+    async def embed_model(db_):
+        return RandomText()
+
+    async def clap_text(db_, text):  # a description that says nothing about the speed
+        return np.asarray(_unit(np.random.default_rng(6).normal(size=CLAP_DIM)), dtype=np.float32)
+
+    monkeypatch.setattr(llm, "complete_json", plan)
+    monkeypatch.setattr(llm, "embed_model", embed_model)
+    monkeypatch.setattr(client, "clap_text", clap_text)
+    result = await playlists.ask(db, user, "быстрая музыка для тренировки")
+    playlist = await db.get(Playlist, result["playlist_id"])
+    assert playlist.track_ids and all(int(t[2:]) >= 20 for t in playlist.track_ids), playlist.track_ids
+    assert result["fitting"] == len(playlist.track_ids) and result["plan"]["bpm_min"] == 120
 
 
 class FakeAnalyzer:

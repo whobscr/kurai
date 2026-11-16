@@ -17,7 +17,6 @@ from kurai.db.models import Listen, Track, TrackAudio, User
 from kurai.recommend.vectors import Candidate, Joint, mean_unit, weights_of
 
 POOL = 300
-RECENT_DAYS = 7
 SPACES = ("text", "sound", "clap")
 
 
@@ -83,21 +82,27 @@ async def seeds(db: AsyncSession, j: Joint, artists: list[str], limit: int = 200
 
 
 async def candidates(db: AsyncSession, j: Joint, queries: dict[str, np.ndarray], user: User | None = None,
-                     exclude_recent: bool = False, exclude_artists: set[str] | None = None,
-                     pool: int = POOL) -> list[Candidate]:
-    """The tracks near the (centred) queries, best first; relevance and vector are in the joint space."""
+                     rest_days: float | None = None, exclude_artists: set[str] | None = None,
+                     only_artists: Collection[str] | None = None, pool: int = POOL) -> list[Candidate]:
+    """The tracks near the (centred) queries, best first; relevance and vector are in the joint space. With a user
+    and `rest_days`: without what they played within those days and what they disliked. `only_artists`: just their
+    tracks (names, any case)."""
     text_model = await settings.get(db, "embed.model")
     queries = {s: q for s, q in queries.items() if q is not None and s in j.weights}
     if not queries:
         return []
     filters = []
-    if exclude_recent and user is not None:
-        since = datetime.now(UTC) - timedelta(days=RECENT_DAYS)
-        recent = select(Listen.track_id).where(Listen.user_id == user.id, Listen.last_played >= since)
+    if rest_days is not None and user is not None:
         disliked = select(Listen.track_id).where(Listen.user_id == user.id, Listen.rating.in_([1, 2]))
-        filters += [Track.id.not_in(recent), Track.id.not_in(disliked)]
+        filters.append(Track.id.not_in(disliked))
+        if rest_days > 0:
+            since = datetime.now(UTC) - timedelta(days=rest_days)
+            recent = select(Listen.track_id).where(Listen.user_id == user.id, Listen.last_played >= since)
+            filters.append(Track.id.not_in(recent))
     if exclude_artists:
         filters.append(func.lower(Track.artist).not_in([a.lower() for a in exclude_artists]))
+    if only_artists is not None:
+        filters.append(func.lower(Track.artist).in_([a.lower() for a in only_artists]))
     ids: set[str] = set()
     for space, q in queries.items():
         # the nearest by raw cosine: the query moved back from the centred space is close enough for a pool
@@ -126,3 +131,11 @@ async def track_vectors(db: AsyncSession, ids: Collection[str]) -> dict[str, tup
                            "sound": effnet if effnet_model == EFFNET_MODEL and not error else None,
                            "clap": clap if clap_model == CLAP_MODEL and not error else None})
             for tid, artist, emb, emb_model, effnet, effnet_model, clap, clap_model, error in rows}
+
+
+async def played(db: AsyncSession, user: User, ids: Collection[str]) -> set[str]:
+    """Which of the tracks the user has ever played (the rest are new to them)."""
+    if not ids:
+        return set()
+    return set((await db.execute(select(Listen.track_id).where(
+        Listen.user_id == user.id, Listen.play_count > 0, Listen.track_id.in_(list(ids))))).scalars())

@@ -165,6 +165,9 @@ class Taste(Base):
     embedding_model: Mapped[str | None] = mapped_column(String(128))
     audio_vector = mapped_column(Vector(EFFNET_DIM), nullable=True)  # the same, from how the tracks sound
     top_artists: Mapped[list] = mapped_column(JSONB, default=list)
+    # «слушают вместе» (recommend/related.py): [{"name", "mbid", "score", "via", "depth"}], the strongest first
+    related_artists: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    related_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     tracks_used: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = _now()
 

@@ -12,6 +12,7 @@ from kurai import plugins, security
 from kurai.config import get_config
 from kurai.db.models import Setting
 from kurai.i18n import _
+from kurai.recommend import mixing
 
 # every task that may ask a model; «Модель думает» is on by default for the night ones (time is plentiful, answers are
 # better) and off where a person waits
@@ -80,8 +81,10 @@ def _defaults() -> dict[str, Any]:
         "audio.clap": True,  # CLAP too: search by a description of the sound; doubles the time per track
         "audio.mix_weight": 0.5,  # mixes: the sound's share against the tags
         "audio.ask_weight": 0.5,  # «Спросить»: the sound's share (CLAP and the sound) against the tags
-        # the nightly mixes per user
+        # the nightly mixes per user, and how long the generated playlists stay (days; 0: for good); a liked one stays
         "playlists.per_night": 3,
+        "playlists.keep_days": 14,
+        "ask.keep_days": 0,
         # Telegram (its own bot, the token is entered here)
         "telegram.enabled": bool(c.telegram_bot_token),
         "telegram.token": c.telegram_bot_token,
@@ -97,6 +100,8 @@ def _defaults() -> dict[str, Any]:
         "musicbrainz.contact": "",
         # «Моя волна»: a playlist that follows what each user is listening to (Navidrome's «now playing»)
         "wave.enabled": True,
+        # how the wave and the playlists mix the music (recommend/mixing.py)
+        **mixing.defaults(),
         # the plugins switched off on «Плагины» (their names)
         plugins.DISABLED_KEY: [],
     }

@@ -2,7 +2,8 @@
 of tracks (MMR), and ordering them so neighbours sound alike. Pure functions, so they're easy to test."""
 
 import math
-from dataclasses import dataclass
+import random
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -30,8 +31,8 @@ def normalize(v: np.ndarray) -> np.ndarray:
     return v / n if n > 0 else v
 
 
-def taste_vector(vectors: list[np.ndarray], weights: list[float]) -> np.ndarray | None:
-    """The weighted mean of liked tracks' unit vectors, minus a share of the disliked ones; None without positives.
+def taste_vector(vectors: list[np.ndarray], weights: list[float], push: float = 0.3) -> np.ndarray | None:
+    """The weighted mean of liked tracks' unit vectors, minus `push` of the disliked ones'; None without positives.
     Not normalized: it stays on the tracks' scale so Joint can centre it like a track."""
     pos = [(v, w) for v, w in zip(vectors, weights, strict=True) if w > 0]
     if not pos:
@@ -39,7 +40,7 @@ def taste_vector(vectors: list[np.ndarray], weights: list[float]) -> np.ndarray 
     liked = sum(normalize(v) * w for v, w in pos) / sum(w for _, w in pos)
     neg = [(v, -w) for v, w in zip(vectors, weights, strict=True) if w < 0]
     if neg:
-        liked = liked - 0.3 * sum(normalize(v) * w for v, w in neg) / sum(w for _, w in neg)
+        liked = liked - push * sum(normalize(v) * w for v, w in neg) / sum(w for _, w in neg)
     return liked
 
 
@@ -61,7 +62,8 @@ class Candidate:
     id: str
     artist: str
     vector: np.ndarray
-    relevance: float  # cosine similarity to the query, -1..1
+    relevance: float  # cosine similarity to the query, -1..1 (lowered or shuffled by `adjust`)
+    kind: str = ""  # which part of a mix it came for: "new", "known", "related", "popular" (the admins' preview)
 
 
 @dataclass(frozen=True)
@@ -94,14 +96,19 @@ def weights_of(parts: dict[str, float]) -> dict[str, float]:
     return {k: w / total for k, w in positive.items()} if total else {}
 
 
-def mmr_select(candidates: list[Candidate], count: int, diversity: float = 0.35,
-               max_per_artist: int = 2) -> list[Candidate]:
+def mmr_select(candidates: list[Candidate], count: int, diversity: float = 0.35, max_per_artist: int = 2,
+               chosen: list[Candidate] | None = None) -> list[Candidate]:
     """Maximal marginal relevance: each next track is the most relevant one that is least like those already chosen,
-    with at most `max_per_artist` tracks of one artist."""
-    chosen: list[Candidate] = []
+    with at most `max_per_artist` tracks of one artist. Continues `chosen` (what other parts of a mix took) when given:
+    returns it with up to `count` more."""
+    chosen = list(chosen or [])
+    taken = {c.id for c in chosen}
     per_artist: dict[str, int] = {}
-    pool = list(candidates)
-    while pool and len(chosen) < count:
+    for c in chosen:
+        per_artist[c.artist.lower()] = per_artist.get(c.artist.lower(), 0) + 1
+    pool = [c for c in candidates if c.id not in taken]
+    added = 0
+    while pool and added < count:
         best, best_score = None, -math.inf
         for c in pool:
             if per_artist.get(c.artist.lower(), 0) >= max_per_artist:
@@ -115,20 +122,65 @@ def mmr_select(candidates: list[Candidate], count: int, diversity: float = 0.35,
         chosen.append(best)
         per_artist[best.artist.lower()] = per_artist.get(best.artist.lower(), 0) + 1
         pool.remove(best)
+        added += 1
     return chosen
 
 
-def order_smoothly(tracks: list[Candidate]) -> list[Candidate]:
-    """Starts with the most relevant track and always continues with the most similar remaining one, so neighbours
-    sound alike; artists are kept apart where possible."""
-    if len(tracks) < 3:
-        return list(tracks)
+def spread(candidates: list[Candidate]) -> float:
+    """How much the candidates' relevance differs (its standard deviation, never ~0): the scale «Случайность» and an
+    artist's pause are measured in, so they mean the same whatever the vector spaces."""
+    if len(candidates) < 2:
+        return 0.05
+    return max(0.01, float(np.std([c.relevance for c in candidates])))
+
+
+def adjust(candidates: list[Candidate], randomness: float = 0.0, resting: set[str] | None = None,
+           rest_penalty: float = 0.0, rng: random.Random | None = None, scale: float | None = None) -> list[Candidate]:
+    """The relevance as a mix weighs it: an artist heard lately (`resting`, lower case) lowered by `rest_penalty`
+    spreads, and random noise of `randomness` spreads added. Best first."""
+    scale = scale if scale is not None else spread(candidates)
+    rng = rng or random.Random()
+    resting = resting or set()
+    out = []
+    for c in candidates:
+        r = c.relevance
+        if c.artist.lower() in resting:
+            r -= rest_penalty * scale * 2
+        if randomness:
+            r += rng.gauss(0, randomness * scale)
+        out.append(replace(c, relevance=r))
+    out.sort(key=lambda c: -c.relevance)
+    return out
+
+
+def compose(parts: list[tuple[list[Candidate], int]], size: int, diversity: float,
+            max_per_artist: int) -> list[Candidate]:
+    """A mix of parts (new, related, known…), each `(candidates, how many)`, chosen in turn by MMR so they don't
+    repeat each other; what a part lacks is filled from all of them."""
+    chosen: list[Candidate] = []
+    for pool, count in parts:
+        chosen = mmr_select(pool, count, diversity, max_per_artist, chosen)
+    if len(chosen) < size:
+        everything = sorted((c for pool, _n in parts for c in pool), key=lambda c: -c.relevance)
+        chosen = mmr_select(everything, size - len(chosen), diversity, max_per_artist, chosen)
+    return chosen[:size]
+
+
+def arrange(tracks: list[Candidate], smooth: bool = True, artist_gap: int = 1) -> list[Candidate]:
+    """The playing order: starts with the most relevant track; each next one is the most similar remaining one
+    (`smooth`) or the most relevant, with no artist of the last `artist_gap` tracks where another is left."""
     remaining = sorted(tracks, key=lambda c: -c.relevance)
+    if len(remaining) < 3:
+        return remaining
     ordered = [remaining.pop(0)]
     while remaining:
         last = ordered[-1]
-        options = [c for c in remaining if c.artist.lower() != last.artist.lower()] or remaining
-        nxt = max(options, key=lambda c: float(np.dot(normalize(c.vector), normalize(last.vector))))
+        recent = {c.artist.lower() for c in ordered[-artist_gap:]} if artist_gap > 0 else set()
+        options = [c for c in remaining if c.artist.lower() not in recent] or remaining
+        if smooth:
+            nxt = max(options, key=lambda c: float(np.dot(normalize(c.vector), normalize(last.vector))))
+        else:
+            nxt = options[0]
         ordered.append(nxt)
         remaining.remove(nxt)
     return ordered

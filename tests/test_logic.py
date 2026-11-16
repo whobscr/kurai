@@ -7,11 +7,13 @@ import pytest
 
 from kurai import llm, outbound, security
 from kurai.jobs import window
+from kurai.recommend import mixing
 from kurai.recommend.vectors import (
     Candidate,
+    adjust,
+    arrange,
     listen_weight,
     mmr_select,
-    order_smoothly,
     taste_vector,
 )
 
@@ -49,13 +51,72 @@ def test_mmr_caps_artists_and_prefers_variety():
     assert any(c.artist == "B" for c in chosen)
 
 
-def test_order_smoothly_keeps_neighbours_close_and_artists_apart():
+def test_arrange_keeps_neighbours_close_and_artists_apart():
     tracks = [_cand(0, "A", [1, 0], 0.9), _cand(1, "A", [0.99, 0.1], 0.8), _cand(2, "B", [0.95, 0.2], 0.7),
               _cand(3, "C", [0, 1], 0.6)]
-    ordered = order_smoothly(tracks)
+    ordered = arrange(tracks)
     assert ordered[0].id == "0"
     assert ordered[1].artist != "A"  # the same artist isn't played twice in a row when avoidable
     assert len(ordered) == 4
+    # a wider gap: two others between the same artist's tracks, as long as others are left
+    many = [_cand(i, "A" if i < 2 else f"X{i}", [1, 0.01 * i], 1 - 0.01 * i) for i in range(6)]
+    order = [c.artist for c in arrange(many, smooth=False, artist_gap=3)]
+    assert order.index("A", 1) - order.index("A") >= 4
+    assert [c.id for c in arrange(tracks, smooth=False, artist_gap=0)] == ["0", "1", "2", "3"]  # by relevance
+
+
+def test_a_resting_artist_is_lowered_and_randomness_shuffles():
+    import random
+
+    pool = [_cand(i, f"Artist {i}", [1, 0.1 * i], 0.9 - 0.05 * i) for i in range(10)]
+    lowered = adjust(pool, resting={"artist 0"}, rest_penalty=1.0)
+    assert [c.id for c in lowered].index("0") > 0  # no longer first
+    assert [c.id for c in adjust(pool)] == [c.id for c in pool]  # no randomness, no pause: as it was
+    shuffled = {tuple(c.id for c in adjust(pool, randomness=1.0, rng=random.Random(seed))) for seed in range(5)}
+    assert len(shuffled) > 1
+
+
+def test_a_mix_takes_its_shares_of_new_known_and_related():
+    import random
+
+    mix = mixing.Mix("wave", {"mix.wave.new_share": 0.5, "mix.wave.related_share": 0.25, "mix.wave.randomness": 0,
+                              "mix.wave.artist_max": 5})
+    pool = [_cand(f"n{i}", f"N{i}", [1, 0.01 * i], 0.9 - 0.01 * i) for i in range(10)]
+    pool += [_cand(f"k{i}", f"K{i}", [1, 0.02 * i], 0.95 - 0.01 * i) for i in range(10)]
+    near = [_cand(f"r{i}", f"R{i}", [0, 1], 0.2) for i in range(10)]
+    known = {f"k{i}" for i in range(10)} | {"r0"}
+    chosen = mixing.assemble(pool, near, known, mix, 8, rng=random.Random(1))
+    kinds = [c.kind for c in chosen]
+    assert kinds.count("new") == 4 and kinds.count("related") == 2 and kinds.count("known") == 2
+    assert "r0" not in {c.id for c in chosen}  # the related artists' unheard tracks first
+    # no known tracks: the new ones fill their place
+    alone = mixing.assemble(pool[:10], [], set(), mix, 8, rng=random.Random(1))
+    assert len(alone) == 8 and {c.kind for c in alone} == {"new"}
+
+
+def test_mixing_parameters_are_checked():
+    assert mixing.validate("wave", {"mix.wave.new_share": 0.5, "mix.wave.related_share": 0.4}) is None
+    assert "не больше 1" in mixing.validate("wave", {"mix.wave.new_share": 0.8, "mix.wave.related_share": 0.4})
+    assert "от 1 до 20" in mixing.validate("wave", {"mix.wave.artist_max": 0})
+    assert "mix.playlists.now_weight" not in mixing.defaults()  # the wave's only
+    assert mixing.standard("playlists").taste_weight == 0.15 and mixing.standard("wave").size == 40
+
+
+def test_a_request_s_tempo_energy_and_vocals_are_checked_against_the_sound():
+    from types import SimpleNamespace
+
+    from kurai.audio.tags import fits
+
+    def track(bpm, dance, relaxed, voice=0.9):
+        return SimpleNamespace(bpm=bpm, danceability=dance, moods={"relaxed": relaxed, "party": dance,
+                                                                    "aggressive": 0.3}, voice=voice)
+
+    fast, slow = track(150, 0.8, 0.1), track(70, 0.2, 0.9)
+    assert fits(fast, bpm_min=120) is True and fits(slow, bpm_min=120) is False
+    assert fits(track(80, 0.9, 0.05), bpm_min=120) is True  # a drum-and-bass track read at half its speed
+    assert fits(slow, wanted_energy="calm") is True and fits(fast, wanted_energy="calm") is False
+    assert fits(fast, vocals="instrumental") is False and fits(track(150, 0.8, 0.1, 0.1), vocals="instrumental")
+    assert fits(None, bpm_min=120) is None and fits(fast) is None  # nothing known, nothing asked
 
 
 # ---------- the night window ----------

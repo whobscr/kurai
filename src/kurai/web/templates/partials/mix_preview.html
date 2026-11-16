@@ -1,0 +1,16 @@
+{# the preview of «Волна» / «Плейлисты» (admin.preview): the tracks in playing order, each with the part of the mix it
+   came for #}
+{% if why %}<p>{{ _("Ничего не получилось: {why}.").format(why=why) }}</p>
+{% elif not rows %}<p>{{ _("Пусто: подходящих треков нет.") }}</p>
+{% else %}
+<p class="small-text">{{ who.display_name or who.username }} · {{ _("треков: {n}").format(n=rows | length) }}
+  {% for label, n in counts.items() if n %} · {{ label }}: {{ n }}{% endfor %} · {{ seconds }} {{ _("с") }}</p>
+<table class="stripes small-text mix-preview">
+  <thead><tr><th>#</th><th>{{ _("Трек") }}</th><th>{{ _("Откуда") }}</th><th>{{ _("Близость") }}</th></tr></thead>
+  <tbody>{% for track, c, label, via in rows %}
+  <tr><td>{{ loop.index }}</td><td>{{ track.artist }} — {{ track.title }}</td>
+    <td>{{ label }}{% if via %} <span class="secondary-text">({{ _("через {a}").format(a=via) }})</span>{% endif %}</td>
+    <td>{{ "%.2f" | format(c.relevance) if c.kind != "popular" else "—" }}</td></tr>{% endfor %}</tbody>
+</table>
+<p class="small-text">{{ _("«Близость» — насколько трек подходит запросу волны или микса после паузы исполнителя и случайности; сравнивать её имеет смысл только внутри одного прогноза.") }}</p>
+{% endif %}
