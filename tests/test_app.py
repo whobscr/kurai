@@ -1053,6 +1053,8 @@ async def test_the_players_list_is_saved_as_the_users_own_playlist(client, db, n
     page = (await client.get("/music", params={"q": "queue band"})).text
     assert 'data-add="artist:Queue band"' in page and 'data-add="album:al-q"' in page
     assert 'id="player-queue"' in page and 'id="player-queue-open"' in page  # the bar's list, on every page
+    keys = page[page.index('id="player-keys"'):]  # «Клавиши»: ✕ in its header, the list in its own scrolling part
+    assert keys.index("data-close-keys") < keys.index('class="player-keys-body"')
     form = {"X-CSRF-Token": csrf_of(page)}
 
     r = await client.post("/player/save", json={"name": "  Моё  ", "track_ids": ["q2", "gone", "q0", "q2"]},

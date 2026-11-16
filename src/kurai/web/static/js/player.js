@@ -504,9 +504,15 @@
     if (current() && button && button.dataset.track) rate(button);
   };
   const showKeys = () => { if (els.keys && !els.keys.open) els.keys.showModal(); };
+  // a click outside the window closes it too: by where it landed (the dimmed page behind a modal window gets no
+  // clicks of its own, and Beer CSS hides the backdrop's)
+  const outside = (dialog, e) => {
+    const r = dialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
   document.addEventListener("click", (e) => {
-    if (e.target.closest(".player-keys-open")) showKeys();
-    if (e.target.closest("[data-close-keys]") || e.target === els.keys) els.keys.close();
+    if (e.target.closest(".player-keys-open")) { showKeys(); return; }
+    if (els.keys && els.keys.open && (e.target.closest("[data-close-keys]") || outside(els.keys, e))) els.keys.close();
   });
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || typing(e.target)) return;

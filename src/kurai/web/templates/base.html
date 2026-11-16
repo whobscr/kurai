@@ -132,8 +132,13 @@
     <p class="small-text player-queue-empty" id="player-queue-empty">{{ _("Пусто. Найдите музыку в «Музыке» и нажмите «В очередь» — или включите «Мою волну».") }}</p>
   </dialog>
   {# the keys (player.js, kurai.js); opened by «?» or the bar's button #}
-  <dialog class="player-keys" id="player-keys">
-    <h6>{{ _("Клавиши") }}</h6>
+  {# the header and «Понятно» stay; only the list scrolls (a shadow says there's more), a click outside closes it #}
+  <dialog class="player-keys" id="player-keys" aria-labelledby="player-keys-title">
+    <header class="row">
+      <h6 class="max" id="player-keys-title">{{ _("Клавиши") }}</h6>
+      <button type="button" class="circle transparent" data-close-keys title="{{ _('Закрыть') }}"><i>close</i></button>
+    </header>
+    <div class="player-keys-body">
     <table class="small-text"><tbody>
       {% for keys, what in ((_("Пробел") ~ " " ~ _("или") ~ " K", _("играть / пауза")),
                             ("→ / ←", _("перемотать на 10 секунд")),
@@ -148,6 +153,7 @@
       <tr><td><kbd>{{ keys }}</kbd></td><td>{{ what }}</td></tr>{% endfor %}
     </tbody></table>
     <p class="small-text">{{ _("Клавиши не действуют, пока курсор в поле ввода. Раскладка не важна.") }}</p>
+    </div>
     <nav class="right-align"><button type="button" class="round" data-close-keys>{{ _("Понятно") }}</button></nav>
   </dialog>
 {% endblock %}

@@ -332,7 +332,20 @@ footer.player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto a
 #player-prev { grid-area: prev; margin: 0; }
 /* repeat: lit while on; «repeat_one» says it's the track */
 .player-repeat.on { color: var(--primary); background: var(--primary-container); }
-dialog.player-keys { inline-size: min(34rem, 94vw); }
+dialog.player-keys { inline-size: min(34rem, 94vw); display: flex; flex-direction: column; gap: .5rem;
+  overflow: hidden; max-block-size: min(80vh, 40rem); }
+dialog.player-keys header { padding: 0; min-block-size: 0; flex: none; }
+dialog.player-keys h6 { margin: 0; }
+dialog.player-keys nav { flex: none; margin: 0; }
+/* the list scrolls; a shadow at an edge says there's more that way (the covers move with the text, the shadows stay) */
+.player-keys-body { flex: 1; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain;
+  background:
+    linear-gradient(var(--surface-container-high) 30%, transparent) top / 100% 2.5rem no-repeat local,
+    linear-gradient(transparent, var(--surface-container-high) 70%) bottom / 100% 2.5rem no-repeat local,
+    radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--on-surface) 30%, transparent), transparent)
+      top / 100% .8rem no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--on-surface) 30%, transparent), transparent)
+      bottom / 100% .8rem no-repeat scroll; }
 dialog.player-keys td { padding: .35rem .5rem; vertical-align: top; }
 dialog.player-keys kbd { white-space: nowrap; font-family: inherit; font-weight: 600; }
 /* «Волна» and «Плейлисты»: the fine parameters folded */
