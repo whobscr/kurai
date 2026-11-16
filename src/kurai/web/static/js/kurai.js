@@ -53,14 +53,25 @@
       || !(prompt || (phone && worker));
   }
 
+  // ---------- floating labels: up while the field has focus or text. Beer CSS finds the label as the element right
+  // after the field (`:focus + label`); a browser extension that puts its own element there (Grammarly does, on
+  // focus) left the label lying over the text. The label is marked here instead, wherever it stands ----------
+  function floatLabel(el, focused = document.activeElement === el) {
+    const field = el.closest(".field.label");
+    const label = field && field.querySelector(":scope > label");
+    if (!label || !el.matches("input, textarea")) return;
+    const up = focused || el.value !== "";
+    label.classList.toggle("active", up);
+    el.classList.toggle("active", up);  // the outline's gap for the label
+  }
+  document.addEventListener("focusin", (e) => floatLabel(e.target, true));
+  document.addEventListener("focusout", (e) => floatLabel(e.target, false));
+  document.addEventListener("input", (e) => floatLabel(e.target));
+
   // ---------- each page's pieces (run at load and after every move to another page) ----------
   function init(root) {
-    // floating labels: Beer CSS keeps a label up over a filled field by its placeholder (an empty one is enough), but
-    // gives one to a multi-line field only in some browsers (not Chrome on a computer): there the label fell back over
-    // the text as soon as the field lost focus. Every labelled field gets one here, the ones of later pages too
-    root.querySelectorAll(".field.label > :is(input, textarea):not([placeholder])").forEach((el) => {
-      el.placeholder = " ";
-    });
+    // floating labels of the fields already filled when the page opens (see «floating labels» below)
+    root.querySelectorAll(".field.label > :is(input, textarea)").forEach((el) => floatLabel(el));
 
     // the band's light / dark switch: the other mode at once, remembered for the account
     const modeToggle = root.querySelector("#mode-toggle");

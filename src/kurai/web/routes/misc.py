@@ -44,7 +44,7 @@ async def manifest():
                    "purpose": "maskable"},
                   {"src": "/static/icons/logo.svg", "sizes": "any", "type": "image/svg+xml"}],
         # «Поделиться» from another app: /share sends it on (main.py)
-        "share_target": {"action": "/share", "method": "GET",
+        "share_target": {"action": "/share", "method": "GET", "enctype": "application/x-www-form-urlencoded",
                          "params": {"title": "title", "text": "text", "url": "url"}},
     }, media_type="application/manifest+json")
 
