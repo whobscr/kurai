@@ -1,0 +1,11 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- the sun setting into the sea, its rays a sound wave, a sail far off -->
+  <circle class="tc" cx="350" cy="96" r="54"/>
+  <g class="line-tc" stroke-width="4" opacity=".7">
+    <path d="M270 40 v14 M282 30 v34 M294 20 v54 M406 20 v54 M418 30 v34 M430 40 v14"/></g>
+  <path class="pc" d="M0 112 C60 104 120 104 170 106 C170 106 200 120 250 110 C300 100 330 120 380 110 C420 102 450 116 480 108 V160 H0 Z" opacity=".55"/>
+  <path class="pc" d="M0 132 C60 126 110 136 160 130 C210 122 240 138 290 130 C340 122 370 138 420 130 C444 126 464 132 480 130 V160 H0 Z" opacity=".9"/>
+  <g class="line-op" stroke-width="3" opacity=".6"><path d="M300 120 h40 M320 140 h60 M380 120 h22"/></g>
+  <path class="op" d="M222 104 L222 76 L238 102 Z" opacity=".85"/><path class="t" d="M214 106 h28 l-4 6 h-20 Z"/>
+  <g class="op" opacity=".5"><circle cx="180" cy="50" r="2.5"/><circle cx="460" cy="30" r="2"/></g>
+</svg>

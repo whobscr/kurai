@@ -1,0 +1,12 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a harp among tall grass and mushrooms -->
+  <path class="pc" d="M0 160 C120 146 260 140 480 146 V160 Z" opacity=".45"/>
+  <path class="tc" d="M290 150 L300 26 C330 20 360 40 380 60 C396 76 410 74 420 66 L414 92 C396 100 380 92 362 80 C348 72 330 70 318 80 L310 150 Z"/>
+  <path class="t" d="M286 150 L296 22 L306 22 L298 152 Z"/>
+  <g class="line-op" stroke-width="1.6" opacity=".8"><path d="M310 40 V146 M322 42 V138 M334 46 V130 M346 54 V122 M358 62 V114 M370 70 V106 M382 76 V100 M394 82 V96"/></g>
+  <rect class="t" x="280" y="146" width="36" height="8" rx="4"/>
+  <g transform="translate(220 128)"><rect class="op" x="-4" y="0" width="8" height="18" rx="4" opacity=".9"/><path class="t" d="M-16 2 a16 12 0 0 1 32 0 Z"/></g>
+  <g transform="translate(244 140)"><rect class="op" x="-3" y="0" width="6" height="10" rx="3" opacity=".9"/><path class="tc" d="M-10 2 a10 8 0 0 1 20 0 Z"/></g>
+  <g class="line-pc" stroke-width="3" opacity=".8"><path d="M440 160 C438 140 432 126 424 116 M456 160 C458 140 462 128 470 118 M196 160 C194 148 190 140 184 134"/></g>
+  <g class="op" opacity=".5"><circle cx="240" cy="50" r="2.5"/><circle cx="440" cy="40" r="2"/></g>
+</svg>

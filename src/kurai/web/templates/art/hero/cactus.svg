@@ -1,0 +1,14 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a desert evening: cacti, a pair of maracas, a big sun -->
+  <circle class="tc" cx="400" cy="70" r="44" opacity=".85"/>
+  <path class="pc" d="M0 160 C120 140 260 128 480 134 V160 Z" opacity=".6"/>
+  <g class="t"><rect x="310" y="54" width="22" height="96" rx="11"/><path d="M310 104 h-14 a8 8 0 0 1 -8 -8 v-22 a6 6 0 0 1 12 0 v18 h10 Z"/>
+    <path d="M332 92 h12 a8 8 0 0 0 8 -8 v-18 a6 6 0 0 0 -12 0 v14 h-8 Z"/></g>
+  <circle class="op" cx="321" cy="52" r="6" opacity=".9"/>
+  <g class="tc"><rect x="430" y="96" width="16" height="50" rx="8"/><path d="M446 116 h8 a6 6 0 0 0 6 -6 v-10 a5 5 0 0 0 -10 0 v8 h-4 Z"/></g>
+  <g transform="rotate(-25 230 110)"><ellipse class="tc" cx="230" cy="96" rx="13" ry="17"/><rect class="op" x="227" y="110" width="6" height="30" rx="3" opacity=".9"/>
+    <path class="line-t" d="M220 92 h20 M219 100 h22" stroke-width="2.5"/></g>
+  <g transform="rotate(20 262 112)"><ellipse class="pc" cx="262" cy="98" rx="12" ry="16"/><rect class="op" x="259" y="111" width="6" height="28" rx="3" opacity=".9"/>
+    <path class="line-t" d="M253 94 h18 M252 102 h20" stroke-width="2.5"/></g>
+  <g class="line-op" stroke-width="2.5" opacity=".6"><path d="M206 74 l-8 -8 M244 64 v-12 M282 74 l8 -8"/></g>
+</svg>

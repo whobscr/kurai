@@ -1,0 +1,23 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a cat in big headphones on a windowsill, the evening city outside -->
+  <rect class="tc" x="300" y="30" width="270" height="270" rx="24" opacity=".75"/>
+  <g class="p" opacity=".25"><rect x="320" y="180" width="40" height="120"/><rect x="366" y="140" width="50" height="160"/><rect x="424" y="200" width="36" height="100"/>
+    <rect x="466" y="160" width="48" height="140"/><rect x="520" y="210" width="40" height="90"/></g>
+  <circle class="t" cx="510" cy="90" r="24" opacity=".7"/>
+  <path class="line-s" d="M435 30 V300 M300 165 H570" stroke-width="8"/>
+  <rect class="se" x="280" y="296" width="310" height="16" rx="8"/>
+  <!-- a pot plant -->
+  <path class="t" d="M310 296 h40 l-6 -36 h-28 Z"/>
+  <g class="p"><path d="M330 262 c-14-28 -10-50 4-56 c6 20 4 40 -4 56 Z"/><path d="M330 262 c10-24 30-34 40-24 c-8 14 -22 22 -40 24 Z"/><path d="M330 262 c-16-14 -34-10 -38 0 c12 6 26 6 38 0 Z"/></g>
+  <!-- the cat, sitting with its back half turned, tail down the sill -->
+  <path class="ink" opacity=".8" d="M420 296 C410 260 420 220 446 210 C474 204 494 230 492 296 Z"/>
+  <path class="ink" opacity=".8" d="M480 296 C510 300 520 320 512 352 C508 362 498 360 500 350 C506 330 500 312 484 308 Z"/>
+  <path class="ink" opacity=".8" d="M436 196 L432 160 L452 176 L476 174 L494 156 L492 194 C494 214 476 226 462 226 C446 226 436 214 436 196 Z"/>
+  <path class="line-t" d="M428 196 C424 150 504 146 500 194" stroke-width="7"/>
+  <rect class="t" x="420" y="184" width="18" height="28" rx="8"/><rect class="t" x="492" y="182" width="18" height="28" rx="8"/>
+  <g class="tc"><ellipse cx="454" cy="196" rx="4" ry="3"/><ellipse cx="476" cy="196" rx="4" ry="3"/></g>
+  <!-- what it hears -->
+  <g class="p"><circle cx="370" cy="110" r="8"/><rect x="374.5" y="72" width="4.5" height="40" rx="2.25"/><circle cx="396" cy="102" r="8"/><rect x="400.5" y="64" width="4.5" height="40" rx="2.25"/>
+    <rect x="374.5" y="66" width="30" height="7" rx="3" transform="rotate(-14 375 69)"/></g>
+  <path class="p" opacity=".16" d="M0 400 V312 H600 V400 Z"/>
+</svg>

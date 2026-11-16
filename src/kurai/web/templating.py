@@ -69,6 +69,28 @@ def _plugin_globals() -> None:
 # a login scene is a pair of pictures, «<name>-left.svg» and «<name>-right.svg», joined by a line across the form
 LOGIN_SCENES = sorted(p.stem.removesuffix("-left") for p in (ROOT / "templates" / "art" / "login").glob("*-left.svg"))
 DOODLES = sorted(p.stem for p in (ROOT / "templates" / "art" / "doodles").glob("*.svg"))
+# the pictures that take turns: «Моя волна»'s card (wave) and every page's band (hero); a picture is an SVG or, for
+# Material's shapes, a bit of HTML
+ART_POOLS = {pool: sorted(p.name for p in (ROOT / "templates" / "art" / pool).iterdir()
+                          if p.suffix in (".svg", ".html"))
+             for pool in ("wave", "hero")}
+
+
+def art_hours(values: dict[str, Any]) -> dict[str, float]:
+    """How often each pool turns to its next picture (the settings `ui.<pool>_art_hours`)."""
+    return {pool: values[f"ui.{pool}_art_hours"] for pool in ART_POOLS}
+
+
+def art(pool: str, hours: float, now: datetime | None = None) -> str:
+    """The pool's picture now, the same for everyone: it changes every `hours`, counted in the server's time (a daily
+    one changes at midnight); each round shows every picture once, in an order shuffled anew each round."""
+    now = (now or datetime.now()).astimezone()
+    turn = int((now.timestamp() + now.utcoffset().total_seconds()) // (hours * 3600))
+    round_, place = divmod(turn, len(ART_POOLS[pool]))
+    names = list(ART_POOLS[pool])
+    random.Random(f"{pool}:{round_}").shuffle(names)
+    return f"art/{pool}/{names[place]}"
+
 
 def qr_svg(data: str) -> Markup:
     """A QR code as inline SVG (the TOTP setup): black on white in both modes, which every scanner reads."""
@@ -84,6 +106,7 @@ def render(request: Request, name: str, ctx=None, status_code: int = 200, **valu
     values.setdefault("accent", (user.accent_color if user and user.accent_color else None)
                       or request.app.state.default_accent)
     values.setdefault("mode", user.theme_mode if user else "auto")
+    values.setdefault("hero_art", art("hero", request.app.state.art_hours["hero"]))
     values.update(user=user, csrf=ctx.csrf if ctx else "", path=request.url.path)
     return templates.TemplateResponse(request, name, values, status_code=status_code)
 

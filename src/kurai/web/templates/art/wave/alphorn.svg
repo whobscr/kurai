@@ -1,0 +1,19 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- mountains, a long horn on a meadow, its sound echoing between the peaks -->
+  <path class="p" opacity=".22" d="M180 330 L300 120 L360 210 L430 80 L560 330 Z"/>
+  <path class="tc" d="M300 120 L280 156 L298 150 L312 162 L320 140 Z M430 80 L408 120 L428 112 L444 124 L452 110 Z"/>
+  <path class="t" opacity=".25" d="M380 330 L500 160 L620 330 Z"/>
+  <path class="line-t" d="M330 200 a40 40 0 0 1 56 0 M318 184 a60 60 0 0 1 80 0" stroke-width="5" opacity=".6"/>
+  <path class="p" opacity=".16" d="M0 400 V320 C160 300 400 300 600 316 V400 Z"/>
+  <!-- the player in a hat -->
+  <path class="se" d="M492 344 L496 288 C488 266 494 246 510 242 C526 240 534 254 532 288 L536 344 Z"/>
+  <circle class="tc" cx="512" cy="222" r="16"/><path class="t" d="M490 214 h44 l-6 -6 c-2 -12 -28 -12 -32 0 Z"/>
+  <path class="line-s" d="M500 262 L470 270 M524 262 L476 280" stroke-width="9"/>
+  <!-- the horn, from the mouth down to the ground far left -->
+  <path class="line-t" d="M496 228 L470 254 L260 350" stroke-width="7"/>
+  <path class="t" d="M262 330 C240 336 226 352 232 366 L270 360 C266 352 264 342 262 330 Z"/>
+  <g class="tc" opacity=".8"><path d="M360 300 l3 6 6 3 -6 3 -3 6 -3 -6 -6 -3 6 -3 Z"/></g>
+  <g class="p"><circle cx="220" cy="230" r="8"/><rect x="224.5" y="192" width="4.5" height="40" rx="2.25"/></g>
+  <path class="line" d="M227 193 q16 5 14 22" stroke-width="5"/>
+  <g class="t"><path d="M560 380 c-4-12 6-18 12-10 c6-8 16-2 12 10 Z"/><path d="M200 380 c-4-10 6-14 10-8 c4-6 14-2 10 8 Z"/></g>
+</svg>

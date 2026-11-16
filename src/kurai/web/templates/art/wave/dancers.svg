@@ -1,0 +1,26 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- two people dancing under a string of lights -->
+  <path class="line-ink" d="M200 40 Q380 140 600 50" stroke-width="2" opacity=".35"/>
+  <g class="t"><circle cx="250" cy="70" r="8"/><circle cx="350" cy="100" r="8"/><circle cx="450" cy="100" r="8"/><circle cx="550" cy="70" r="8"/></g>
+  <g class="tc"><circle cx="300" cy="88" r="8"/><circle cx="400" cy="104" r="8"/><circle cx="500" cy="88" r="8"/></g>
+  <g class="tc" opacity=".35"><circle cx="300" cy="88" r="18"/><circle cx="400" cy="104" r="18"/><circle cx="500" cy="88" r="18"/></g>
+  <path class="p" opacity=".16" d="M0 400 V340 C200 326 400 326 600 336 V400 Z"/>
+  <ellipse class="p" cx="420" cy="350" rx="110" ry="10" opacity=".15"/>
+  <!-- the one in a skirt spinning out, holding hands -->
+  <circle class="tc" cx="370" cy="186" r="17"/><path class="t" d="M352 180 c0-20 36-22 36 0 c0 8 -4 10 -6 12 c0-12 -24-14 -30 -12 Z"/>
+  <path class="t" d="M362 206 C356 230 354 250 358 262 H392 C396 248 392 226 384 206 Z"/>
+  <path class="t" d="M358 256 C330 280 320 310 330 320 C360 316 400 318 430 310 C426 290 410 270 392 256 Z"/>
+  <path class="line" d="M362 330 L356 352 M388 326 L398 352" stroke-width="9"/>
+  <path class="line" d="M366 218 C340 206 328 186 322 164" stroke-width="9"/>
+  <path class="line" d="M386 222 L420 236" stroke-width="9"/>
+  <!-- the other one, in a suit, leaning in -->
+  <circle class="tc" cx="470" cy="178" r="18"/><path class="se" d="M452 172 c0-18 36-20 36 0 c-12-6 -24-6 -36 0 Z"/>
+  <path class="se" d="M450 200 C440 230 440 260 446 280 H496 C500 256 496 226 486 200 Z"/>
+  <path class="line-ink" d="M456 280 L446 350 M486 280 L500 350" stroke-width="13" opacity=".75"/>
+  <path class="line-ink" d="M456 214 L424 236" stroke-width="10" opacity=".75"/>
+  <path class="line-ink" d="M484 214 C500 190 498 170 488 158" stroke-width="10" opacity=".55"/>
+  <!-- notes -->
+  <g class="p"><circle cx="280" cy="230" r="9"/><rect x="285" y="190" width="5" height="42" rx="2.5"/></g>
+  <path class="line" d="M288 191 q18 5 16 24" stroke-width="5"/>
+  <g class="t" opacity=".6"><circle cx="250" cy="300" r="4"/><circle cx="560" cy="250" r="4"/><circle cx="540" cy="160" r="3"/></g>
+</svg>

@@ -1,0 +1,15 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a round tree whose leaves are notes, two of them falling -->
+  <path class="pc" d="M180 160 C260 138 400 136 480 146 V160 Z" opacity=".35"/>
+  <path class="line-pc" d="M330 160 C328 130 326 112 330 96 M328 128 C318 118 306 114 296 114 M330 116 C342 104 352 100 362 98" stroke-width="7" opacity=".9"/>
+  <circle class="tc" cx="330" cy="64" r="52" opacity=".9"/>
+  <circle class="pc" cx="290" cy="80" r="30" opacity=".85"/><circle class="pc" cx="372" cy="78" r="28" opacity=".7"/>
+  <g class="t"><circle cx="314" cy="50" r="6"/><rect x="318" y="28" width="3" height="23" rx="1.5"/>
+    <circle cx="346" cy="40" r="6"/><rect x="350" y="18" width="3" height="23" rx="1.5"/><rect x="318" y="26" width="35" height="5" rx="2.5" transform="rotate(-17 318 28)"/>
+    <circle cx="296" cy="84" r="5"/><rect x="299.5" y="66" width="3" height="19" rx="1.5"/>
+    <circle cx="372" cy="74" r="5"/><rect x="375.5" y="56" width="3" height="19" rx="1.5"/></g>
+  <g class="op" opacity=".8"><circle cx="240" cy="110" r="5"/><rect x="243.5" y="92" width="3" height="19" rx="1.5"/>
+    <circle cx="420" cy="128" r="5"/><rect x="423.5" y="110" width="3" height="19" rx="1.5"/></g>
+  <path class="line-op" d="M246.5 93 q10 3 9 14" stroke-width="3" opacity=".8"/>
+  <g class="op" opacity=".45"><circle cx="200" cy="44" r="2.5"/><circle cx="450" cy="90" r="2"/></g>
+</svg>

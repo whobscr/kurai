@@ -1,0 +1,19 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a bed of tulips, a note drifting out of one of them -->
+  <path class="pc" d="M0 160 C120 140 330 118 480 132 V160 Z" opacity=".35"/>
+  <g class="line-pc" stroke-width="5" opacity=".9">
+    <path d="M200 160 C198 130 204 110 210 96"/><path d="M250 160 C252 128 246 100 240 78"/>
+    <path d="M300 160 C298 134 306 116 316 104"/><path d="M350 160 C352 126 346 100 342 86"/>
+    <path d="M400 160 C398 136 402 120 410 110"/>
+  </g>
+  <g class="pc" opacity=".9"><path d="M226 140 C240 120 262 118 270 122 C258 130 244 138 226 140 Z"/>
+    <path d="M330 146 C318 128 300 124 290 128 C302 136 316 142 330 146 Z"/></g>
+  <path class="tc" d="M198 96 C196 76 202 66 210 62 C218 66 224 76 222 96 C216 102 204 102 198 96 Z"/>
+  <path class="t" d="M228 78 C226 54 234 44 240 40 L246 52 L252 40 C258 44 264 56 254 78 C248 84 234 84 228 78 Z"/>
+  <path class="tc" d="M304 104 C300 84 308 74 316 70 C324 74 330 84 328 104 C322 110 310 110 304 104 Z" opacity=".8"/>
+  <path class="op" d="M330 86 C328 64 336 54 342 50 L348 62 L354 50 C360 54 366 66 356 86 C350 92 336 92 330 86 Z" opacity=".85"/>
+  <path class="tc" d="M398 110 C394 92 402 82 410 78 C418 82 424 92 422 110 C416 116 404 116 398 110 Z"/>
+  <g class="tc"><circle cx="276" cy="34" r="7"/><rect x="281" y="6" width="3.5" height="29" rx="1.75"/></g>
+  <path class="line-tc" d="M283 7 q14 4 12 18" stroke-width="3.5"/>
+  <g class="op" opacity=".5"><circle cx="160" cy="60" r="2.5"/><circle cx="440" cy="66" r="3"/><circle cx="380" cy="40" r="2"/></g>
+</svg>

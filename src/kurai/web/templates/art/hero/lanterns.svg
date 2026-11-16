@@ -1,0 +1,13 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a garland of paper lanterns, notes swinging between them -->
+  <path class="line-op" d="M140 20 Q300 90 480 30" stroke-width="2" opacity=".6"/>
+  <g transform="translate(200 46)"><path class="line-op" d="M0 0 v8" stroke-width="2" opacity=".6"/><ellipse class="tc" cx="0" cy="24" rx="14" ry="17"/><rect class="t" x="-6" y="5" width="12" height="4" rx="2"/></g>
+  <g transform="translate(262 62)"><path class="line-op" d="M0 0 v8" stroke-width="2" opacity=".6"/><ellipse class="pc" cx="0" cy="26" rx="16" ry="19"/><rect class="t" x="-6" y="5" width="12" height="4" rx="2"/></g>
+  <g transform="translate(330 64)"><path class="line-op" d="M0 0 v8" stroke-width="2" opacity=".6"/><ellipse class="t" cx="0" cy="24" rx="14" ry="17"/><rect class="tc" x="-6" y="5" width="12" height="4" rx="2"/></g>
+  <g transform="translate(396 52)"><path class="line-op" d="M0 0 v8" stroke-width="2" opacity=".6"/><ellipse class="tc" cx="0" cy="26" rx="16" ry="19"/><rect class="t" x="-6" y="5" width="12" height="4" rx="2"/></g>
+  <g transform="translate(452 36)"><path class="line-op" d="M0 0 v8" stroke-width="2" opacity=".6"/><ellipse class="pc" cx="0" cy="24" rx="14" ry="17"/><rect class="t" x="-6" y="5" width="12" height="4" rx="2"/></g>
+  <g class="op" opacity=".85"><circle cx="292" cy="134" r="5"/><rect x="295.5" y="116" width="3" height="19" rx="1.5"/>
+    <circle cx="364" cy="124" r="5"/><rect x="367.5" y="106" width="3" height="19" rx="1.5"/></g>
+  <path class="line-op" d="M298.5 117 q10 3 9 14" stroke-width="3" opacity=".85"/>
+  <g class="tc" opacity=".6"><circle cx="230" cy="130" r="3"/><circle cx="430" cy="128" r="2.5"/></g>
+</svg>

@@ -1,0 +1,22 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- someone in headphones on a park bench, eyes closed, leaves falling -->
+  <path class="se" d="M540 340 V180 h14 V340 Z"/><circle class="t" cx="548" cy="140" r="70" opacity=".85"/><circle class="p" cx="500" cy="180" r="40" opacity=".55"/>
+  <path class="se" d="M260 340 V220 h10 V340 Z"/><circle class="p" cx="266" cy="190" r="46" opacity=".55"/>
+  <path class="p" opacity=".16" d="M0 400 V336 C200 326 400 326 600 334 V400 Z"/>
+  <!-- the bench -->
+  <rect class="se" x="330" y="296" width="190" height="12" rx="4"/><rect class="se" x="330" y="256" width="190" height="10" rx="4"/><rect class="se" x="330" y="272" width="190" height="10" rx="4"/>
+  <path class="line-ink" d="M344 308 V346 M506 308 V346" stroke-width="7" opacity=".6"/>
+  <!-- the listener -->
+  <path class="t" d="M408 300 C402 260 410 226 430 220 C450 218 460 236 458 300 Z"/>
+  <path class="line-t" d="M420 300 H380 L384 346 M446 300 H408 L410 346" stroke-width="14"/>
+  <circle class="tc" cx="434" cy="196" r="18"/><path class="t" d="M416 194 c-2-22 36-26 36 -4 c-8-8 -28-8 -36 4 Z"/>
+  <path class="line-ink" d="M440 200 q4 3 8 0" stroke-width="2.5" opacity=".7"/>
+  <path class="line-ink" d="M414 196 C412 168 456 168 454 196" stroke-width="5" opacity=".8"/>
+  <rect class="p" x="408" y="188" width="10" height="18" rx="5"/><rect class="p" x="450" y="188" width="10" height="18" rx="5"/>
+  <path class="line-t" d="M420 236 C440 260 460 262 470 260" stroke-width="9"/>
+  <!-- falling leaves and the music -->
+  <g class="t"><path d="M330 150 c10-10 22-6 22 4 c-10 6 -18 4 -22 -4 Z"/><path d="M300 260 c8-10 20-6 18 4 c-8 4 -14 2 -18 -4 Z"/></g>
+  <g class="tc"><path d="M480 240 c8-10 20-6 18 4 c-8 4 -14 2 -18 -4 Z"/></g>
+  <g class="p"><circle cx="370" cy="120" r="8"/><rect x="374.5" y="82" width="4.5" height="40" rx="2.25"/><circle cx="396" cy="110" r="8"/><rect x="400.5" y="72" width="4.5" height="40" rx="2.25"/>
+    <rect x="374.5" y="76" width="30" height="7" rx="3" transform="rotate(-18 375 79)"/></g>
+</svg>

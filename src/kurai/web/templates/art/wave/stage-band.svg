@@ -1,0 +1,27 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a little band on a stage: a singer, a bass player, a keyboard, beams of light -->
+  <g class="tc" opacity=".55"><path d="M300 0 L270 330 H350 Z"/><path d="M450 0 L400 330 H500 Z"/><path d="M590 0 L540 330 H620 Z"/></g>
+  <g class="t"><rect x="292" y="0" width="16" height="14" rx="4"/><rect x="442" y="0" width="16" height="14" rx="4"/><rect x="582" y="0" width="16" height="14" rx="4"/></g>
+  <rect class="se" x="200" y="330" width="420" height="20" rx="4"/>
+  <path class="p" opacity=".16" d="M0 400 V350 H600 V400 Z"/>
+  <!-- the keyboard player, left -->
+  <rect class="ink" x="250" y="270" width="100" height="12" rx="3" opacity=".8"/><path class="line-ink" d="M262 282 L272 330 M338 282 L328 330" stroke-width="5" opacity=".6"/>
+  <path class="p" d="M282 270 C280 240 286 226 302 222 C318 220 326 232 324 270 Z"/><circle class="tc" cx="304" cy="204" r="14"/>
+  <path class="p" d="M290 200 c0-18 30-18 30 0 l-2 10 c-4-10 -22-10 -26 0 Z"/>
+  <path class="line" d="M290 238 L276 264 M318 238 L330 264" stroke-width="8"/>
+  <!-- the singer in the middle, at the microphone -->
+  <path class="line-ink" d="M410 200 L410 330 M394 330 h32" stroke-width="4" opacity=".7"/><rect class="ink" x="403" y="190" width="14" height="22" rx="7" opacity=".8"/>
+  <path class="t" d="M430 330 L436 260 C426 236 432 214 448 208 C466 206 474 222 470 260 L476 330 H462 L456 284 H450 L446 330 Z"/>
+  <circle class="tc" cx="450" cy="186" r="16"/><path class="t" d="M434 186 c-6 -26 34 -30 34 -4 c0 10 4 20 8 26 c-12 0 -18 -10 -18 -22 c-8 2 -18 0 -24 0 Z"/>
+  <path class="line-t" d="M440 226 L418 206" stroke-width="9"/>
+  <path class="line-t" d="M466 226 C484 210 490 190 494 172" stroke-width="9"/>
+  <!-- the bass player, right -->
+  <path class="se" d="M528 330 L532 262 C524 238 530 218 546 214 C562 212 570 226 568 262 L572 330 Z"/>
+  <circle class="tc" cx="550" cy="192" r="15"/><path class="se" d="M536 186 c4-16 26-16 30 0 Z"/>
+  <g transform="rotate(-35 548 270)"><path class="p" d="M520 270 c0-14 14-20 24-14 c8-6 22 0 22 14 c0 14 -14 20 -22 14 c-10 6 -24 0 -24 -14 Z"/>
+    <rect class="p" x="562" y="266" width="70" height="8" rx="3"/></g>
+  <path class="line-s" d="M538 236 L548 270" stroke-width="9"/>
+  <!-- notes going up with the light -->
+  <g class="p"><circle cx="380" cy="110" r="8"/><rect x="384.5" y="72" width="4.5" height="40" rx="2.25"/><circle cx="510" cy="96" r="8"/><rect x="514.5" y="58" width="4.5" height="40" rx="2.25"/></g>
+  <path class="line" d="M517 59 q16 5 14 22" stroke-width="5"/>
+</svg>

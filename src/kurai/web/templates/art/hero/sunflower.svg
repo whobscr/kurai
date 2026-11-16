@@ -1,0 +1,18 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a sunflower wearing headphones, a bee listening in -->
+  <path class="pc" d="M0 160 C140 150 300 146 480 150 V160 Z" opacity=".45"/>
+  <path class="line-pc" d="M340 160 C340 130 336 110 340 92" stroke-width="7"/>
+  <path class="pc" d="M338 130 c-20-14 -36-6 -40 4 c16 6 30 4 40 -4 Z M342 118 c18-14 34-8 38 2 c-14 6 -28 6 -38 -2 Z"/>
+  <g class="tc" transform="translate(340 60)">
+    <ellipse rx="9" ry="22" transform="rotate(0)  translate(0 -24)"/><ellipse rx="9" ry="22" transform="rotate(45) translate(0 -24)"/>
+    <ellipse rx="9" ry="22" transform="rotate(90) translate(0 -24)"/><ellipse rx="9" ry="22" transform="rotate(135) translate(0 -24)"/>
+    <ellipse rx="9" ry="22" transform="rotate(180) translate(0 -24)"/><ellipse rx="9" ry="22" transform="rotate(225) translate(0 -24)"/>
+    <ellipse rx="9" ry="22" transform="rotate(270) translate(0 -24)"/><ellipse rx="9" ry="22" transform="rotate(315) translate(0 -24)"/></g>
+  <circle class="t" cx="340" cy="60" r="22"/>
+  <g class="tc" opacity=".6"><circle cx="334" cy="54" r="2.5"/><circle cx="346" cy="56" r="2.5"/><circle cx="338" cy="66" r="2.5"/><circle cx="350" cy="68" r="2"/><circle cx="328" cy="64" r="2"/></g>
+  <path class="line-op" d="M300 62 C300 8 380 8 380 62" stroke-width="5"/>
+  <rect class="op" x="290" y="50" width="16" height="26" rx="8"/><rect class="op" x="374" y="50" width="16" height="26" rx="8"/>
+  <g transform="translate(250 50)"><ellipse class="tc" rx="11" ry="8"/><path class="line-t" d="M-4 -7 v14 M3 -7 v14" stroke-width="3"/>
+    <ellipse class="op" cx="-2" cy="-10" rx="6" ry="4" opacity=".7"/><ellipse class="op" cx="5" cy="-11" rx="6" ry="4" opacity=".7"/></g>
+  <path class="line-op" d="M236 56 c-10 6 -20 -6 -30 2 c-8 6 -16 0 -22 4" stroke-width="2" stroke-dasharray="4 6" opacity=".6"/>
+</svg>

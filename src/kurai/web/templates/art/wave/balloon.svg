@@ -1,0 +1,20 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a hot air balloon drifting over hills, notes trailing behind like birds -->
+  <g class="tc" opacity=".9"><path d="M260 110 c0-16 24-20 30-8 c6-14 34-12 36 4 c14 0 18 18 4 20 h-62 c-12 0 -14 -12 -8 -16 Z"/>
+    <path d="M520 220 c0-12 18-14 22-6 c4-10 26-8 26 4 c10 0 12 14 2 14 h-44 c-8 0 -10 -8 -6 -12 Z"/></g>
+  <path class="p" opacity=".16" d="M0 400 V320 C120 290 220 300 320 320 C420 340 520 300 600 290 V400 Z"/>
+  <path class="t" opacity=".14" d="M0 400 V360 C140 340 300 360 420 360 C500 360 560 348 600 340 V400 Z"/>
+  <!-- the balloon -->
+  <path class="p" d="M450 40 C510 40 540 84 540 124 C540 170 494 206 474 232 H426 C406 206 360 170 360 124 C360 84 390 40 450 40 Z"/>
+  <path class="t" d="M450 40 C474 40 490 84 490 124 C490 170 470 206 462 232 H438 C430 206 410 170 410 124 C410 84 426 40 450 40 Z"/>
+  <path class="tc" d="M450 40 C456 40 462 84 462 124 C462 170 454 206 452 232 H448 C446 206 438 170 438 124 C438 84 444 40 450 40 Z"/>
+  <path class="line-ink" d="M428 234 L432 262 M472 234 L468 262" stroke-width="2.5" opacity=".6"/>
+  <rect class="se" x="428" y="260" width="44" height="32" rx="6"/>
+  <circle class="tc" cx="450" cy="250" r="9"/>
+  <!-- notes trailing -->
+  <g class="se"><circle cx="330" cy="200" r="7"/><rect x="334" y="168" width="4" height="34" rx="2"/></g>
+  <g class="t"><circle cx="290" cy="230" r="8"/><rect x="294.5" y="192" width="4.5" height="40" rx="2.25"/></g>
+  <path class="line-t" d="M297 193 q16 5 14 22" stroke-width="5"/>
+  <g class="p"><circle cx="240" cy="190" r="7"/><rect x="244" y="158" width="4" height="34" rx="2"/></g>
+  <path class="line" d="M400 250 C370 250 360 220 340 214" stroke-width="3" stroke-dasharray="4 10" opacity=".6"/>
+</svg>

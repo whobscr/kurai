@@ -1,0 +1,27 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- friends by a campfire at night, one with a guitar, a tent and pines behind -->
+  <g class="p" opacity=".55"><circle cx="300" cy="60" r="3"/><circle cx="380" cy="30" r="2.5"/><circle cx="560" cy="60" r="3"/><circle cx="470" cy="100" r="2"/><circle cx="250" cy="130" r="2.5"/></g>
+  <path class="tc" d="M520 40 a30 30 0 1 0 26 46 a24 24 0 1 1 -26 -46 Z"/>
+  <g class="se" opacity=".8"><path d="M250 330 L290 200 L330 330 Z"/><path d="M300 330 L350 170 L400 330 Z"/><path d="M540 330 L580 210 L620 330 Z"/></g>
+  <path class="p" opacity=".16" d="M0 400 V320 C200 304 400 304 600 316 V400 Z"/>
+  <!-- the tent -->
+  <path class="t" d="M460 320 L520 230 L580 320 Z"/><path class="tc" d="M508 320 L520 270 L534 320 Z"/>
+  <!-- the fire -->
+  <path class="line-s" d="M350 344 L410 326 M352 326 L410 346" stroke-width="10"/>
+  <path class="t" d="M380 336 C350 320 360 290 372 270 C376 290 384 292 386 280 C400 296 412 318 380 336 Z"/>
+  <path class="tc" d="M380 334 C366 324 370 306 378 296 C382 310 388 306 390 300 C396 312 394 326 380 334 Z"/>
+  <g class="t" opacity=".7"><circle cx="390" cy="250" r="3"/><circle cx="372" cy="232" r="2.5"/><circle cx="396" cy="214" r="2"/></g>
+  <!-- the guitarist, left of the fire, sitting on a log -->
+  <rect class="se" x="240" y="330" width="80" height="16" rx="8"/>
+  <path class="p" d="M262 334 C258 300 264 276 280 270 C296 268 306 282 304 334 Z"/>
+  <circle class="tc" cx="284" cy="248" r="17"/><path class="p" d="M268 246 c0-20 34-22 34 0 c-10-8 -24-8 -34 0 Z"/>
+  <g transform="rotate(-20 290 310)"><path class="tc" d="M250 310 c0-14 18-18 28-10 c6-6 22-4 24 10 c-2 14 -18 16 -24 10 c-10 8 -28 4 -28 -10 Z"/>
+    <circle class="se" cx="282" cy="310" r="5"/><rect class="se" x="300" y="307" width="56" height="6" rx="2"/></g>
+  <path class="line" d="M296 290 L318 296" stroke-width="10"/>
+  <!-- the listener, right, knees up -->
+  <path class="t" d="M430 340 C428 306 434 290 448 286 C462 286 470 300 468 340 Z"/>
+  <circle class="tc" cx="450" cy="266" r="15"/><path class="line-t" d="M440 300 L420 316 L432 330" stroke-width="10"/>
+  <!-- the song -->
+  <g class="p"><circle cx="330" cy="220" r="7"/><rect x="334" y="186" width="4" height="36" rx="2"/></g>
+  <path class="line" d="M336 187 q14 4 13 18" stroke-width="4"/>
+</svg>

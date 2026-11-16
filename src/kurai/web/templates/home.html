@@ -21,10 +21,8 @@
 
 {# the wave: one big button that plays it here, in the browser; the player keeps up with its new versions #}
 <section class="wave-stage">
-  <div class="wave-art" aria-hidden="true">
-    <div class="shape sided-cookie12 w1"></div><div class="shape flower w2"></div><div class="shape gem w3"></div>
-    <div class="shape pill w4"></div>
-  </div>
+  {# a picture behind it: the next one of the pool every so often (templating.art) #}
+  <div class="wave-art" aria-hidden="true">{% include wave_art %}</div>
   <button type="button" class="playlists-open" id="playlists-open" aria-haspopup="dialog">
     <i>menu</i><span>{{ _("Плейлисты") }}</span>{% if mixes %}<span class="count">{{ mixes | length }}</span>{% endif %}
   </button>

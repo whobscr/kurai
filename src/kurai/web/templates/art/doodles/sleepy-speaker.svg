@@ -1,7 +1,7 @@
 <svg class="art" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
   <ellipse class="sv" cx="200" cy="276" rx="120" ry="12"/>
   <rect class="sc" x="120" y="60" width="160" height="214" rx="26"/>
-  <circle class="ink" cx="200" cy="200" r="50"/><circle class="s" cx="200" cy="200" r="30"/>
+  <circle class="ink" cx="200" cy="200" r="50"/><circle class="se" cx="200" cy="200" r="30"/>
   <path class="line-ink" d="M168 112 q12 10 24 0 M208 112 q12 10 24 0" stroke-width="5"/>
   <path class="line-ink" d="M190 140 q10 6 20 0" stroke-width="4"/>
   <g class="p" font-family="sans-serif" font-weight="700"><text x="292" y="96" font-size="34">z</text><text x="318" y="64" font-size="26">z</text>

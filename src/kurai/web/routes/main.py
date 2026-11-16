@@ -14,7 +14,7 @@ from kurai.integrations.navidrome import NavidromeError
 from kurai.jobs import queue
 from kurai.recommend import library, playlists, start
 from kurai.web.deps import Ctx, user_required
-from kurai.web.templating import render
+from kurai.web.templating import art, render
 
 router = APIRouter()
 HISTORY_PAGE = 50
@@ -42,7 +42,7 @@ async def home(request: Request, open_sheet: bool = Query(False, alias="playlist
     ask_start = ctx.user.start_asked_at is None and not (await ctx.db.execute(
         select(Listen.track_id).where(Listen.user_id == ctx.user.id).limit(1))).first()
     return render(request, "home.html", ctx, wave=wave, mixes=[p for p in mixes if p.kind != "wave"], notes=notes,
-                  open_sheet=open_sheet,
+                  open_sheet=open_sheet, wave_art=art("wave", request.app.state.art_hours["wave"]),
                   wave_on=await settings.get(ctx.db, "wave.enabled"),
                   styles=await start.library_styles(ctx.db) if ask_start else [], ask_start=ask_start)
 

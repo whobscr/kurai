@@ -1,0 +1,22 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a gramophone in a garden, its horn opening like a lily among real ones -->
+  <circle class="tc" cx="300" cy="100" r="50" opacity=".7"/>
+  <path class="p" opacity=".16" d="M0 400 V330 C200 312 420 314 600 324 V400 Z"/>
+  <!-- the gramophone: box, record, arm, horn -->
+  <rect class="se" x="350" y="268" width="140" height="70" rx="12"/><rect class="t" x="360" y="338" width="14" height="22" rx="4"/><rect class="t" x="466" y="338" width="14" height="22" rx="4"/>
+  <ellipse class="ink" cx="420" cy="266" rx="66" ry="10" opacity=".7"/><ellipse class="tc" cx="420" cy="266" rx="14" ry="3"/>
+  <path class="line-ink" d="M470 268 L476 236 C478 214 470 200 456 194" stroke-width="9" opacity=".8"/>
+  <path class="t" d="M458 198 C440 170 410 150 390 140 L400 128 C380 110 382 80 404 66 C440 46 500 70 520 120 C534 158 520 196 490 196 C478 196 470 200 466 206 Z"/>
+  <path class="tc" d="M402 120 C392 96 410 78 434 80 C470 84 504 112 508 146 C510 170 494 182 476 172 C452 158 420 146 402 120 Z"/>
+  <path class="line-t" d="M420 100 C450 112 480 136 490 168 M440 88 C470 104 496 130 502 150" stroke-width="3" opacity=".7"/>
+  <!-- lilies and leaves around -->
+  <g class="line-s" stroke-width="6"><path d="M550 400 C552 330 560 280 568 240"/><path d="M290 400 C290 340 282 300 272 270"/><path d="M320 400 C322 360 328 330 338 306"/></g>
+  <g class="se"><path d="M552 320 c-26-14 -42-2 -44 8 c18 6 34 4 44 -8 Z"/><path d="M288 330 c26-16 44-6 48 4 c-18 8 -36 6 -48 -4 Z"/></g>
+  <path class="p" d="M568 240 C548 228 540 206 548 194 C558 204 566 210 570 220 C574 206 584 196 596 194 C600 210 590 230 568 240 Z"/>
+  <path class="tc" d="M272 270 C256 258 252 240 258 230 C266 238 272 246 274 254 C278 242 286 234 296 232 C298 248 290 262 272 270 Z"/>
+  <circle class="p" cx="338" cy="300" r="12"/>
+  <!-- the song -->
+  <g class="p"><circle cx="560" cy="110" r="9"/><rect x="565" y="70" width="5" height="42" rx="2.5"/></g>
+  <path class="line" d="M568 71 q18 5 16 24" stroke-width="5"/>
+  <g class="t" opacity=".6"><circle cx="540" cy="170" r="4"/><circle cx="250" cy="200" r="4"/></g>
+</svg>

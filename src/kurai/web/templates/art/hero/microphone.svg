@@ -1,0 +1,14 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- an old studio microphone on its stand, under stars -->
+  <circle class="pc" cx="340" cy="70" r="70" opacity=".25"/>
+  <path class="line-pc" d="M340 104 V156 M310 158 H370" stroke-width="6"/>
+  <path class="line-tc" d="M312 64 V78 a28 28 0 0 0 56 0 V64" stroke-width="5"/>
+  <rect class="tc" x="320" y="18" width="40" height="76" rx="20"/>
+  <g class="line-t" stroke-width="3" opacity=".8"><path d="M326 36 H354 M324 48 H356 M324 60 H356 M326 72 H354"/></g>
+  <rect class="t" x="318" y="86" width="44" height="8" rx="4"/>
+  <g class="op"><path d="M238 50 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 Z" opacity=".85"/>
+    <path d="M420 108 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5 Z" opacity=".7"/>
+    <circle cx="270" cy="110" r="3" opacity=".6"/><circle cx="420" cy="40" r="2.5" opacity=".5"/><circle cx="200" cy="90" r="2" opacity=".5"/></g>
+  <path class="tc" d="M276 30 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5 Z"/>
+  <path class="line-tc" d="M390 64 a24 24 0 0 1 0 30 M402 56 a36 36 0 0 1 0 46" stroke-width="4" opacity=".7"/>
+</svg>

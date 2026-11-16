@@ -1,0 +1,18 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a violin lying on its side, its bow across it, a rose beside -->
+  <circle class="pc" cx="300" cy="90" r="80" opacity=".25"/>
+  <g transform="rotate(-10 300 100)">
+    <path class="tc" d="M196 100 C196 68 240 66 252 80 C258 87 266 87 272 80 C282 70 316 74 316 100 C316 126 282 130 272 120 C266 113 258 113 252 120 C240 134 196 132 196 100 Z"/>
+    <path class="line-t" d="M240 88 c6 4 -6 20 2 24 M282 88 c-6 4 6 20 -2 24" stroke-width="2.5"/>
+    <rect class="t" x="258" y="92" width="6" height="16" rx="2"/>
+    <rect class="t" x="290" y="96" width="112" height="8" rx="3"/>
+    <path class="t" d="M400 91 h12 c10 0 14 4 14 9 s-4 9 -14 9 h-12 Z"/><circle class="tc" cx="416" cy="100" r="3.5"/>
+    <path class="line-op" d="M214 98.5 H404 M214 101.5 H404" stroke-width="1" opacity=".7"/>
+  </g>
+  <path class="line-op" d="M170 132 L430 44" stroke-width="3" opacity=".8"/><path class="line-pc" d="M175 138 L434 50" stroke-width="2" opacity=".6"/>
+  <path class="line-pc" d="M398 160 C398 142 402 132 410 122" stroke-width="4"/>
+  <path class="pc" d="M400 146 c-12-6-20 0-22 6 c10 3 18 1 22-6 Z"/>
+  <circle class="t" cx="412" cy="114" r="15"/>
+  <path class="line-tc" d="M412 114 m-2 0 a3 3 0 1 1 5 2 a7 7 0 1 1 -11 -6 a10 10 0 0 1 14 2" stroke-width="2.5"/>
+  <g class="op" opacity=".5"><circle cx="190" cy="40" r="2.5"/><circle cx="460" cy="140" r="2"/></g>
+</svg>

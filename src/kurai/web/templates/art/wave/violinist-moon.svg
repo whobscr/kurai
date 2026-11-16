@@ -1,0 +1,21 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a violinist on a hill at night, the big moon behind, music curling into the stars -->
+  <circle class="tc" cx="440" cy="170" r="120"/>
+  <circle class="pc" cx="400" cy="140" r="22" opacity=".5"/><circle class="pc" cx="480" cy="220" r="14" opacity=".5"/>
+  <path class="se" d="M0 400 V330 C160 316 280 260 420 262 C500 264 560 290 600 300 V400 Z"/>
+  <!-- the violinist: long coat, head tilted onto the violin -->
+  <path class="p" d="M402 270 C396 230 400 196 420 186 C440 182 452 200 454 240 L462 270 Z"/>
+  <path class="p" d="M412 270 L408 300 h10 L422 270 Z M440 270 L444 300 h10 L450 270 Z"/>
+  <circle class="tc" cx="432" cy="164" r="17"/><path class="p" d="M416 160 c2-20 34-22 34 -2 c-10-6 -24-6 -34 2 Z"/>
+  <path class="line" d="M424 200 C404 194 392 178 398 168" stroke-width="12"/>
+  <g transform="rotate(30 404 172)"><path class="t" d="M380 172 c0-10 10-12 16-8 c4-4 12-4 14 2 c6-4 18-2 18 6 c0 8-12 10-18 6 c-2 6-10 6-14 2 c-6 4-16 2-16 -8 Z"/>
+    <rect class="t" x="426" y="169" width="40" height="6" rx="2"/></g>
+  <path class="line" d="M444 204 C430 210 412 214 396 214" stroke-width="12"/>
+  <path class="line-s" d="M330 236 L470 150" stroke-width="3" stroke="var(--secondary)"/>
+  <!-- the music as a ribbon of stars -->
+  <path class="line-t" d="M370 140 C330 100 300 150 260 110 C230 80 220 50 180 60" stroke-width="4" stroke-dasharray="2 14"/>
+  <g class="p"><path d="M300 90 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/><path d="M220 140 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 Z"/>
+    <path d="M560 70 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/></g>
+  <g class="p"><circle cx="350" cy="80" r="8"/><rect x="354.5" y="42" width="4.5" height="40" rx="2.25"/></g>
+  <g class="t" opacity=".7"><circle cx="560" cy="160" r="3"/><circle cx="250" cy="200" r="3"/><circle cx="500" cy="40" r="3"/></g>
+</svg>

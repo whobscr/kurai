@@ -233,8 +233,8 @@ async def test_a_secret_can_be_cleared(web, db):
     await settings.put(db, {"telegram.token": "123:abc"})
     await db.commit()
     await web.post("/admin/general", data={"csrf": token, "night.start": "06:00", "night.end": "10:00",
-                                          "ui.default_accent": "#6750a4", "playlists.per_night": "3",
-                                          "telegram.token.clear": "on"})
+                                          "ui.default_accent": "#6750a4", "ui.wave_art_hours": "1",
+                                          "ui.hero_art_hours": "24", "telegram.token.clear": "on"})
     db.expire_all()
     assert await settings.get(db, "telegram.token") == ""
 

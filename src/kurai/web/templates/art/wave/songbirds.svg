@@ -1,0 +1,20 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a choir of birds on a blossoming branch, one conducting with its wing -->
+  <circle class="tc" cx="420" cy="140" r="110" opacity=".6"/>
+  <path class="line-s" d="M620 120 C540 150 470 200 380 230 C320 250 270 250 220 262 M470 196 C480 170 500 150 520 140 M400 226 C390 250 392 270 400 290" stroke-width="10"/>
+  <g class="tc"><circle cx="520" cy="136" r="10"/><circle cx="534" cy="128" r="8"/><circle cx="400" cy="292" r="10"/><circle cx="230" cy="256" r="8"/></g>
+  <g class="p"><circle cx="520" cy="136" r="4"/><circle cx="400" cy="292" r="4"/></g>
+  <g class="t"><ellipse cx="560" cy="150" rx="12" ry="7" transform="rotate(-30 560 150)"/><ellipse cx="300" cy="240" rx="12" ry="7" transform="rotate(20 300 240)"/></g>
+  <!-- birds: round bodies, a tail, a beak; the singing ones with open beaks -->
+  <g transform="translate(330 214)"><path class="p" d="M-26 0 C-26 -26 0 -34 16 -24 C28 -16 26 4 12 8 L-30 12 L-44 20 Z"/><circle class="tc" cx="10" cy="-18" r="3"/>
+    <path class="t" d="M22 -18 L34 -24 L24 -12 Z M22 -14 L32 -6 L22 -10 Z"/></g>
+  <g transform="translate(430 178)"><path class="t" d="M-26 0 C-26 -26 0 -34 16 -24 C28 -16 26 4 12 8 L-30 12 L-44 20 Z"/><circle class="tc" cx="10" cy="-18" r="3"/>
+    <path class="p" d="M22 -18 L34 -22 L24 -12 Z M22 -14 L32 -8 L22 -10 Z"/></g>
+  <g transform="translate(520 120) scale(-1 1)"><path class="se" d="M-26 0 C-26 -26 0 -34 16 -24 C28 -16 26 4 12 8 L-30 12 L-44 20 Z"/><circle class="tc" cx="10" cy="-18" r="3"/>
+    <path class="t" d="M22 -18 L32 -16 L22 -12 Z"/><path class="se" d="M-6 -14 C-20 -40 -10 -56 4 -60 C2 -40 6 -26 -2 -12 Z"/></g>
+  <!-- the song -->
+  <g class="p"><circle cx="370" cy="140" r="7"/><rect x="374" y="106" width="4" height="36" rx="2"/><circle cx="460" cy="96" r="7"/><rect x="464" y="62" width="4" height="36" rx="2"/></g>
+  <g class="t"><circle cx="300" cy="150" r="8"/><rect x="304.5" y="112" width="4.5" height="40" rx="2.25"/></g>
+  <path class="line-t" d="M307 113 q16 5 14 22" stroke-width="5"/><path class="line" d="M466 63 q14 4 12 18" stroke-width="4"/>
+  <path class="p" opacity=".16" d="M0 400 V350 C200 340 400 340 600 346 V400 Z"/>
+</svg>

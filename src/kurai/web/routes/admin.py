@@ -24,7 +24,7 @@ from kurai.jobs import queue, window
 from kurai.recommend import library, mixing, playlists, related, wave
 from kurai.web.deps import Ctx, admin_required
 from kurai.web.routes import apps
-from kurai.web.templating import render
+from kurai.web.templating import art_hours, render
 
 router = APIRouter(prefix="/admin")
 
@@ -86,7 +86,8 @@ def manual_jobs() -> dict[str, tuple[str, str]]:
 
 # which settings each tab's form may write, and their types
 FIELDS: dict[str, dict[str, type]] = {
-    "general": {"ui.default_accent": str, "night.start": str, "night.end": str, "telegram.enabled": bool,
+    "general": {"ui.default_accent": str, "ui.wave_art_hours": float, "ui.hero_art_hours": float,
+                "night.start": str, "night.end": str, "telegram.enabled": bool,
                 "telegram.token": str, "listenbrainz.token": str, "musicbrainz.contact": str},
     "wave": {"wave.enabled": bool, "taste.half_life_days": float, "taste.floor": float, "taste.window": bool,
              "taste.window_days": float, **mixing.fields("wave")},
@@ -141,6 +142,9 @@ def _validate(values: dict[str, Any]) -> str | None:
             outbound.parse_dns(values["outbound.dns"])
         except ValueError:
             return _("DNS-сервер — IP-адрес, например 10.8.0.1 или 10.8.0.1:53, а не имя")
+    if any(values[k] is None or not 0 < values[k] <= 8760
+           for k in ("ui.wave_art_hours", "ui.hero_art_hours") if k in values):
+        return _("Смена картинок — больше 0 и не больше 8760 ч (год)")
     if "llm.parallel" in values and not 1 <= values["llm.parallel"] <= 16:
         return _("Параллельных запросов — от 1 до 16")
     if any(not 0 <= values[k] <= 1 for k in ("audio.mix_weight", "audio.ask_weight") if k in values):
@@ -261,8 +265,10 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
     before = await settings.get_all(ctx.db)
     await settings.put(ctx.db, values)
     await ctx.db.commit()
-    if tab == "general" and values.get("ui.default_accent"):
-        request.app.state.default_accent = values["ui.default_accent"]
+    if tab == "general":
+        if values.get("ui.default_accent"):
+            request.app.state.default_accent = values["ui.default_accent"]
+        request.app.state.art_hours = art_hours(values)
     # «Память вкуса» changed: everyone's taste made anew now (with the wave on it), not only at night
     if tab == "wave" and any(values.get(k) != before.get(k) for k in TASTE_KEYS) and values.get("wave.enabled"):
         for user in await library.active_users(ctx.db):

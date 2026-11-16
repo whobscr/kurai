@@ -1,0 +1,23 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- an accordion player in a rowboat on a still lake, reeds and the evening sun -->
+  <circle class="tc" cx="420" cy="200" r="80"/>
+  <path class="p" opacity=".22" d="M180 260 C260 220 340 230 420 240 C500 250 560 236 620 230 V270 H180 Z"/>
+  <path class="p" opacity=".16" d="M0 400 V268 H600 V400 Z"/>
+  <path class="tc" opacity=".5" d="M380 280 h80 M360 300 h120 M390 320 h60" stroke="var(--tertiary-container)" stroke-width="6" stroke-linecap="round"/>
+  <!-- the boat and the player -->
+  <path class="se" d="M330 300 H520 C512 324 490 334 470 334 H380 C360 334 340 324 330 300 Z"/>
+  <path class="t" d="M400 300 C396 270 402 250 418 246 C434 244 442 258 440 300 Z"/>
+  <circle class="tc" cx="420" cy="226" r="16"/><path class="p" d="M404 222 c0-20 32-22 32 0 c-8-6 -24-6 -32 0 Z"/>
+  <rect class="tc" x="380" y="262" width="14" height="36" rx="4"/>
+  <path class="p" d="M394 266 L404 262 L414 266 L424 262 L434 266 V296 L424 300 L414 296 L404 300 L394 296 Z"/>
+  <rect class="tc" x="434" y="262" width="14" height="36" rx="4"/>
+  <path class="line-ink" d="M490 296 L560 360" stroke-width="5" opacity=".6"/>
+  <!-- reeds -->
+  <g class="line-s" stroke-width="5"><path d="M220 340 C220 300 214 270 206 250"/><path d="M240 340 C242 290 248 260 256 236"/><path d="M570 300 C570 260 576 240 584 220"/></g>
+  <g class="se"><ellipse cx="206" cy="246" rx="6" ry="18" transform="rotate(-14 206 246)"/><ellipse cx="256" cy="232" rx="6" ry="18" transform="rotate(16 256 232)"/><ellipse cx="584" cy="216" rx="6" ry="18" transform="rotate(16 584 216)"/></g>
+  <!-- the tune over the water -->
+  <path class="line" d="M370 240 C340 220 320 240 300 210 C290 196 280 190 270 192" stroke-width="3" stroke-dasharray="4 10" opacity=".6"/>
+  <g class="p"><circle cx="300" cy="170" r="8"/><rect x="304.5" y="132" width="4.5" height="40" rx="2.25"/></g>
+  <path class="line" d="M307 133 q16 5 14 22" stroke-width="5"/>
+  <g class="t" opacity=".6"><circle cx="520" cy="110" r="3"/><circle cx="350" cy="90" r="3"/></g>
+</svg>

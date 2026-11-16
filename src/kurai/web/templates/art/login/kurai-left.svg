@@ -9,7 +9,7 @@
     <path d="M300 760 C296 640 310 560 330 470"/><path d="M330 770 C334 660 350 590 380 520"/>
     <path d="M360 770 C352 700 350 620 352 560"/><path d="M270 770 C262 700 250 640 236 590"/>
   </g>
-  <g class="s"><ellipse cx="330" cy="460" rx="9" ry="30" transform="rotate(20 330 460)"/>
+  <g class="se"><ellipse cx="330" cy="460" rx="9" ry="30" transform="rotate(20 330 460)"/>
     <ellipse cx="381" cy="512" rx="8" ry="26" transform="rotate(30 381 512)"/>
     <ellipse cx="236" cy="582" rx="8" ry="24" transform="rotate(-20 236 582)"/></g>
   <!-- a kurai held up, the sound leaving it: the wave crosses behind the form -->

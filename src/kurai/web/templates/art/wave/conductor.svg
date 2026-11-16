@@ -1,0 +1,20 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a conductor on a podium, the baton drawing a constellation of notes in the night sky -->
+  <path class="line-t" d="M260 120 L330 70 L410 100 L470 50 L560 80" stroke-width="2.5" opacity=".6"/>
+  <g class="t"><path d="M260 108 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/><path d="M410 88 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z"/></g>
+  <g class="p"><circle cx="330" cy="76" r="8"/><rect x="334.5" y="38" width="4.5" height="40" rx="2.25"/><circle cx="470" cy="56" r="8"/><rect x="474.5" y="18" width="4.5" height="40" rx="2.25"/>
+    <circle cx="560" cy="86" r="8"/><rect x="564.5" y="48" width="4.5" height="40" rx="2.25"/></g>
+  <path class="line" d="M337 39 q16 5 14 22" stroke-width="5"/>
+  <g class="tc"><circle cx="300" cy="180" r="3"/><circle cx="520" cy="150" r="3"/><circle cx="380" cy="40" r="2.5"/></g>
+  <path class="p" opacity=".16" d="M0 400 V350 H600 V400 Z"/>
+  <!-- the podium and music stand -->
+  <rect class="se" x="400" y="320" width="130" height="34" rx="6"/>
+  <path class="line-ink" d="M380 250 L380 350 M364 350 h32" stroke-width="4" opacity=".6"/><path class="tc" d="M352 240 h56 l-6 18 h-44 Z"/>
+  <!-- the conductor in tails, one arm up with the baton -->
+  <path class="p" d="M438 320 L440 270 C430 244 436 220 456 214 C476 212 486 228 482 270 L498 322 L478 306 L476 320 Z"/>
+  <circle class="tc" cx="460" cy="192" r="17"/><path class="tc" d="M446 186 c-2-14 8-22 14-22 c10 0 18 10 16 22 c-4-6 -24-8 -30 0 Z" opacity=".6"/>
+  <path class="line" d="M472 226 C496 208 506 184 512 162" stroke-width="10"/>
+  <path class="line-ink" d="M512 160 L548 104" stroke-width="3" opacity=".8"/>
+  <path class="line" d="M446 232 C428 242 416 240 404 232" stroke-width="10"/>
+  <path class="line-t" d="M552 98 C580 70 560 40 520 50" stroke-width="3" stroke-dasharray="3 9" opacity=".7"/>
+</svg>

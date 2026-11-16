@@ -6,11 +6,11 @@
   <!-- the tape comes in from the left and winds onto a reel -->
   <path class="line-ink" d="M0 700 C60 690 90 640 150 600" stroke-width="7"/>
   <g transform="translate(200 520)">
-    <circle class="s" r="110"/><circle class="sc" r="84"/><circle class="ink" r="70" opacity=".85"/>
-    <circle class="sc" r="26"/><circle class="s" r="9"/>
-    <rect class="s" x="-6" y="-84" width="12" height="40" rx="6"/>
-    <rect class="s" x="-6" y="44" width="12" height="40" rx="6"/>
-    <rect class="s" x="44" y="-6" width="40" height="12" rx="6"/>
+    <circle class="se" r="110"/><circle class="sc" r="84"/><circle class="ink" r="70" opacity=".85"/>
+    <circle class="sc" r="26"/><circle class="se" r="9"/>
+    <rect class="se" x="-6" y="-84" width="12" height="40" rx="6"/>
+    <rect class="se" x="-6" y="44" width="12" height="40" rx="6"/>
+    <rect class="se" x="44" y="-6" width="40" height="12" rx="6"/>
   </g>
   <!-- headphones hanging on a hook -->
   <rect class="ol" x="120" y="120" width="12" height="90" rx="6"/>

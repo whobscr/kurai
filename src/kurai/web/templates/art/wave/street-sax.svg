@@ -1,0 +1,24 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a saxophonist under a street lamp in a night city -->
+  <g class="p" opacity=".18"><rect x="240" y="150" width="70" height="250" rx="6"/><rect x="320" y="100" width="60" height="300" rx="6"/>
+    <rect x="490" y="120" width="110" height="280" rx="6"/></g>
+  <g class="tc" opacity=".8"><rect x="256" y="170" width="12" height="16" rx="3"/><rect x="282" y="210" width="12" height="16" rx="3"/>
+    <rect x="336" y="130" width="12" height="16" rx="3"/><rect x="356" y="190" width="12" height="16" rx="3"/>
+    <rect x="510" y="150" width="12" height="16" rx="3"/><rect x="560" y="200" width="12" height="16" rx="3"/><rect x="530" y="260" width="12" height="16" rx="3"/></g>
+  <path class="tc" d="M560 30 a28 28 0 1 0 24 42 a23 23 0 1 1 -24 -42 Z"/>
+  <path class="p" opacity=".16" d="M0 400 V350 H600 V400 Z"/>
+  <!-- the lamp and its light -->
+  <path class="tc" d="M470 96 L420 350 H560 Z" opacity=".45"/>
+  <rect class="se" x="466" y="80" width="8" height="270" rx="4"/><path class="se" d="M452 96 h36 l-6 -16 h-24 Z"/><circle class="tc" cx="470" cy="100" r="6"/>
+  <!-- the player, leaning back, the saxophone pointing out -->
+  <path class="p" d="M396 350 L402 280 C392 250 396 220 414 212 C432 208 442 226 440 260 L446 350 H430 L424 300 H416 L412 350 Z"/>
+  <circle class="tc" cx="420" cy="190" r="17"/><path class="p" d="M402 186 c-2-10 4-16 18-16 c14 0 20 6 18 16 Z"/><rect class="p" x="398" y="182" width="44" height="6" rx="3"/>
+  <path class="line-ink" d="M410 198 C396 204 386 214 380 224" stroke-width="3" opacity=".7"/>
+  <path class="t" d="M380 222 L388 220 L398 300 C400 318 392 326 380 326 C366 326 358 318 360 304 L366 298 L374 302 C372 310 374 314 380 314 C386 314 388 310 386 302 Z"/>
+  <path class="t" d="M356 306 C350 292 356 282 366 280 L372 296 C366 298 364 302 362 308 Z"/>
+  <path class="line" d="M428 230 L392 258 M432 248 L392 286" stroke-width="11"/>
+  <!-- notes in the air -->
+  <g class="t"><circle cx="300" cy="80" r="9"/><rect x="305" y="40" width="5" height="42" rx="2.5"/><circle cx="330" cy="70" r="9"/><rect x="335" y="30" width="5" height="42" rx="2.5"/>
+    <rect x="305" y="32" width="35" height="8" rx="3" transform="rotate(-12 305 36)"/></g>
+  <g class="line-t" stroke-width="4" opacity=".7"><path d="M352 300 c-12 -10 -24 4 -36 -6 M348 318 c-12 -8 -22 6 -34 -2"/></g>
+</svg>

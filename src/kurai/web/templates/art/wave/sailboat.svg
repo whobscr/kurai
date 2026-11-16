@@ -1,0 +1,16 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a sailboat on rolling waves, seagulls, the sound of the sea drawn as waves of a song -->
+  <circle class="tc" cx="480" cy="110" r="70"/>
+  <g class="line-s" stroke-width="4" opacity=".7"><path d="M300 90 q10 -10 20 0 q10 -10 20 0"/><path d="M380 50 q8 -8 16 0 q8 -8 16 0"/></g>
+  <path class="p" opacity=".16" d="M0 400 V270 C40 250 80 290 120 270 C160 250 200 290 240 270 C280 250 320 290 360 270 C400 250 440 290 480 270 C520 250 560 290 600 270 V400 Z"/>
+  <!-- the boat -->
+  <path class="p" d="M360 280 L420 100 L420 280 Z"/><path class="t" d="M430 280 L430 130 L500 280 Z"/>
+  <rect class="se" x="418" y="96" width="6" height="190" rx="3"/>
+  <path class="se" d="M340 286 H530 L506 316 H366 Z"/>
+  <path class="t" opacity=".16" d="M0 400 V320 C50 300 100 340 150 320 C200 300 250 340 300 320 C350 300 400 340 450 320 C500 300 550 340 600 320 V400 Z"/>
+  <path class="t" opacity=".12" d="M0 400 V360 C60 344 120 372 180 360 C240 348 300 372 360 360 C420 348 480 372 540 360 C570 354 590 360 600 362 V400 Z"/>
+  <!-- a staff in the sky with two notes -->
+  <g class="line-t" stroke-width="2" opacity=".5"><path d="M180 170 C260 150 320 180 380 160 M180 182 C260 162 320 192 380 172 M180 194 C260 174 320 204 380 184"/></g>
+  <g class="t"><circle cx="240" cy="178" r="8"/><rect x="244.5" y="140" width="4.5" height="40" rx="2.25"/><circle cx="300" cy="170" r="8"/><rect x="304.5" y="132" width="4.5" height="40" rx="2.25"/>
+    <rect x="244.5" y="134" width="64" height="7" rx="3" transform="rotate(-7 245 137)"/></g>
+</svg>

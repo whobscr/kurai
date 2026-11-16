@@ -1,0 +1,15 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- birches in the wind, the wind drawn as a sound wave -->
+  <path class="pc" d="M0 160 C140 148 300 144 480 150 V160 Z" opacity=".45"/>
+  <g class="op" opacity=".9"><rect x="300" y="10" width="10" height="150" rx="5"/><rect x="350" y="26" width="8" height="134" rx="4"/><rect x="420" y="0" width="11" height="160" rx="5"/></g>
+  <g class="t"><rect x="300" y="40" width="6" height="3" rx="1.5"/><rect x="304" y="78" width="6" height="3" rx="1.5"/><rect x="300" y="116" width="7" height="3" rx="1.5"/>
+    <rect x="352" y="60" width="6" height="3" rx="1.5"/><rect x="350" y="104" width="5" height="3" rx="1.5"/>
+    <rect x="420" y="30" width="7" height="3" rx="1.5"/><rect x="424" y="70" width="7" height="3" rx="1.5"/><rect x="420" y="120" width="6" height="3" rx="1.5"/></g>
+  <g class="tc"><ellipse cx="290" cy="36" rx="12" ry="7" transform="rotate(-20 290 36)"/><ellipse cx="320" cy="60" rx="12" ry="7" transform="rotate(20 320 60)"/>
+    <ellipse cx="340" cy="44" rx="11" ry="6" transform="rotate(-25 340 44)"/><ellipse cx="368" cy="80" rx="11" ry="6" transform="rotate(25 368 80)"/>
+    <ellipse cx="406" cy="24" rx="13" ry="7" transform="rotate(-20 406 24)"/><ellipse cx="444" cy="50" rx="12" ry="7" transform="rotate(20 444 50)"/></g>
+  <g class="pc" opacity=".85"><ellipse cx="300" cy="90" rx="10" ry="6" transform="rotate(-25 300 90)"/><ellipse cx="410" cy="96" rx="10" ry="6" transform="rotate(-20 410 96)"/>
+    <ellipse cx="452" cy="110" rx="10" ry="6" transform="rotate(25 452 110)"/></g>
+  <path class="line-tc" d="M170 96 C180 76 190 116 200 96 C210 70 220 122 230 96 C240 80 250 112 260 96 C268 86 276 106 284 96" stroke-width="4"/>
+  <ellipse class="tc" cx="250" cy="130" rx="8" ry="5" transform="rotate(30 250 130)" opacity=".8"/>
+</svg>

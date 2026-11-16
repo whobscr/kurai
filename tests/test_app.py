@@ -150,6 +150,14 @@ async def test_csrf_settings_validation_and_users(client, navidrome):
     r = await client.post("/admin/general", data={"csrf": token, "night.start": "25:99", "night.end": "10:00",
                                                   "ui.default_accent": "#123456", "playlists.per_night": "3"})
     assert "message=" in r.headers["location"]
+    r = await client.post("/admin/general", data={"csrf": token, "night.start": "05:00", "night.end": "10:00",
+                                                  "ui.wave_art_hours": "0", "ui.hero_art_hours": "24"})
+    assert "картинок" in httpx.URL(r.headers["location"]).params["message"]
+    r = await client.post("/admin/general", data={"csrf": token, "night.start": "06:00", "night.end": "10:00",
+                                                  "ui.wave_art_hours": "0.5", "ui.hero_art_hours": "48",
+                                                  "ui.default_accent": "#6750a4", "musicbrainz.contact": ""})
+    assert httpx.URL(r.headers["location"]).params["message"] == "Сохранено"
+    assert 'name="ui.wave_art_hours" type="number" value="0.5"' in (await client.get("/admin/general")).text
     r = await client.post("/admin/gateway", data={"csrf": token, "outbound.proxy": "socks5h://10.0.0.2:1080",
                                                   "outbound.dns": "not-an-ip"})
     assert "DNS" in httpx.URL(r.headers["location"]).params["message"]

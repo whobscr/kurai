@@ -1,0 +1,14 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a small drum kit: the bass drum, a tom, a snare, a cymbal -->
+  <ellipse class="pc" cx="330" cy="156" rx="150" ry="14" opacity=".35"/>
+  <path class="line-pc" d="M418 156 L430 64 M404 156 L430 120 L456 156 M244 156 L262 112 M280 156 L262 112" stroke-width="4"/>
+  <ellipse class="tc" cx="430" cy="60" rx="38" ry="7" transform="rotate(-8 430 60)"/>
+  <circle class="tc" cx="330" cy="112" r="44"/><circle class="t" cx="330" cy="112" r="32"/>
+  <circle class="pc" cx="330" cy="112" r="10" opacity=".8"/>
+  <rect class="pc" x="234" y="94" width="58" height="26" rx="6"/><ellipse class="op" cx="263" cy="94" rx="29" ry="6" opacity=".9"/>
+  <path class="line-t" d="M240 104 L254 116 L268 104 L282 116" stroke-width="2.5"/>
+  <rect class="tc" x="352" y="46" width="48" height="30" rx="8" transform="rotate(-6 376 61)"/>
+  <ellipse class="op" cx="376" cy="47" rx="24" ry="5" transform="rotate(-6 376 47)" opacity=".9"/>
+  <path class="line-op" d="M210 46 L262 86 M292 30 L270 84" stroke-width="4" opacity=".85"/>
+  <g class="line-tc" stroke-width="3" opacity=".7"><path d="M200 36 l-10 -8 M196 52 h-14 M214 26 l-2 -12"/></g>
+</svg>

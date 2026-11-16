@@ -1,0 +1,15 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- an accordion stretched wide, a garland of notes coming out -->
+  <circle class="pc" cx="340" cy="90" r="74" opacity=".25"/>
+  <rect class="tc" x="260" y="50" width="34" height="84" rx="8"/>
+  <g class="t"><circle cx="270" cy="66" r="3"/><circle cx="284" cy="66" r="3"/><circle cx="270" cy="80" r="3"/><circle cx="284" cy="80" r="3"/>
+    <circle cx="270" cy="94" r="3"/><circle cx="284" cy="94" r="3"/><circle cx="270" cy="108" r="3"/><circle cx="284" cy="108" r="3"/></g>
+  <path class="t" d="M294 58 L310 50 L326 58 L342 50 L358 58 L374 50 L390 58 V126 L374 134 L358 126 L342 134 L326 126 L310 134 L294 126 Z"/>
+  <path class="line-tc" d="M310 50 V134 M342 50 V134 M374 50 V134" stroke-width="2" opacity=".7"/>
+  <rect class="tc" x="390" y="44" width="40" height="96" rx="8"/>
+  <g class="op" opacity=".9"><rect x="396" y="54" width="28" height="7" rx="2"/><rect x="396" y="66" width="28" height="7" rx="2"/><rect x="396" y="78" width="28" height="7" rx="2"/>
+    <rect x="396" y="90" width="28" height="7" rx="2"/><rect x="396" y="102" width="28" height="7" rx="2"/><rect x="396" y="114" width="28" height="7" rx="2"/></g>
+  <path class="line-op" d="M250 40 C230 30 220 54 200 44 C186 38 176 50 164 46" stroke-width="2" opacity=".6"/>
+  <g class="op" opacity=".85"><circle cx="216" cy="50" r="5"/><rect x="219.5" y="32" width="3" height="19" rx="1.5"/></g>
+  <g class="tc"><circle cx="180" cy="56" r="4.5"/><rect x="183" y="40" width="2.5" height="17" rx="1.25"/></g>
+</svg>

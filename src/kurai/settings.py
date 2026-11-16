@@ -52,6 +52,10 @@ def _defaults() -> dict[str, Any]:
     return {
         # the look
         "ui.default_accent": "#6750a4",
+        # the pictures (web/templating.art): «Моя волна»'s card and the pages' band turn to the next of their pool
+        # this often, hours
+        "ui.wave_art_hours": 1,
+        "ui.hero_art_hours": 24,
         # the night window for model and analysis work (local time, HH:MM); may cross midnight
         "night.start": "06:00",
         "night.end": "10:00",

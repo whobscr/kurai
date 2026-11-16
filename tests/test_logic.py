@@ -407,3 +407,28 @@ def test_a_push_is_signed_with_the_vapid_key_made_on_first_start(monkeypatch):
     values = {"webpush.private_key": private, "outbound.proxy": ""}
     assert asyncio.run(notify._send_push(None, values, [("https://fcm.googleapis.com/x", keys)], "hi", "/")) == []
     assert sent and f"k={public}" in sent[0]
+
+
+# ---------- the pictures ----------
+
+
+def test_the_pictures_take_turns_the_same_for_everyone():
+    from kurai.web.templating import ART_POOLS, art
+
+    assert all(len(names) >= 20 for names in ART_POOLS.values())
+    def round_start(pool: str, hours: float) -> datetime:
+        """A local midnight where a round of the pool begins (rounds are counted from the epoch, in local time)."""
+        day = datetime(2026, 11, 16).astimezone()
+        while (day.timestamp() + day.utcoffset().total_seconds()) // (hours * 3600) % len(ART_POOLS[pool]):
+            day += timedelta(days=1)
+        return day
+
+    start = round_start("wave", 1)
+    hourly = [art("wave", 1, start + timedelta(hours=h)) for h in range(len(ART_POOLS["wave"]))]
+    assert art("wave", 1, start + timedelta(minutes=59)) == hourly[0]  # the same all the hour, at any request
+    assert sorted(hourly) == sorted(f"art/wave/{n}" for n in ART_POOLS["wave"])  # a round shows each once
+    start = round_start("hero", 24)
+    daily = [art("hero", 24, start + timedelta(days=d)) for d in range(len(ART_POOLS["hero"]))]
+    assert art("hero", 24, start + timedelta(hours=23, minutes=59)) == daily[0]  # changes at midnight
+    assert len(set(daily)) == len(ART_POOLS["hero"])
+    assert art("hero", .5, start + timedelta(minutes=29)) != art("hero", .5, start + timedelta(minutes=31))

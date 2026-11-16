@@ -1,0 +1,14 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- someone on a hilltop playing a flute to a cloud -->
+  <path class="pc" d="M0 160 C120 150 220 112 320 108 C400 106 450 130 480 140 V160 Z" opacity=".55"/>
+  <path class="tc" d="M196 52 c0-12 18-14 22-6 c4-10 24-10 26 2 c10-2 16 10 6 14 h-50 c-8 0-10-8-4-10 Z" opacity=".9"/>
+  <!-- the player: body, head, arms holding the flute to the left -->
+  <path class="t" d="M316 108 C312 84 318 66 332 64 C346 66 352 84 348 108 Z"/>
+  <circle class="tc" cx="332" cy="50" r="12"/><path class="t" d="M320 46 c2-12 22-14 26-2 c-6-4-18-4-26 2 Z"/>
+  <path class="line-tc" d="M326 76 L310 64 M340 76 L320 60" stroke-width="5"/>
+  <path class="line-op" d="M330 56 L272 44" stroke-width="4"/>
+  <g class="t"><circle cx="300" cy="50" r="1.4"/><circle cx="292" cy="48" r="1.4"/><circle cx="284" cy="47" r="1.4"/></g>
+  <g class="line-op" stroke-width="3" opacity=".7"><path d="M262 40 c-8-6 -14 2 -22 -4 M258 52 c-8-4 -14 4 -24 0"/></g>
+  <g class="op" opacity=".85"><circle cx="232" cy="80" r="4.5"/><rect x="235" y="64" width="2.5" height="17" rx="1.25"/></g>
+  <g class="pc" opacity=".8"><path d="M400 128 c0-6 6-10 10-6 c4-4 10 0 8 6 Z"/><path d="M436 138 c0-5 5-8 8-5 c3-3 8 0 7 5 Z"/></g>
+</svg>

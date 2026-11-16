@@ -1,0 +1,27 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- someone playing a guitar in the shade of a big tree, notes drifting up into its leaves -->
+  <path class="p" opacity=".16" d="M0 400 V330 C150 300 330 296 600 318 V400 Z"/>
+  <path class="t" opacity=".12" d="M0 400 V370 C200 350 400 352 600 364 V400 Z"/>
+  <!-- the tree -->
+  <path class="se" d="M480 340 C484 280 478 230 470 190 L490 190 C500 240 506 290 506 340 Z"/>
+  <path class="line-s" d="M478 230 C456 210 440 200 420 196 M494 214 C520 196 540 190 560 192" stroke-width="10"/>
+  <circle class="p" cx="480" cy="140" r="96" opacity=".85"/>
+  <circle class="t" cx="400" cy="180" r="54" opacity=".8"/><circle class="t" cx="566" cy="170" r="60" opacity=".8"/>
+  <circle class="pc" cx="452" cy="104" r="14" opacity=".7"/><circle class="pc" cx="520" cy="150" r="10" opacity=".7"/>
+  <!-- the guitarist sitting against the trunk -->
+  <path class="t" d="M402 340 C398 300 404 262 420 252 C438 246 452 262 452 300 L452 340 Z"/>
+  <circle class="tc" cx="428" cy="228" r="20"/><path class="se" d="M408 226 c0-22 40-26 42 -2 c-10-8 -30-8 -42 2 Z"/>
+  <path class="line-s" d="M402 340 C380 340 360 344 350 352 M450 340 C440 346 430 352 420 362" stroke-width="16"/>
+  <g transform="rotate(-28 400 300)">
+    <path class="tc" d="M320 300 C320 278 346 274 362 284 C372 276 392 280 396 300 C392 320 372 324 362 316 C346 326 320 322 320 300 Z"/>
+    <circle class="se" cx="364" cy="300" r="8"/>
+    <rect class="se" x="394" y="295" width="96" height="10" rx="3"/><rect class="p" x="486" y="290" width="20" height="20" rx="5"/>
+  </g>
+  <path d="M420 286 L384 316" stroke="var(--tertiary-container)" stroke-width="12" stroke-linecap="round" fill="none"/>
+  <!-- the notes -->
+  <g class="p"><circle cx="330" cy="210" r="9"/><rect x="335" y="166" width="5" height="46" rx="2.5"/>
+    <circle cx="300" cy="140" r="8"/><rect x="304.5" y="100" width="4.5" height="42" rx="2.25"/>
+    <circle cx="326" cy="132" r="8"/><rect x="330.5" y="92" width="4.5" height="42" rx="2.25"/>
+    <rect x="304.5" y="94" width="30" height="7" rx="3" transform="rotate(-15 305 97)"/></g>
+  <g class="t" opacity=".6"><circle cx="250" cy="250" r="4"/><circle cx="280" cy="60" r="3"/><circle cx="230" cy="170" r="3"/></g>
+</svg>

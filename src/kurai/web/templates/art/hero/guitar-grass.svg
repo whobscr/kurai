@@ -1,0 +1,19 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- an acoustic guitar resting in the grass among daisies -->
+  <path class="pc" d="M140 160 C220 128 360 124 480 134 V160 Z" opacity=".35"/>
+  <g transform="rotate(-14 330 110)">
+    <rect class="pc" x="380" y="104" width="110" height="14" rx="4" opacity=".9"/>
+    <rect class="t" x="470" y="100" width="26" height="22" rx="6"/>
+    <path class="tc" d="M250 111 C250 84 282 80 300 92 C312 84 330 86 336 96 C352 88 388 92 388 111 C388 130 352 134 336 126 C330 136 312 138 300 130 C282 142 250 138 250 111 Z"/>
+    <circle class="t" cx="330" cy="111" r="13"/>
+    <rect class="t" x="272" y="104" width="10" height="14" rx="3"/>
+    <path class="line-op" d="M278 107 H480 M278 111 H480 M278 115 H480" stroke-width="1.2" opacity=".7"/>
+  </g>
+  <g class="line-pc" stroke-width="3.5" opacity=".8"><path d="M200 160 C200 146 196 136 192 128"/><path d="M226 160 C228 148 230 140 236 132"/>
+    <path d="M420 160 C420 150 424 142 430 136"/><path d="M450 160 C448 150 444 144 440 140"/></g>
+  <g class="op" opacity=".9"><circle cx="192" cy="122" r="9"/><circle cx="430" cy="130" r="8"/></g>
+  <g class="t"><circle cx="192" cy="122" r="3.5"/><circle cx="430" cy="130" r="3"/></g>
+  <g class="tc"><circle cx="236" cy="126" r="7"/></g><circle class="t" cx="236" cy="126" r="2.5"/>
+  <path class="line-tc" d="M346 60 C356 52 366 66 376 58 M366 40 C376 32 386 46 396 38" stroke-width="4"/>
+  <g class="op" opacity=".45"><circle cx="300" cy="40" r="2.5"/><circle cx="160" cy="80" r="2"/></g>
+</svg>

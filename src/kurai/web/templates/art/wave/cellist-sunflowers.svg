@@ -1,0 +1,29 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a cellist on a stool in a field of sunflowers -->
+  <path class="p" opacity=".16" d="M0 400 V320 C200 300 400 300 600 312 V400 Z"/>
+  <g class="line-s" stroke-width="6"><path d="M520 400 V180"/><path d="M570 400 V150"/><path d="M270 400 V230"/></g>
+  <g transform="translate(520 170)"><g class="t"><ellipse rx="10" ry="24" transform="translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(45) translate(0 -26)"/>
+    <ellipse rx="10" ry="24" transform="rotate(90) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(135) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(180) translate(0 -26)"/>
+    <ellipse rx="10" ry="24" transform="rotate(225) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(270) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(315) translate(0 -26)"/></g><circle class="se" r="22"/></g>
+  <g transform="translate(572 140) scale(.8)"><g class="tc"><ellipse rx="10" ry="24" transform="translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(45) translate(0 -26)"/>
+    <ellipse rx="10" ry="24" transform="rotate(90) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(135) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(180) translate(0 -26)"/>
+    <ellipse rx="10" ry="24" transform="rotate(225) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(270) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(315) translate(0 -26)"/></g><circle class="se" r="22"/></g>
+  <g transform="translate(270 222) scale(.7)"><g class="t"><ellipse rx="10" ry="24" transform="translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(60) translate(0 -26)"/>
+    <ellipse rx="10" ry="24" transform="rotate(120) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(180) translate(0 -26)"/><ellipse rx="10" ry="24" transform="rotate(240) translate(0 -26)"/>
+    <ellipse rx="10" ry="24" transform="rotate(300) translate(0 -26)"/></g><circle class="se" r="22"/></g>
+  <g class="se"><path d="M520 280 c-24-16 -40-6 -44 4 c18 6 32 4 44 -4 Z"/><path d="M570 250 c20-16 36-8 40 2 c-16 6 -30 6 -40 -2 Z"/></g>
+  <!-- the stool and the cellist -->
+  <path class="line-s" d="M370 360 L380 300 M420 360 L410 300" stroke-width="8"/><rect class="se" x="364" y="292" width="62" height="12" rx="6"/>
+  <path class="p" d="M372 296 C368 250 376 220 396 214 C416 212 428 230 426 296 Z"/>
+  <circle class="tc" cx="400" cy="190" r="19"/><path class="p" d="M382 188 c0-24 38-26 38 0 c-12-8 -26-8 -38 0 Z"/>
+  <path class="line" d="M400 300 L384 364 M410 300 L432 364" stroke-width="13"/>
+  <!-- the cello in front, the bow across -->
+  <rect class="se" x="349" y="168" width="7" height="80" rx="3"/>
+  <path class="t" d="M352 236 C334 236 328 256 336 268 C324 276 318 294 324 310 C330 328 344 334 352 334 C360 334 374 328 380 310 C386 294 380 276 368 268 C376 256 370 236 352 236 Z"/>
+  <path class="line-s" d="M340 278 c6 4 -4 18 2 22 M364 278 c-6 4 4 18 -2 22" stroke-width="3"/>
+  <rect class="se" x="350" y="334" width="4" height="22"/>
+  <path class="line" d="M412 244 L396 260 L300 300" stroke-width="10"/>
+  <path class="line-s" d="M290 270 L420 330" stroke-width="3"/>
+  <g class="p"><circle cx="230" cy="130" r="8"/><rect x="234.5" y="92" width="4.5" height="40" rx="2.25"/></g>
+  <path class="line" d="M237 93 q16 5 14 22" stroke-width="5"/>
+</svg>

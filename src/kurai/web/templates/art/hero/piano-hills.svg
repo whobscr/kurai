@@ -1,0 +1,14 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- hills made of piano keys under a low moon -->
+  <circle class="tc" cx="420" cy="44" r="22"/><circle class="pc" cx="430" cy="38" r="20" opacity=".6"/>
+  <path class="pc" d="M0 160 C100 110 220 96 330 110 C400 118 450 108 480 100 V160 Z" opacity=".5"/>
+  <g class="op" opacity=".9">
+    <path d="M150 160 L170 126 H198 L184 160 Z"/><path d="M190 160 L202 122 H232 L224 160 Z"/>
+    <path d="M230 160 L236 118 H266 L264 160 Z"/><path d="M270 160 L270 116 H300 L304 160 Z"/>
+    <path d="M310 160 L304 116 H334 L344 160 Z"/><path d="M350 160 L338 118 H368 L384 160 Z"/>
+    <path d="M390 160 L372 120 H402 L424 160 Z"/><path d="M430 160 L406 124 H436 L464 160 Z"/></g>
+  <g class="t"><path d="M186 140 L196 120 H210 L202 140 Z"/><path d="M226 136 L232 116 H246 L242 136 Z"/>
+    <path d="M300 136 L298 114 H312 L316 136 Z"/><path d="M340 138 L332 116 H346 L356 138 Z"/>
+    <path d="M378 140 L364 118 H378 L396 140 Z"/></g>
+  <g class="op" opacity=".5"><circle cx="220" cy="50" r="2.5"/><circle cx="300" cy="30" r="2"/><circle cx="360" cy="70" r="2"/></g>
+</svg>

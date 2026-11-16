@@ -1,0 +1,16 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a trumpet blowing out flowers instead of notes -->
+  <g transform="rotate(-12 380 100)">
+    <rect class="t" x="350" y="92" width="110" height="10" rx="5"/>
+    <path class="t" d="M354 86 L300 70 C292 68 288 80 288 97 C288 114 292 126 300 124 L354 108 Z"/>
+    <rect class="tc" x="380" y="76" width="8" height="18" rx="3"/><rect class="tc" x="396" y="76" width="8" height="18" rx="3"/><rect class="tc" x="412" y="76" width="8" height="18" rx="3"/>
+    <path class="line-tc" d="M372 104 C372 124 440 124 440 104" stroke-width="5"/>
+    <rect class="tc" x="456" y="91" width="10" height="12" rx="3"/>
+  </g>
+  <g class="line-op" stroke-width="2.5" opacity=".5"><path d="M276 80 C250 70 230 60 210 40 M276 104 C246 104 220 110 196 120"/></g>
+  <g transform="translate(232 54)"><g class="tc"><circle cx="0" cy="-8" r="6"/><circle cx="8" cy="0" r="6"/><circle cx="0" cy="8" r="6"/><circle cx="-8" cy="0" r="6"/></g><circle class="t" r="4"/></g>
+  <g transform="translate(196 92)"><g class="op" opacity=".9"><circle cx="0" cy="-6" r="5"/><circle cx="6" cy="0" r="5"/><circle cx="0" cy="6" r="5"/><circle cx="-6" cy="0" r="5"/></g><circle class="t" r="3.5"/></g>
+  <g transform="translate(250 118)"><g class="pc"><circle cx="0" cy="-5" r="4.5"/><circle cx="5" cy="0" r="4.5"/><circle cx="0" cy="5" r="4.5"/><circle cx="-5" cy="0" r="4.5"/></g><circle class="t" r="3"/></g>
+  <g transform="translate(160 40)"><g class="pc" opacity=".8"><circle cx="0" cy="-4" r="3.5"/><circle cx="4" cy="0" r="3.5"/><circle cx="0" cy="4" r="3.5"/><circle cx="-4" cy="0" r="3.5"/></g></g>
+  <path class="pc" d="M214 30 c-8-8 -2-16 6-12 c0 8 -2 10 -6 12 Z M272 136 c8-2 12 6 6 10 c-6-2 -8-6 -6-10 Z" opacity=".9"/>
+</svg>

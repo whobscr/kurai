@@ -42,16 +42,14 @@
   </nav>
   {# the page itself: kurai.js swaps only this when moving between pages, so the player below keeps playing #}
   <main class="responsive" id="page">
-    {# the page's band: its title (and a line under it) on the accent, Material's shapes on the right #}
+    {# the page's band: its title (and a line under it) on the accent, a picture on the right #}
     <header class="hero {% block hero_class %}{% endblock %}">
       <div class="hero-text max">
         <h4>{% block heading %}{% endblock %}</h4>
         {% block lead %}{% endblock %}
       </div>
-      <div class="hero-art" aria-hidden="true">
-        <div class="shape very-sunny a1"></div><div class="shape sided-cookie12 a2"></div>
-        <div class="shape flower a3"></div>
-      </div>
+      {# the band's picture: the same on every page, the next one of the pool every so often (templating.art) #}
+      <div class="hero-art" aria-hidden="true">{% include hero_art %}</div>
       {% if user %}
       <div class="hero-tools">
         <button type="button" id="mode-toggle" class="transparent circle" title="{{ _('Светлая или тёмная тема') }}"><i>dark_mode</i></button>

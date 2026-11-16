@@ -1,0 +1,12 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- paper boats sailing along a staff, notes as their passengers -->
+  <g class="line-op" stroke-width="1.6" opacity=".5"><path d="M0 104 C160 96 320 112 480 100 M0 116 C160 108 320 124 480 112 M0 128 C160 120 320 136 480 124 M0 140 C160 132 320 148 480 136"/></g>
+  <g transform="translate(250 92)"><path class="op" d="M-26 0 H26 L18 14 H-18 Z" opacity=".9"/><path class="tc" d="M-12 0 L0 -26 L12 0 Z"/></g>
+  <g transform="translate(340 100)"><path class="tc" d="M-30 0 H30 L20 16 H-20 Z"/><path class="pc" d="M-14 0 L0 -30 L14 0 Z"/></g>
+  <g transform="translate(430 88)"><path class="t" d="M-24 0 H24 L16 14 H-16 Z"/><path class="tc" d="M-11 0 L0 -24 L11 0 Z"/></g>
+  <g class="op" opacity=".85"><circle cx="286" cy="70" r="5"/><rect x="289.5" y="52" width="3" height="19" rx="1.5"/></g>
+  <g class="tc"><circle cx="386" cy="54" r="5"/><rect x="389.5" y="36" width="3" height="19" rx="1.5"/><circle cx="406" cy="48" r="5"/><rect x="409.5" y="30" width="3" height="19" rx="1.5"/>
+    <rect x="389.5" y="32" width="23" height="4" rx="2" transform="rotate(-14 390 34)"/></g>
+  <circle class="pc" cx="200" cy="40" r="16" opacity=".45"/>
+  <g class="op" opacity=".5"><circle cx="160" cy="70" r="2"/><circle cx="460" cy="40" r="2.5"/></g>
+</svg>

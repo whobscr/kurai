@@ -1,0 +1,14 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a saxophone under a crescent moon, over rooftops -->
+  <path class="tc" d="M440 22 a26 26 0 1 0 22 40 a22 22 0 1 1 -22 -40 Z"/>
+  <g class="pc" opacity=".45"><rect x="150" y="120" width="40" height="40" rx="4"/><rect x="196" y="104" width="34" height="56" rx="4"/>
+    <rect x="390" y="112" width="44" height="48" rx="4"/><rect x="440" y="96" width="40" height="64" rx="4"/></g>
+  <g class="tc" opacity=".7"><rect x="206" y="114" width="6" height="8" rx="2"/><rect x="406" y="122" width="6" height="8" rx="2"/><rect x="452" y="108" width="6" height="8" rx="2"/></g>
+  <!-- the saxophone: neck, body, the curl and the bell -->
+  <path class="line-op" d="M262 30 C276 20 296 24 302 34" stroke-width="5"/>
+  <path class="t" d="M298 30 L314 30 L322 112 C324 130 316 140 302 140 C286 140 278 130 280 116 L286 108 L296 112 C294 122 296 128 302 128 C308 128 310 122 310 114 Z"/>
+  <path class="tc" d="M276 116 C270 102 278 90 290 88 L298 104 C292 106 288 110 286 118 Z"/>
+  <g class="tc"><circle cx="312" cy="54" r="3"/><circle cx="314" cy="70" r="3"/><circle cx="316" cy="86" r="3"/><circle cx="318" cy="102" r="3"/></g>
+  <g class="line-tc" stroke-width="3.5" opacity=".8"><path d="M262 84 c-12-6 -18 6 -30 0 M266 70 c-12-6 -18 6 -30 0"/></g>
+  <g class="op" opacity=".5"><circle cx="360" cy="30" r="2"/><circle cx="380" cy="70" r="2.5"/><circle cx="230" cy="40" r="2"/></g>
+</svg>

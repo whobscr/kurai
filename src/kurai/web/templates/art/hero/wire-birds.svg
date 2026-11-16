@@ -1,0 +1,18 @@
+<svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- five wires as a staff, birds sitting on them as the notes -->
+  <g class="line-op" stroke-width="1.6" opacity=".55">
+    <path d="M120 70 Q300 92 480 66"/><path d="M120 82 Q300 104 480 78"/><path d="M120 94 Q300 116 480 90"/>
+    <path d="M120 106 Q300 128 480 102"/><path d="M120 118 Q300 140 480 114"/></g>
+  <circle class="tc" cx="420" cy="34" r="20" opacity=".6"/>
+  <g class="tc"><path d="M200 85 c0-12 8-18 16-18 c6 0 10 4 10 10 c0 8-8 12-18 12 c-4 0-8-1-8-4 Z"/><circle cx="222" cy="68" r="6"/></g>
+  <path class="t" d="M226 66 l7 2 -7 3 Z"/>
+  <g class="pc"><path d="M262 104 c0-12 8-18 16-18 c6 0 10 4 10 10 c0 8-8 12-18 12 c-4 0-8-1-8-4 Z"/><circle cx="284" cy="87" r="6"/></g>
+  <path class="t" d="M288 85 l7 2 -7 3 Z"/>
+  <g class="t"><path d="M318 82 c0-12 8-18 16-18 c6 0 10 4 10 10 c0 8-8 12-18 12 c-4 0-8-1-8-4 Z"/><circle cx="340" cy="65" r="6"/></g>
+  <path class="tc" d="M344 63 l7 2 -7 3 Z"/>
+  <g class="op" opacity=".9"><path d="M372 98 c0-12 8-18 16-18 c6 0 10 4 10 10 c0 8-8 12-18 12 c-4 0-8-1-8-4 Z"/><circle cx="394" cy="81" r="6"/></g>
+  <path class="t" d="M398 79 l7 2 -7 3 Z"/>
+  <g class="tc"><path d="M430 84 c0-12 8-18 16-18 c6 0 10 4 10 10 c0 8-8 12-18 12 c-4 0-8-1-8-4 Z"/><circle cx="452" cy="67" r="6"/></g>
+  <path class="t" d="M456 65 l7 2 -7 3 Z"/>
+  <path class="line-pc" d="M150 40 q8-8 16 0 q8-8 16 0" stroke-width="3"/>
+</svg>

@@ -1,0 +1,20 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- someone walking under an umbrella; the raindrops turn into notes as they fall -->
+  <path class="tc" opacity=".8" d="M260 70 c0-24 34-30 44-12 c10-22 52-20 56 6 c20 0 26 28 4 30 h-92 c-18 0 -20 -18 -12 -24 Z"/>
+  <path class="tc" opacity=".6" d="M460 50 c0-18 26-22 32-8 c8-16 38-14 40 4 c14 0 18 20 2 22 h-66 c-12 0 -14 -12 -8 -18 Z"/>
+  <g class="line" stroke-width="4" opacity=".55"><path d="M280 130 v14 M320 160 v14 M300 200 v14 M500 120 v14 M540 170 v14 M560 110 v14 M520 220 v14"/></g>
+  <g class="p"><circle cx="280" cy="250" r="7"/><rect x="284" y="216" width="4" height="36" rx="2"/><circle cx="560" cy="260" r="7"/><rect x="564" y="226" width="4" height="36" rx="2"/></g>
+  <path class="line" d="M286 217 q14 4 12 18" stroke-width="4"/>
+  <path class="p" opacity=".16" d="M0 400 V340 H600 V400 Z"/>
+  <g class="t" opacity=".25"><ellipse cx="300" cy="360" rx="40" ry="6"/><ellipse cx="520" cy="370" rx="50" ry="7"/></g>
+  <!-- the umbrella -->
+  <path class="t" d="M330 170 C340 110 400 86 440 86 C480 86 540 110 550 170 C534 160 518 160 504 170 C490 158 470 158 458 170 C444 158 424 158 410 170 C396 158 378 158 364 170 C352 160 340 160 330 170 Z"/>
+  <path class="tc" d="M440 86 C420 100 410 140 410 170 C424 158 444 158 458 170 C460 140 456 100 440 86 Z" opacity=".9"/>
+  <path class="line-ink" d="M440 170 V250 C440 262 428 262 428 252" stroke-width="5" opacity=".8"/>
+  <!-- the walker in a coat, mid-step -->
+  <path class="p" d="M418 290 C410 250 414 220 432 212 C450 208 462 224 460 290 Z"/>
+  <circle class="tc" cx="438" cy="194" r="16"/><path class="p" d="M422 190 c0-18 32-20 32 0 c-10-6 -24-6 -32 0 Z"/>
+  <path class="line" d="M428 288 L414 340 M450 288 L466 338" stroke-width="12"/>
+  <path class="line" d="M446 226 L440 246" stroke-width="10"/>
+  <path class="t" d="M404 342 h16 v-6 h-12 Z M462 340 h16 l-2 -6 h-12 Z"/>
+</svg>

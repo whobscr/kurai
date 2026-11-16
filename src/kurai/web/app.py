@@ -14,7 +14,7 @@ from kurai import plugins, settings
 from kurai.i18n import _
 from kurai.web.deps import LoginRequired, PasswordChangeRequired, context, set_session_cookie
 from kurai.web.routes import admin, apps, auth, main, me, misc, music, player
-from kurai.web.templating import ROOT, doodle, render
+from kurai.web.templating import ROOT, art_hours, doodle, render
 
 ERRORS = {
     403: _("Сюда нельзя"),
@@ -30,7 +30,9 @@ async def lifespan(app: FastAPI):
 
     await bootstrap()
     async with database.session() as db:
-        app.state.default_accent = await settings.get(db, "ui.default_accent")
+        values = await settings.get_all(db)
+    app.state.default_accent = values["ui.default_accent"]
+    app.state.art_hours = art_hours(values)
     yield
     await database.dispose()
 
@@ -38,6 +40,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="Kurai", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.default_accent = settings.defaults()["ui.default_accent"]
+    app.state.art_hours = art_hours(settings.defaults())
     app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
     for module in (auth, main, me, music, player, admin, apps, misc):
         app.include_router(module.router)

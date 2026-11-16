@@ -60,6 +60,10 @@ nav:is(.left, .bottom) > a.active:not(.button, .chip) > i { background-color: va
 .hero-art .a1 { inline-size: 13rem; block-size: 13rem; right: -3rem; bottom: -6.5rem; background: var(--tertiary-container); opacity: .9; }
 .hero-art .a2 { inline-size: 7rem; block-size: 7rem; right: 11rem; top: -2.5rem; background: var(--primary-container); opacity: .55; }
 .hero-art .a3 { inline-size: 3.25rem; block-size: 3.25rem; right: 9rem; bottom: 1rem; background: var(--tertiary); opacity: .8; }
+/* a drawn picture (art/hero/*.svg, 3:1): the band's height at its right edge, fading out towards the title */
+.hero-art svg { position: absolute; right: 0; top: 0; block-size: 100%; inline-size: auto; aspect-ratio: 3;
+  max-inline-size: none; -webkit-mask-image: linear-gradient(to right, transparent, #000 40%);
+  mask-image: linear-gradient(to right, transparent, #000 40%); }
 /* the band's buttons: one pill of the accent with a shadow, readable over any shape behind it; the logout form
    steps aside (display: contents), so both buttons are siblings and line up */
 .hero-tools { position: relative; z-index: 1; display: flex; align-items: center; gap: .25rem; flex: none;
@@ -76,6 +80,7 @@ nav:is(.left, .bottom) > a.active:not(.button, .chip) > i { background-color: va
   .hero.tall h4 { font-size: 1.9rem; }
   .hero-art .a1 { inline-size: 8rem; block-size: 8rem; right: -3rem; bottom: -4rem; }
   .hero-art .a2, .hero-art .a3 { display: none; }
+  .hero-art svg { opacity: .45; }
 }
 
 /* a section heading inside a card: a short bar of the second colour before it */
@@ -207,7 +212,8 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 
 /* ---------- the pictures: theme tokens only ---------- */
 .art .p { fill: var(--primary); } .art .pc { fill: var(--primary-container); } .art .on-pc { fill: var(--on-primary-container); }
-.art .s { fill: var(--secondary); } .art .sc { fill: var(--secondary-container); }
+/* «se», not «s»: Beer CSS hides «.s» above a phone's width */
+.art .se { fill: var(--secondary); } .art .sc { fill: var(--secondary-container); }
 .art .t { fill: var(--tertiary); } .art .tc { fill: var(--tertiary-container); }
 .art .sv { fill: var(--surface-variant); } .art .sf { fill: var(--surface); } .art .bg { fill: var(--surface-container, var(--surface-variant)); }
 .art .ol { fill: var(--outline); } .art .ink { fill: var(--on-surface); }
@@ -215,6 +221,10 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .art .line-s { fill: none; stroke: var(--secondary); stroke-linecap: round; }
 .art .line-t { fill: none; stroke: var(--tertiary); stroke-linecap: round; }
 .art .line-ink { fill: none; stroke: var(--on-surface); stroke-linecap: round; stroke-linejoin: round; }
+.art .op { fill: var(--on-primary); }  /* on the band (the accent) */
+.art .line-op { fill: none; stroke: var(--on-primary); stroke-linecap: round; stroke-linejoin: round; }
+.art .line-pc { fill: none; stroke: var(--primary-container); stroke-linecap: round; stroke-linejoin: round; }
+.art .line-tc { fill: none; stroke: var(--tertiary-container); stroke-linecap: round; stroke-linejoin: round; }
 .art .soft { opacity: .45; }
 /* narrow screens: nothing may make the page wider than the window. The tabs scroll inside their strip (and their
    sideways scrolling never passes on to the page); a field takes its row's width, however long its options; a wide
@@ -237,7 +247,7 @@ main .row > :is(form, div) { min-inline-size: 0; max-inline-size: 100%; }  /* a 
 article > table { display: block; overflow-x: auto; }
 
 /* ---------- «Для вас»: the wave's big button on a wide band of the accent, «Плейлисты» on it, the notifications below.
-   Material's shapes give it movement; nothing moves (no animation) ---------- */
+   a picture behind it (Material's shapes or a drawn scene); nothing moves (no animation) ---------- */
 .kicker { display: block; font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
   opacity: .85; }
 .wave-stage { position: relative; overflow: hidden; margin: 0 0 1.5rem; padding: 5.5rem 2.5rem 3rem; min-block-size: 24rem;
@@ -252,6 +262,10 @@ article > table { display: block; overflow-x: auto; }
 .wave-art .w3 { inline-size: 5rem; block-size: 5rem; right: 4rem; bottom: 3.5rem; background: var(--secondary); opacity: .35; }
 .wave-art .w4 { inline-size: 7rem; block-size: 3rem; left: 40%; top: 1.25rem; background: var(--primary); opacity: .12;
   transform: rotate(-24deg); }
+/* a drawn picture (art/wave/*.svg, 3:2): the card's height at its right edge, fading out towards the button */
+.wave-art svg { position: absolute; right: 0; bottom: 0; block-size: 100%; inline-size: auto; aspect-ratio: 3 / 2;
+  max-inline-size: none; opacity: .8; -webkit-mask-image: linear-gradient(to right, transparent, #000 45%);
+  mask-image: linear-gradient(to right, transparent, #000 45%); }
 .wave-body { position: relative; z-index: 1; display: flex; align-items: center; gap: 2.5rem; inline-size: 100%; }
 .wave-text { flex: 1; min-inline-size: 0; }
 .wave-text h2 { margin: .25rem 0 .5rem; font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 700; line-height: 1;
@@ -286,6 +300,7 @@ article > table { display: block; overflow-x: auto; }
   .wave-play > i { font-size: 4rem; inline-size: 4rem; block-size: 4rem; }
   .wave-art .w1 { inline-size: 16rem; block-size: 16rem; right: -6rem; top: -5rem; }
   .wave-art .w4 { display: none; }
+  .wave-art svg { opacity: .35; }
 }
 
 /* the playlists' sheet: Beer CSS's dialog from the left, without its slide */

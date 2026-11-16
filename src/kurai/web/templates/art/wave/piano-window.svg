@@ -1,0 +1,26 @@
+<svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- a grand piano by a tall window at dusk, a plant on the sill -->
+  <rect class="tc" x="320" y="30" width="200" height="250" rx="100" opacity=".9"/>
+  <rect class="tc" x="336" y="46" width="168" height="218" rx="84"/>
+  <circle class="t" cx="450" cy="120" r="24" opacity=".8"/>
+  <path class="line-s" d="M420 46 V264 M336 160 H504" stroke-width="6"/>
+  <g class="p" opacity=".6"><circle cx="370" cy="100" r="3"/><circle cx="390" cy="70" r="2.5"/><circle cx="480" cy="200" r="2.5"/></g>
+  <rect class="se" x="310" y="276" width="220" height="12" rx="6"/>
+  <!-- the plant on the sill -->
+  <path class="p" d="M486 276 h30 l-4 -26 h-22 Z"/>
+  <g class="t"><path d="M500 252 c-20-20 -30-40 -18-48 c10 10 16 28 18 48 Z"/><path d="M502 252 c10-28 30-40 40-30 c-10 14 -24 24 -40 30 Z"/>
+    <path d="M500 252 c-4-30 4-50 14-54 c4 18 0 38 -14 54 Z"/></g>
+  <path class="p" opacity=".16" d="M0 400 V352 H600 V400 Z"/>
+  <!-- the grand piano: the lid up, the body, the keys, the legs -->
+  <path class="p" d="M250 260 L420 160 L436 176 L290 268 Z" opacity=".9"/>
+  <path class="p" d="M240 262 H500 C540 262 560 280 560 300 C560 316 540 320 520 316 C470 306 430 330 380 330 H240 Z"/>
+  <rect class="sf" x="240" y="300" width="130" height="16" rx="3"/>
+  <g class="se"><rect x="250" y="300" width="6" height="10" rx="1.5"/><rect x="264" y="300" width="6" height="10" rx="1.5"/><rect x="286" y="300" width="6" height="10" rx="1.5"/>
+    <rect x="300" y="300" width="6" height="10" rx="1.5"/><rect x="314" y="300" width="6" height="10" rx="1.5"/><rect x="336" y="300" width="6" height="10" rx="1.5"/><rect x="350" y="300" width="6" height="10" rx="1.5"/></g>
+  <g class="p"><rect x="250" y="320" width="12" height="60" rx="5"/><rect x="380" y="326" width="12" height="54" rx="5"/><rect x="520" y="310" width="12" height="70" rx="5"/></g>
+  <path class="line-s" d="M300 380 h40 M306 380 v-16 h28 v16" stroke-width="4" opacity=".7"/>
+  <!-- notes floating out of the piano -->
+  <g class="t"><circle cx="230" cy="200" r="9"/><rect x="235" y="160" width="5" height="42" rx="2.5"/>
+    <circle cx="190" cy="150" r="8"/><rect x="194.5" y="112" width="4.5" height="40" rx="2.25"/><circle cx="214" cy="142" r="8"/><rect x="218.5" y="104" width="4.5" height="40" rx="2.25"/>
+    <rect x="194.5" y="106" width="28" height="7" rx="3" transform="rotate(-16 195 109)"/></g>
+</svg>
