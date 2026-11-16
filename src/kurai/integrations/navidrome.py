@@ -44,6 +44,12 @@ def _forget(token: str) -> None:
             del _tokens[key]
 
 
+def forget_account(username: str) -> None:
+    """The remembered logins of an account that was deleted (and made anew under the same name)."""
+    for key in [k for k in _tokens if k[1] == username]:
+        del _tokens[key]
+
+
 @dataclass
 class Account:
     username: str
@@ -117,7 +123,13 @@ class Navidrome:
             "id": user_id, "userName": username, "name": name or username, "password": password, "isAdmin": False})
 
     async def delete_user(self, admin_token: str, user_id: str) -> None:
-        await self._json("DELETE", f"/api/user/{user_id}", admin_token)
+        """The account and all that was its (Navidrome deletes them with it): plays, stars, ratings, playlists, play
+        queue; one already gone counts as deleted."""
+        try:
+            await self._json("DELETE", f"/api/user/{user_id}", admin_token)
+        except NavidromeError as e:
+            if e.status != 404:
+                raise
 
     async def songs(self, token: str, sort: str = "title", order: str = "ASC",
                     limit: int | None = None) -> AsyncIterator[dict]:

@@ -18,6 +18,22 @@
 .wordmark-big::after { inset-inline: 38%; block-size: .25rem; }
 .logo-big { width: 4.5rem; height: 4.5rem; }
 
+/* ---------- never wider than the screen ---------- */
+/* a page wider than the screen made phone browsers that don't zoom it out to fit (Yandex Browser) scroll sideways and
+   grow their layout viewport taller too, so the bottom menu sat under the browser's own toolbar. The page's column
+   never grows past the screen (Beer CSS's body grid gives it `1fr`, which grows to its widest content); what still
+   sticks out, e.g. an element a browser or an extension adds to the page, is clipped, and the text isn't enlarged
+   by the browser's own "readable text" boost */
+html { overflow-x: clip; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* (the body clips too: with the root's clip alone, Chromium no longer kept the bottom menu stuck to the screen) */
+body { grid-template-columns: auto minmax(0, 1fr) auto; overflow-x: clip; }
+/* the bottom menu's buttons share its width (Beer CSS gives each 3.5rem: an admin's seven were wider than a phone) */
+nav.bottom { gap: 0; padding-inline: .25rem; }
+nav.bottom > a:not(.button, .chip) { flex: 1 1 0; inline-size: auto; min-inline-size: 0; }
+nav.bottom:not(.max) > a:not(.button, .chip, .main-nav) > i { padding-inline: 0; inline-size: 100%;
+  max-inline-size: 3.5rem; }
+nav.bottom > a.main-nav { flex: none; padding-inline: .25rem; }
+
 /* ---------- the shell: colour washes behind everything, a stronger menu, each page's band ---------- */
 /* two soft washes (the accent's container colours) so the page is never a flat white or black */
 body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;

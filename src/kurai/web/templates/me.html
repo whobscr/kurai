@@ -35,6 +35,17 @@
   {% set back = "me" %}{% include "partials/start_styles.html" %}
 </article>
 
+<article class="round" id="forget">
+  <h6>{{ _("Забыть прослушивания") }}</h6>
+  <p class="small-text">{{ _("Курай начнёт узнавать ваш вкус с нуля: забудет, что и сколько раз вы слушали, ♥, 👎 и оценки, пропуски в «Моей волне». Ответы в «Что вы любите слушать» и плейлисты Курая останутся.") }}</p>
+  <p class="small-text">{{ _("Для этого ваша учётная запись в музыкальных приложениях создаётся заново, с тем же именем и паролем. Вместе со старой удалятся и счётчики прослушиваний, ♥ и оценки в приложениях, плейлисты, созданные в самих приложениях, очередь воспроизведения и подключённые там Last.fm или ListenBrainz. Отменить это нельзя.") }}</p>
+  <form method="post" action="/me/forget">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="checkbox"><input type="checkbox" name="sure" required><span>{{ _("Понимаю, что всё это удалится") }}</span></label>
+    <div class="row"><button class="round error"><i>delete</i><span>{{ _("Забыть прослушивания") }}</span></button></div>
+  </form>
+</article>
+
 <article class="round" id="totp">
   <h6>{{ _("Двухфакторный вход") }}</h6>
   {% if new_codes %}
@@ -114,6 +125,7 @@
   <div class="install-state" data-state="prompt" hidden>
     <button type="button" class="round install-now"><i>install_mobile</i><span>{{ _("Установить приложение") }}</span></button></div>
   <p class="install-state" data-state="ios" hidden>{{ _("В Safari нажмите «Поделиться» (квадрат со стрелкой вверх) → «На экран „Домой“» → «Добавить».") }}</p>
+  <p class="install-state" data-state="yandex" hidden>{{ _("Яндекс Браузер не умеет устанавливать веб-приложения: «Добавить на главный экран» в нём создаёт только ярлык — без своего окна и push-уведомлений. Откройте адрес Курая в Chrome (или в Edge, Samsung Internet) и установите оттуда: ⋮ → «Установить приложение». Браузер по умолчанию менять не нужно — установленный Курай открывается сам по себе.") }}</p>
   <p class="install-state" data-state="other" hidden>{{ _("Откройте меню браузера (⋮ в Chrome, ≡ в Firefox) и выберите «Установить приложение» или «Добавить на главный экран». На компьютере в Chrome и Edge — значок установки в конце адресной строки.") }}</p>
   <a class="small-text" href="/docs/user/start#install">{{ _("Подробнее в справке") }}</a>
 </article>

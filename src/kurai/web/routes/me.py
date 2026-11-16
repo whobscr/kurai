@@ -1,5 +1,5 @@
 """«Личный кабинет»: the user's look (accent colour, light / dark), what they like to listen to, the optional TOTP with
-recovery codes, Telegram, notifications and web push."""
+recovery codes, Telegram, notifications and web push, and forgetting what they listened to."""
 
 import re
 from datetime import UTC, datetime
@@ -10,9 +10,10 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.dialects.postgresql import insert
 
-from kurai import notify, outbound, security, settings
+from kurai import accounts, notify, outbound, security, settings
 from kurai.db.models import PushSubscription
 from kurai.i18n import _
+from kurai.integrations.navidrome import NavidromeError
 from kurai.jobs import queue
 from kurai.recommend import start
 from kurai.web.deps import Ctx, user_required
@@ -133,6 +134,20 @@ async def start_styles(request: Request, ctx: Ctx = Depends(user_required)):
     ctx.user.start_asked_at = datetime.now(UTC)
     await ctx.db.commit()
     return back
+
+
+@router.post("/forget")
+async def forget(request: Request, sure: str = Form(""), ctx: Ctx = Depends(user_required)):
+    """«Забыть прослушивания» (accounts.forget_listens), once the user ticked that they understand what goes."""
+    if sure != "on":
+        return await _page(request, ctx, message=_("Поставьте галочку, что понимаете, что удалится."))
+    try:
+        await accounts.forget_listens(ctx.db, ctx.user)
+    except NavidromeError as e:
+        await ctx.db.rollback()
+        return await _page(request, ctx, message=_("Не получилось: {e}. Попробуйте ещё раз.").format(e=e))
+    return await _page(request, ctx, message=_("Прослушивания забыты. «Моя волна» собирается заново — из того, что "
+                                               "вы указали в «Что вы любите слушать»."))
 
 
 @router.post("/notifications")

@@ -42,6 +42,7 @@ class FakeNavidrome:
         self.playlists: dict[str, tuple[str, list[str]]] = {}
         self.scrobbles: list[tuple[str, str]] = []
         self.ratings: dict[tuple[str, str], tuple[bool, int]] = {}
+        self.deleted: list[str] = []
 
     async def ensure_admin(self, account):
         return False
@@ -55,6 +56,9 @@ class FakeNavidrome:
 
     async def set_password(self, token, user_id, username, name, password):
         self.users[username] = password
+
+    async def delete_user(self, token, user_id):
+        self.deleted.append(user_id)
 
     def signed(self, account, method, params, client="kurai"):
         return f"http://navidrome.invalid/rest/{method}", [("u", account.username), ("c", client)] + params

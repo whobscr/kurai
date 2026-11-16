@@ -1202,3 +1202,55 @@ async def test_the_taste_memory_is_saved_rebuilds_tastes_and_can_count_only_rece
     assert any((j.payload or {}).get("retaste") for j in jobs)
     await settings.put(db, {k: v for k, v in settings.defaults().items() if k.startswith("taste.")})
     await db.commit()
+
+
+async def test_forgetting_the_listens_makes_the_music_account_anew(client, db, navidrome):
+    """«Забыть прослушивания»: only once ticked; the Navidrome account is deleted and made anew with the same name
+    and password, Kurai's plays, skips and taste go, its playlists are written into the new account, the answers stay
+    and the wave is made anew. A failure after the deletion leaves no stale id: a second try only makes the account."""
+    from kurai import security
+    from kurai.db.models import Taste, WaveEvent
+
+    db.add(Track(id="fg1", title="Forget", artist="F", album="F", duration=200))
+    fay = User(username="fay", display_name="Фэй", password_hash=security.hash_password("fay-password"),
+               navidrome_id="nd-fay-old", navidrome_password=security.encrypt("fay-nd"), start_text="джаз")
+    db.add(fay)
+    await db.commit()
+    db.add_all([Listen(user_id=fay.id, track_id="fg1", play_count=7, starred=True),
+                WaveEvent(user_id=fay.id, track_id="fg1", skipped=True, seconds=3),
+                Taste(user_id=fay.id, top_artists=[{"name": "F", "weight": 1}]),
+                Playlist(user_id=fay.id, kind="saved", name="Своё", track_ids=["fg1"], navidrome_id="old-pl"),
+                Listen(user_id=1, track_id="fg1", play_count=2)])
+    await db.commit()
+    await login(client, "fay", "fay-password")
+    token = csrf_of((await client.get("/me")).text)
+
+    assert "Поставьте галочку" in (await client.post("/me/forget", data={"csrf": token})).text
+    assert navidrome.deleted == []
+
+    async def unreachable(*args):
+        from kurai.integrations.navidrome import NavidromeError
+        raise NavidromeError("Navidrome не отвечает")
+
+    real_create = navidrome.create_user
+    navidrome.create_user = unreachable
+    assert "Не получилось" in (await client.post("/me/forget", data={"csrf": token, "sure": "on"})).text
+    await db.refresh(fay)
+    assert navidrome.deleted == ["nd-fay-old"] and fay.navidrome_id is None
+
+    navidrome.create_user = real_create
+    assert "Прослушивания забыты" in (await client.post("/me/forget", data={"csrf": token, "sure": "on"})).text
+    fay_id = fay.id
+    db.expire_all()
+    fay = await db.get(User, fay_id)
+    assert navidrome.deleted == ["nd-fay-old"]  # not again: the old account is already gone
+    assert fay.navidrome_id == "nd-fay" and navidrome.users["fay"] == "fay-nd"
+    assert security.verify_password(fay.password_hash, "fay-password") and fay.start_text == "джаз"
+    for model in (Listen, WaveEvent, Taste):
+        assert (await db.execute(select(func.count()).select_from(model).where(model.user_id == fay.id))).scalar() == 0
+    others = select(Listen.play_count).where(Listen.user_id == 1, Listen.track_id == "fg1")
+    assert (await db.execute(others)).scalar_one() == 2  # someone else's plays stay
+    saved = (await db.execute(select(Playlist).where(Playlist.user_id == fay.id))).scalar_one()
+    assert saved.navidrome_id != "old-pl" and navidrome.playlists[saved.navidrome_id] == ("Своё", ["fg1"])
+    job = (await db.execute(select(Job).where(Job.dedupe_key == f"wave-start:{fay.id}"))).scalar_one()
+    assert job.payload == {"retaste": True}

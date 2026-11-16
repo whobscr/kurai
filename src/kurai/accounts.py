@@ -2,15 +2,21 @@
 username and password, so the music apps log in with the same credentials; Kurai keeps that password encrypted to
 write the user's private playlists."""
 
+import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import security
-from kurai.db.models import Session, User
+from kurai.db.models import Listen, Playlist, Session, Taste, User, WaveEvent
 from kurai.i18n import _
-from kurai.recommend.library import admin_login
+from kurai.integrations.navidrome import NavidromeError, forget_account
+from kurai.jobs import queue
+from kurai.recommend import playlists
+from kurai.recommend.library import admin_login, user_account
+
+log = logging.getLogger(__name__)
 
 MIN_PASSWORD = 8
 SESSION_DAYS = 30  # a session unused this long ends (the cookie lives as long)
@@ -58,6 +64,35 @@ async def set_password(db: AsyncSession, user: User, password: str) -> None:
     user.navidrome_password = security.encrypt(password)
     user.password_hash = security.hash_password(password)
     user.must_change_password = False
+    await db.commit()
+
+
+async def forget_listens(db: AsyncSession, user: User) -> None:
+    """«Забыть прослушивания». Navidrome can't clear an account's plays, so the user's music account is made anew,
+    with the same name and password (the music apps go on logging in): Navidrome deletes the old one's plays, stars,
+    ratings, playlists and play queue with it. Kurai forgets its copy of them, the wave's plays and skips and the
+    taste, writes its own playlists into the new account and makes the taste (from «Что вы любите слушать» only)
+    and the wave anew. The old account's id is let go before the new one is made, so after a failure halfway a
+    second try only makes the account."""
+    account = user_account(user)
+    if account is not None:
+        nd, token = await admin_login(db)
+        if user.navidrome_id:
+            await nd.delete_user(token, user.navidrome_id)
+            user.navidrome_id = None
+            await db.commit()
+        forget_account(user.username)
+        user.navidrome_id = await nd.create_user(token, user.username, user.display_name, account.password)
+    for model in (Listen, WaveEvent, Taste):
+        await db.execute(delete(model).where(model.user_id == user.id))
+    await db.execute(update(Playlist).where(Playlist.user_id == user.id).values(navidrome_id=None))
+    await db.commit()
+    for playlist in (await db.execute(select(Playlist).where(Playlist.user_id == user.id))).scalars():
+        try:
+            await playlists.write(db, user, playlist)
+        except NavidromeError as e:  # the next version of it is written anyway
+            log.warning("playlist %s not written into the new account: %s", playlist.id, e)
+    await queue.enqueue(db, "wave", {"retaste": True}, user_id=user.id, priority=20, dedupe_key=f"wave-start:{user.id}")
     await db.commit()
 
 

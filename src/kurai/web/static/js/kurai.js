@@ -36,19 +36,23 @@
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent)
     || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const phone = matchMedia("(pointer: coarse)").matches;
+  // Yandex Browser can't install a web app: its «add to the home screen» makes a plain shortcut (no own window, no
+  // push), whatever it offers; the page sends its users to Chrome or another browser that can
+  const yandex = /YaBrowser|YaApp/i.test(navigator.userAgent);
   let prompt = null;
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); prompt = e; showInstall(document); });
   window.addEventListener("appinstalled", () => { prompt = null; showInstall(document); });
 
   // ---------- installing the app: the browser's own prompt where it gives one (Chrome, Edge, Samsung), the steps
-  // elsewhere (iPhone: «Поделиться» → «На экран „Домой“»); the band offers it until «Не сейчас» ----------
+  // elsewhere (iPhone: «Поделиться» → «На экран „Домой“»; Yandex Browser: another browser); the band offers it until
+  // «Не сейчас» ----------
   function showInstall(root) {
-    const state = installed ? "installed" : prompt ? "prompt" : ios ? "ios" : "other";
+    const state = installed ? "installed" : yandex ? "yandex" : prompt ? "prompt" : ios ? "ios" : "other";
     root.querySelectorAll(".install-state").forEach((el) => { el.hidden = el.dataset.state !== state; });
     const banner = root.querySelector("#install-banner");
     if (!banner) return;
-    banner.querySelector(".install-now").hidden = !prompt;
-    banner.querySelector(".install-how").hidden = !!prompt;
+    banner.querySelector(".install-now").hidden = state !== "prompt";
+    banner.querySelector(".install-how").hidden = state === "prompt";
     banner.hidden = installed || store.get("kurai.install.later") === "1" || location.pathname === "/me"
       || !(prompt || (phone && worker));
   }
