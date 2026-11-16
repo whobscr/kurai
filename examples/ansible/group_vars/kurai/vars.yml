@@ -1,5 +1,5 @@
 # Your Kurai: change these. Everything here goes into the host's .env (see roles/kurai/defaults/main.yml for the rest).
-kurai_version: "1.8.3"            # the release to run (a tag of this repository without the «v»)
+kurai_version: "1.8.4"            # the release to run (a tag of this repository without the «v»)
 kurai_base_url: https://music.example.org
 kurai_dir: /srv/kurai-data        # music, Navidrome's config, the database, the models
 kurai_profiles: db,cpu            # db, cpu or gpu, audio (README.md of the repository: «Profiles»)

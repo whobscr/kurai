@@ -1,3 +1,3 @@
 """Kurai: a self-hosted music server that learns tastes and makes playlists."""
 
-__version__ = "1.8.3"
+__version__ = "1.8.4"

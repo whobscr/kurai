@@ -79,11 +79,14 @@ async def _send_push(db: AsyncSession, values: dict, subs: list[tuple[str, dict]
     import asyncio
 
     import requests
+    from py_vapid import Vapid
     from pywebpush import WebPushException, webpush
 
     route = outbound.route_from(values, "webpush")
     payload = json.dumps({"title": _("Курай"), "body": text, "url": link or "/"})
     subject = f"mailto:kurai@{urlsplit(get_config().base_url).hostname or 'localhost'}"
+    # the key is stored as PEM: pywebpush reads a string as raw or DER only, so it's loaded here
+    vapid = Vapid.from_pem(values["webpush.private_key"].encode())
     errors = []
     with requests.Session() as session:
         if route.proxy:
@@ -92,7 +95,7 @@ async def _send_push(db: AsyncSession, values: dict, subs: list[tuple[str, dict]
             try:
                 await asyncio.to_thread(
                     webpush, {"endpoint": endpoint, "keys": keys}, payload,
-                    vapid_private_key=values["webpush.private_key"], vapid_claims={"sub": subject},
+                    vapid_private_key=vapid, vapid_claims={"sub": subject},
                     requests_session=session, timeout=20)
             except WebPushException as e:
                 if e.response is not None and e.response.status_code in (404, 410):  # the browser dropped it

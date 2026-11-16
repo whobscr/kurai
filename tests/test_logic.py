@@ -376,3 +376,34 @@ def test_a_track_is_by_its_first_credited_artist():
     assert artist_key("Daft Punk feat. Pharrell Williams") == artist_key("Daft Punk ft. Nile Rodgers") == "daft punk"
     assert artist_key("Simon & Garfunkel") == "simon & garfunkel"  # a duo's name is one artist
     assert artist_key("Featherstone") == "featherstone" and artist_key(None) == ""
+
+
+def test_a_push_is_signed_with_the_vapid_key_made_on_first_start(monkeypatch):
+    """The private key is stored as PEM, which pywebpush can't read from a string: it's loaded before sending."""
+    import asyncio
+    import base64
+
+    import requests
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    from kurai import notify
+    from kurai.bootstrap import _vapid_keys
+
+    public, private = _vapid_keys()
+    browser = ec.generate_private_key(ec.SECP256R1()).public_key().public_bytes(
+        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    keys = {"p256dh": base64.urlsafe_b64encode(browser).decode().rstrip("="),
+            "auth": base64.urlsafe_b64encode(b"0123456789abcdef").decode().rstrip("=")}
+    sent = []
+
+    def post(session, url, **kwargs):
+        sent.append(kwargs["headers"]["Authorization"])
+        response = requests.Response()
+        response.status_code = 201
+        return response
+
+    monkeypatch.setattr(requests.Session, "post", post)
+    values = {"webpush.private_key": private, "outbound.proxy": ""}
+    assert asyncio.run(notify._send_push(None, values, [("https://fcm.googleapis.com/x", keys)], "hi", "/")) == []
+    assert sent and f"k={public}" in sent[0]
