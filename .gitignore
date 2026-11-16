@@ -6,3 +6,7 @@ __pycache__/
 .ruff_cache/
 dist/
 .idea/
+
+# the Ansible example: your host and your secrets
+examples/ansible/inventory.ini
+examples/ansible/group_vars/kurai/vault.yml

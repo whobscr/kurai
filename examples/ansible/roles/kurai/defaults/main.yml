@@ -1,0 +1,12 @@
+# Where the compose project lives on the host (docker-compose.yml and .env)
+kurai_compose_dir: /opt/kurai
+# The account the containers write as: the owner of kurai_dir
+kurai_puid: 1000
+kurai_pgid: 1000
+kurai_web_port: 8095
+kurai_profiles: db,cpu
+kurai_env: {}
+# This repository (the playbook's folder is examples/ansible): its compose file and .env.example are deployed
+kurai_repo: "{{ playbook_dir }}/../.."
+# How long the first start may take (the database's migrations; the models download in the background)
+kurai_start_timeout: 300

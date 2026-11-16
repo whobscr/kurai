@@ -1,0 +1,4 @@
+# Copy to vault.yml (without .example), fill in, then encrypt it: ansible-vault encrypt group_vars/kurai/vault.yml
+# Use long random hex strings (openssl rand -hex 32): the database password goes into a URL as it is.
+vault_kurai_secret_key: ""        # never change it later: it logs everyone out and makes stored secrets unreadable
+vault_kurai_db_password: ""

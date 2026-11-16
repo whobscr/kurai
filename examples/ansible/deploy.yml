@@ -1,0 +1,9 @@
+# Kurai on one host with Docker: this repository's docker-compose.yml, an .env made from .env.example with your
+# values, the images of kurai_version pulled and started, then a wait until the web app answers. Run it again after
+# changing kurai_version to update. Details: README.md next to this file.
+#   ansible-playbook -i inventory.ini deploy.yml --ask-vault-pass
+- name: Deploy Kurai
+  hosts: kurai
+  become: true
+  roles:
+    - kurai

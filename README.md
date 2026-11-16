@@ -122,11 +122,24 @@ Restore: `pg_restore -U kurai -d kurai --clean kurai-….dump` into an empty dat
 
 ## Updating
 
+`KURAI_VERSION` in your `.env` says which release's images run, so a newer `docker-compose.yml` alone changes
+nothing. To update to, say, 1.3.0:
+
 ```sh
-git pull && docker compose pull && docker compose up -d
+git fetch --tags && git checkout v1.3.0       # the compose file and .env.example of that release
+diff .env.example .env                        # anything new to copy into your .env
+sed -i 's/^KURAI_VERSION=.*/KURAI_VERSION=1.3.0/' .env
+docker compose pull && docker compose up -d
 ```
 
-Database migrations run by themselves when Kurai starts.
+Database migrations run by themselves when Kurai starts. What changed in each release: «Справка → Что нового» in the
+app, or `src/kurai/docs/ru/changelog.md`.
+
+### Deploying with Ansible
+
+To deploy and update from your machine instead, see [examples/ansible](examples/ansible): a small playbook that copies
+the compose file, writes `.env` from `.env.example` with your values (secrets in Ansible Vault), pulls, starts and
+waits until Kurai answers.
 
 ## Administration from the command line
 

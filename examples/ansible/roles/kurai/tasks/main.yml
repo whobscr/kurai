@@ -1,0 +1,64 @@
+- name: The settings are there
+  ansible.builtin.assert:
+    that:
+      - kurai_version | default('') | length > 0
+      - kurai_base_url | default('') | length > 0
+      - kurai_dir | default('') | length > 0
+      - vault_kurai_secret_key | default('') | length >= 32
+      - "'db' not in kurai_profiles.split(',') or vault_kurai_db_password | default('') | length > 0"
+    fail_msg: >-
+      Set kurai_version, kurai_base_url and kurai_dir (group_vars/kurai/vars.yml) and vault_kurai_secret_key (32+
+      characters) and, with the db profile, vault_kurai_db_password (group_vars/kurai/vault.yml).
+    quiet: true
+
+- name: Docker's compose plugin is installed
+  ansible.builtin.command: docker compose version
+  changed_when: false
+  check_mode: false
+
+- name: Kurai's folders (the music library and Navidrome's config; the rest the containers make)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ kurai_puid }}"
+    group: "{{ kurai_pgid }}"
+    mode: "0755"
+  loop:
+    - "{{ kurai_compose_dir }}"
+    - "{{ kurai_dir }}/data/music"
+    - "{{ kurai_dir }}/config/navidrome"
+
+- name: The compose file of this version of the repository
+  ansible.builtin.copy:
+    src: "{{ kurai_repo }}/docker-compose.yml"
+    dest: "{{ kurai_compose_dir }}/docker-compose.yml"
+    mode: "0644"
+
+- name: The .env (.env.example with your values; it holds secrets)
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ kurai_compose_dir }}/.env"
+    mode: "0600"
+
+- name: Pull the images
+  ansible.builtin.command: docker compose pull --quiet
+  args:
+    chdir: "{{ kurai_compose_dir }}"
+  changed_when: false
+
+- name: Start Kurai (only what changed is recreated)
+  ansible.builtin.command: docker compose up -d --remove-orphans
+  args:
+    chdir: "{{ kurai_compose_dir }}"
+  register: kurai_up
+  changed_when: "'Recreate' in kurai_up.stderr or 'Creat' in kurai_up.stderr or 'Start' in kurai_up.stderr"
+
+- name: The web app answers
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ kurai_web_port }}/healthz"
+    status_code: 200
+  register: kurai_health
+  until: kurai_health.status == 200
+  retries: "{{ (kurai_start_timeout / 5) | int }}"
+  delay: 5
+  when: not ansible_check_mode
