@@ -171,7 +171,8 @@ Releases: a tag `vX.Y.Z` builds and publishes `ghcr.io/<owner>/kurai:X.Y.Z` and 
 ## License
 
 [MIT](LICENSE). Bundled front-end libraries keep their own licenses: Beer CSS and material-dynamic-colors (MIT), htmx
-(0BSD), in `src/kurai/web/static/vendor/`.
+(0BSD), and the Lobster font of the name under the logo (SIL Open Font License 1.1, unchanged), in
+`src/kurai/web/static/vendor/`.
 
 The audio analysis image (`kurai-audio`) also contains [Essentia](https://essentia.upf.edu), which is licensed under
 the GNU AGPL v3.0: that image as a whole is distributed under the AGPL's terms (its source is this repository and
