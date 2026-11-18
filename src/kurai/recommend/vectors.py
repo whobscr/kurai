@@ -189,7 +189,7 @@ def adjust(candidates: list[Candidate], randomness: float = 0.0, resting: set[st
 
 
 def compose(parts: list[tuple[list[Candidate], int]], size: int, diversity: float,
-            max_per_artist: int, chosen: list[Candidate] | None = None, relax: bool = True) -> list[Candidate]:
+            max_per_artist: int, chosen: list[Candidate] | None = None, relax: bool = False) -> list[Candidate]:
     """A mix of parts (new, related, known…), each `(candidates, how many)`, chosen in turn by MMR so they don't
     repeat each other; what a part lacks is filled from all of them. Continues `chosen` (another part of the same
     mix: no repeats, the artists counted): returns it with up to `size` more.
