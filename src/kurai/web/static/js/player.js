@@ -175,9 +175,10 @@
   }
 
   // who a track is by when keeping artists apart: the first credited one (as kurai/artists.py on the server; Navidrome
-  // joins a track's artists with « • », and «feat.» guests don't make another artist)
-  const artistKey = (name) => (name || "").split(" • ")[0].replace(/\s+(?:feat\.?|ft\.|featuring)\s.*$/i, "").trim()
-    .toLowerCase();
+  // joins a track's artists with « • », and «feat.»/«(ft. …)» guests don't make another artist)
+  const artistKey = (name) => (name || "").split(" • ")[0]
+      .replace(/(?:\s+|\s*[\(\[]\s*)(?:feat\.|ft\.|(?:feat|ft|featuring)(?=\s|$))\s*.*$/i, "").trim()
+      .toLowerCase();
 
   const stream = (id) => `/player/stream/${encodeURIComponent(id)}`;
 
