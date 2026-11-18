@@ -1,7 +1,8 @@
 """`kurai web | worker | audio | migrate | reset-2fa <user> | reset-password <user>`.
 
-`web`, `worker` and `audio` apply the database migrations first (under a PostgreSQL advisory lock, so they don't race):
-nothing has to be done by hand after an update."""
+`web`, `worker` and `audio` apply the database migrations first (under a PostgreSQL advisory lock with a 60 s
+timeout, so they don't race and a stuck migration doesn't wedge the whole install): nothing has to be done by hand
+after an update."""
 
 import argparse
 import asyncio
@@ -15,23 +16,38 @@ from sqlalchemy import create_engine, text
 from kurai.config import get_config
 
 MIGRATIONS = Path(__file__).resolve().parent / "migrations"
-LOCK = 7_340_211  # any constant: Kurai's migration lock
+LOCK = 7_340_211
+LOCK_TIMEOUT_MS = 60_000
 
 
 def migrate() -> None:
-    """Kurai's migrations, then each plugin's (its own Alembic history, in its own version table)."""
+    """Kurai's migrations, then each plugin's (its own Alembic history, in its own version table). A plugin's
+    migration failure is logged and the next plugin still runs — one bad plugin no longer wedges the whole install."""
     from kurai import plugins
 
     url = get_config().database_url
     engine = create_engine(url)
     with engine.connect() as conn:
-        conn.execute(text("select pg_advisory_lock(:k)"), {"k": LOCK})
+        acquired = conn.execute(text(
+            "select pg_try_advisory_lock(:k)")).scalar()
+        if not acquired:
+            # wait up to the timeout for another process to release it
+            conn.execute(text("set local lock_timeout = :t"), {"t": f"{LOCK_TIMEOUT_MS}ms"})
+            conn.execute(text("select pg_advisory_lock(:k)"), {"k": LOCK})
         try:
+            failed: list[str] = []
             for location in [MIGRATIONS] + [p.migrations for p in plugins.installed() if p.migrations]:
-                cfg = AlembicConfig()
-                cfg.set_main_option("script_location", str(location))
-                cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
-                command.upgrade(cfg, "head")
+                try:
+                    cfg = AlembicConfig()
+                    cfg.set_main_option("script_location", str(location))
+                    cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
+                    command.upgrade(cfg, "head")
+                except Exception as e:
+                    name = Path(location).name
+                    logging.getLogger(__name__).exception("migration %s failed", name)
+                    failed.append(f"{name}: {e.__class__.__name__}: {e}")
+            if failed:
+                logging.getLogger(__name__).error("migrations failed: %s", "; ".join(failed))
         finally:
             conn.execute(text("select pg_advisory_unlock(:k)"), {"k": LOCK})
     engine.dispose()

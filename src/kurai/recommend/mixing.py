@@ -18,6 +18,7 @@ from kurai import settings
 from kurai.artists import artist_key
 from kurai.db.models import Listen, Track, User, WaveEvent
 from kurai.i18n import _
+from kurai.recommend import mood as moodmod
 from kurai.recommend.vectors import Candidate, adjust, arrange, compose, spread
 
 PROFILES = {"wave": _("«Моя волна»"), "playlists": _("Плейлисты")}
@@ -79,9 +80,8 @@ PARAMS: tuple[Param, ...] = (
           _("Трек, сыгранный за эти дни, не попадает в подборку — чтобы успеть по нему соскучиться."),
           float, {"wave": 7, "playlists": 7}, high=365),
     Param("artist_rest_hours", _("Пауза для исполнителя, ч"),
-          _("Самое большее столько часов исполнитель, только что звучавший, не попадает в подборку (пока хватает "
-            "других; если не хватает — возвращается, последним). Когда именно он вернётся — решает «Форма паузы». "
-            "0 — без паузы."),
+          _("Самое большее столько часов исполнитель, только что звучавший, не попадает в подборку (пока хватает других; "
+            "если не хватает — возвращается, последним). Когда именно он вернётся — решает «Форма паузы». 0 — без паузы."),
           float, {"wave": 6, "playlists": 24}, high=24 * 30),
     # ---- the advanced ones ----
     Param("artist_rest_shape", _("Форма паузы исполнителя"),
@@ -90,7 +90,8 @@ PARAMS: tuple[Param, ...] = (
             "конце."),
           float, {"wave": 2, "playlists": 2}, low=1, high=20, advanced=True),
     Param("artist_max", _("Треков одного исполнителя в подборке"),
-          _("Не больше стольких треков одного исполнителя в одной версии волны или в одном плейлисте."),
+          _("Не больше стольких треков одного исполнителя в одной версии волны или в одном плейлисте. Уступает нехватке: "
+            "если подходящих исполнителей мало, лимит поднимается, чтобы набрать подборку."),
           int, {"wave": 2, "playlists": 2}, low=1, high=20, advanced=True, ask=True),
     Param("artist_gap", _("Между треками одного исполнителя"),
           _("Сколько других треков стоит между двумя треками одного исполнителя (если хватает других)."),
@@ -129,6 +130,14 @@ PARAMS: tuple[Param, ...] = (
     Param("popular_every", _("Новичкам — популярный трек каждые"),
           _("Пока человек ничего не слушал: каждый N-й трек — из популярного в библиотеке. 0 — без них."),
           int, {"wave": 3}, high=20, advanced=True),
+    Param("mood", _("Учитывать настроение"),
+          _("Подборка тянется к звучанию в такт текущему настроению сессии (считается по принятым трекам). "
+            "Выключено — настроение только видно в «Задачах», на выбор не влияет."),
+          bool, {"wave": False}, advanced=True),
+    Param("mood_strength", _("Влияние настроения"),
+          _("Насколько сильно настроение сдвигает порядок треков (в разбросах, как прочие поправки). Работает, "
+            "только когда «Учитывать настроение» включено и у сессии достаточно уверенности."),
+          float, {"wave": 0.25}, low=0, high=1, advanced=True),
 )
 BY_KEY = {p.key: p for p in PARAMS}
 
@@ -227,8 +236,10 @@ def _capacity(candidates: list[Candidate], per_artist: int) -> int:
 
 
 def choose(pool: list[Candidate], near: list[Candidate], known: set[str], mix: Mix, size: int,
-           resting: set[str] | None = None, rng: random.Random | None = None,
-           chosen: list[Candidate] | None = None, away: list | None = None) -> list[Candidate]:
+          resting: set[str] | None = None, rng: random.Random | None = None,
+          chosen: list[Candidate] | None = None, away: list | None = None,
+          mood: "moodmod.SessionMood | None" = None, mood_strength: float = 0.0,
+          track_moods: dict | None = None) -> list[Candidate]:
     """`size` more tracks after `chosen` (another part of the same version), not in playing order: from the candidates
     near the query (`pool`) and those of the «слушают вместе» artists (`near`). The artists resting («Пауза для
     исполнителя») are left out while the others can fill it — else let back in, last; randomness is added; then the
@@ -250,6 +261,12 @@ def choose(pool: list[Candidate], near: list[Candidate], known: set[str], mix: M
     push = mix.skip_push if away else 0.0
     pool = adjust(pool, mix.randomness, resting, REST_LAST, rng, scale, away, push)
     near = adjust(near, mix.randomness, resting, REST_LAST, rng, scale, away, push)
+    if mood is not None and mood_strength > 0 and track_moods:
+            def _mooded(c: Candidate) -> Candidate:
+                bonus = moodmod.mood_bonus(track_moods.get(c.id), mood, mood_strength)
+                return replace(c, relevance=c.relevance + bonus * scale)
+            pool = sorted((_mooded(c) for c in pool), key=lambda c: -c.relevance)
+            near = sorted((_mooded(c) for c in near), key=lambda c: -c.relevance)
     new = [replace(c, kind="new") for c in pool if c.id not in known]
     old = [replace(c, kind="known") for c in pool if c.id in fits and c.id in known]
     rest = [replace(c, kind="known") for c in pool if c.id not in fits and c.id in known]

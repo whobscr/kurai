@@ -6,7 +6,6 @@ from typing import Any, Protocol
 
 import numpy as np
 
-# the binary heads: name -> the class that means «yes»
 MOOD_HEADS = {"happy": "happy", "sad": "sad", "relaxed": "relaxed", "aggressive": "aggressive", "party": "party",
               "acoustic": "acoustic", "electronic": "electronic"}
 MOOD_LABELS = {"happy": "радостное", "sad": "грустное", "relaxed": "спокойное", "aggressive": "агрессивное",
@@ -84,7 +83,6 @@ def describe_set(items: Sequence[Analysed]) -> str:
     return "; ".join(parts)
 
 
-# «Спросить»: what a request asks of the sound, beyond its description (playlists.ask)
 ENERGETIC, CALM = 0.55, 0.4
 
 
@@ -118,3 +116,38 @@ def fits(a: Analysed | None, bpm_min: int = 0, bpm_max: int = 0, wanted_energy: 
     if vocals != "any" and a.voice is not None:
         checks.append(a.voice >= 0.5 if vocals == "vocal" else a.voice < 0.5)
     return all(checks) if checks else None
+
+
+def mood_of(a: Analysed | None) -> np.ndarray | None:
+    """A track's mood as a 2-vector: valence (happy/sad), arousal (party/aggressive/danceability vs relaxed).
+    Pure, no DB. None when none of the mood heads produced a usable probability (effnet not run, or unanalysed).
+    The acoustic/electronic heads are deliberately left out: they're timbre, collinear with the sound embedding,
+    and would make mood a proxy for genre. Raw bpm is left out too — PercivalBpmEstimator octave-errors freely,
+    and arousal already carries tempo via danceability/party. `None` is the unknown-track signal: callers skip
+    such tracks when inferring session mood and give them mood bonus 0 (neutral), never a spurious negative."""
+    if a is None:
+        return None
+    moods = a.moods or {}
+    if not moods:
+        return None
+    happy = moods.get("happy")
+    sad = moods.get("sad")
+    party = moods.get("party")
+    aggressive = moods.get("aggressive")
+    relaxed = moods.get("relaxed")
+    dance = getattr(a, "danceability", None)
+    if not any(v is not None for v in (happy, sad, party, aggressive, relaxed, dance)):
+        return None
+    valence_parts = [v for v in (happy,) if v is not None]
+    if sad is not None:
+        valence_parts.append(-sad)
+    if aggressive is not None:
+        valence_parts.append(-0.5 * aggressive)
+    arousal_parts = [v for v in (party, aggressive, dance) if v is not None]
+    if relaxed is not None:
+        arousal_parts.append(-relaxed)
+    if not valence_parts or not arousal_parts:
+        return None
+    out = np.array([float(np.mean(valence_parts)), float(np.mean(arousal_parts))], dtype=np.float32)
+    norm = np.linalg.norm(out)
+    return out / norm if norm > 0 else out

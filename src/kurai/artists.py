@@ -10,7 +10,7 @@ import re
 
 SEPARATOR = " • "  # Navidrome's join of a track's several artists
 # A guest credit, from its separator to the end of the line. Before the marker: whitespace, or an opening bracket
-# («Artist (feat. Guest)», «Artist[ft. Guest]»). After it: a dot («feat.Guest»), or whitespace/end — never a letter,
+# («Artist (feat. Guest)», «Artist [ft. Guest]»). After it: a dot («feat.Guest»), or whitespace/end — never a letter,
 # so «The Features» stays whole. «with» and «vs» are deliberately not here: «Dance with the Dead» is one artist.
 _GUESTS = re.compile(r"(?:\s+|\s*[\(\[]\s*)(?:feat\.|ft\.|(?:feat|ft|featuring)(?=\s|$))\s*.*$", re.IGNORECASE)
 

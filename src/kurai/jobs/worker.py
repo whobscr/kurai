@@ -12,7 +12,7 @@ from kurai.db.models import Job, User
 from kurai.i18n import _
 from kurai.jobs import queue, window
 from kurai.notify import notify, send_telegram
-from kurai.recommend import artist_ids, library, playlists, popularity, related, wave
+from kurai.recommend import artist_ids, library, playlists, popularity, related, retrieval, wave
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ EVERY = {"sync_library": timedelta(hours=1), "sync_listens": timedelta(minutes=3
 DAYTIME_EMBED_LIMIT = 200
 # the audio analysis (when it's on): new imports during the day, the backlog at night
 AUDIO_EVERY = timedelta(minutes=30)
+JOB_TIMEOUT_S = 3600  # one hour: a hanging job must not stop the queue
 
 
 class PartialFailure(Exception):
@@ -34,10 +35,14 @@ class PartialFailure(Exception):
         self.result = result
 
 
+JOB_TIMEOUT_S = 3600  # one hour: a hanging job must not stop the night's work or the queue
+
+
 async def _nightly(db, job: Job) -> dict:
     """The night's work, in order: the library, its vectors, each user's listens, taste and mixes, then the plugins'
     steps (e.g. finding new music). A part that fails is noted and the rest goes on; the job fails at the end, naming
-    the failed parts."""
+    the failed parts. Each plugin step runs in its own session so a plugin's rollback can't discard core's pending
+    work."""
     result: dict = {}
     failed: list[str] = []
 
@@ -49,12 +54,25 @@ async def _nightly(db, job: Job) -> dict:
             await db.rollback()
             failed.append(f"{name}: {str(e) or e.__class__.__name__}")
 
+    async def plugin_step(name: str, run) -> None:
+        """Plugin step in its own session: its failures don't touch the nightly session."""
+        try:
+            async with database.session() as plugin_db:
+                result[name] = await run(plugin_db)
+        except Exception as e:
+            log.exception("plugin step %s failed", name)
+            failed.append(f"{name}: {str(e) or e.__class__.__name__}")
+
     await step("library", lambda: library.sync_library(db))
-    # the new artists' ids before the tastes' «слушают вместе» and the plugins' steps ask ListenBrainz by them
     await step("artist_ids", lambda: artist_ids.look_up(db))
     await step("embeddings", lambda: library.embed_tracks(db))
+    # cached space means for retrieval.joint(): refreshed here so the day's recommendations see them
+    try:
+        result["space_means"] = await retrieval.refresh_means(db)
+    except Exception as e:
+        log.exception("space means refresh failed")
+        failed.append(f"space_means: {e.__class__.__name__}: {e}")
     wave_on = await settings.get(db, "wave.enabled")
-    # ids, not the users themselves: a rollback after one user's failure expires every loaded object
     for user_id, username in [(u.id, u.username) for u in await library.active_users(db)]:
         async def for_user(user_id: int = user_id) -> dict:
             user = await db.get(User, user_id)
@@ -64,14 +82,30 @@ async def _nightly(db, job: Job) -> dict:
                    "playlists": await playlists.nightly(db, user)}
             if user.favorites_nightly:
                 out["favorites"] = await playlists.build_favorites(db, user, create=False)
-            if wave_on:  # a fresh wave for the new day, from the new taste
+            if wave_on:
                 out["wave"] = await wave.build(db, user)
             return out
 
         await step(f"user {username}", for_user)
+    # cached space means for retrieval.joint(): refreshed here so the day's recommendations see them
+    try:
+        result["space_means"] = await retrieval.refresh_means(db)
+    except Exception as e:
+        log.exception("space means refresh failed")
+        failed.append(f"space_means: {e.__class__.__name__}: {e}")
+
+    async def plugin_step(name: str, run) -> None:
+        """Plugin step in its own session: its failures don't touch the nightly session."""
+        try:
+            async with database.session() as plugin_db:
+                result[name] = await run(plugin_db)
+        except Exception as e:
+            log.exception("plugin step %s failed", name)
+            failed.append(f"{name}: {str(e) or e.__class__.__name__}")
+
     for plugin in plugins.plugins():
         for name, plugin_step in plugin.nightly:
-            await step(name, lambda plugin_step=plugin_step: plugin_step(db))
+            await plugin_step(name, plugin_step)
     await step("old_playlists_removed", lambda: playlists.remove_old(db))
     await step("old_sessions_removed", lambda: accounts.prune_sessions(db))
     await step("old_jobs_removed", lambda: queue.prune(db))
@@ -150,22 +184,29 @@ def handlers() -> dict:
 
 
 async def run_one(job_id: int) -> None:
+    """Run a single job with a per-job timeout. A hanging job is cancelled and marked failed rather than stopping the
+    queue."""
     async with database.session() as db:
         job = await db.get(Job, job_id)
-        kind = job.kind  # kept: a handler's rollback expires the job object
+        kind = job.kind
         handler = handlers().get(kind)
         try:
             if handler is None:
                 raise ValueError(_("неизвестная задача {kind}").format(kind=kind))
-            result = await handler(db, job)
+            result = await asyncio.wait_for(handler(db, job), timeout=JOB_TIMEOUT_S)
             await queue.finish(db, job, result if isinstance(result, dict) else {"result": result})
+        except asyncio.TimeoutError:
+            log.error("job %s (%s) timed out after %s s", job_id, kind, JOB_TIMEOUT_S)
+            await db.rollback()
+            job = await db.get(Job, job_id)
+            await queue.finish(db, job, error=f"timed out after {JOB_TIMEOUT_S} s")
         except Exception as e:  # a job's failure is recorded for the admin page, the worker goes on
             log.exception("job %s (%s) failed", job_id, kind)
             await db.rollback()
             job = await db.get(Job, job_id)
             message = str(e) or e.__class__.__name__
             await queue.finish(db, job, e.result if isinstance(e, PartialFailure) else None, error=message[:2000])
-            if job.kind == "ask" and job.user_id:  # the person waits for it (the wave and explanations don't say)
+            if job.kind == "ask" and job.user_id:
                 text = _("Не получилось: {message}").format(message=message[:300])
                 chat = job.payload.get("reply_to")
                 await notify(db, job.user_id, text, "/ask", telegram=not chat)

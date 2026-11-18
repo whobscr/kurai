@@ -22,6 +22,9 @@ from kurai.recommend.vectors import listen_weight, taste_vector
 log = logging.getLogger(__name__)
 
 EMBED_BATCH = 16
+# sync_library: refuse to delete more than this fraction of the known library in one run. A transient partial answer
+# from Navidrome must not cost days of audio analysis.
+MAX_DELETE_FRACTION = 0.25
 
 
 def navidrome() -> Navidrome:
@@ -57,21 +60,29 @@ def track_text(t: Track) -> str:
 async def sync_library(db: AsyncSession) -> dict:
     """Every song Navidrome has, upserted; songs it no longer has are removed (with their plays and sound). An empty
     answer while Kurai knows tracks removes nothing: the music folder is more likely missing (an unmounted disk)
-    than empty."""
+    than empty. A partial answer that would delete more than MAX_DELETE_FRACTION of the known library is also refused:
+    Navidrome's paging by title is unstable on ties, and a transient outage must not cost days of audio analysis."""
     nd, token = await admin_login(db)
     started = datetime.now(UTC)
     count = 0
-    async for song in nd.songs(token):
+    async for song in nd.songs(token, sort="id"):  # id is unique and stable across pages; title was not on ties
         fields = song_fields(song)
         stmt = insert(Track).values(**fields, seen_at=started)
         changed = {k: stmt.excluded[k] for k in fields if k != "id"} | {"seen_at": started}
         # a changed text (tags fixed in Navidrome) needs a new embedding
         await db.execute(stmt.on_conflict_do_update(index_elements=[Track.id], set_=changed))
         count += 1
-    if count == 0 and (await db.execute(select(func.count()).select_from(Track))).scalar_one():
+    total = (await db.execute(select(func.count()).select_from(Track))).scalar_one()
+    if count == 0 and total:
         await db.rollback()
         raise RuntimeError(_("Navidrome не вернул ни одного трека: библиотека не тронута (папка с музыкой не "
                              "подключена или идёт пересканирование?)"))
+    would_remove = total - count
+    if would_remove > MAX_DELETE_FRACTION * total:
+        await db.rollback()
+        raise RuntimeError(_("Navidrome вернул только {n} из {t} известных треков: библиотека не тронута "
+                             "(похоже на временную ошибку, а не на удаление {r} треков)").format(
+            n=count, t=total, r=would_remove))
     removed = (await db.execute(delete(Track).where(Track.seen_at < started))).rowcount
     await artist_ids.apply(db)  # the ids found by name stay, where the tags still have none
     await db.commit()
@@ -103,7 +114,9 @@ async def pending_embeddings(db: AsyncSession) -> int:
 
 
 async def sync_listens(db: AsyncSession, user: User) -> dict:
-    """The user's play counts, last plays, stars and ratings from Navidrome (its annotations are per user)."""
+    """The user's play counts, last plays, stars and ratings from Navidrome (its annotations are per user). A local
+    row Kurai itself wrote within the last hour (an optimistic annotation whose Navidrome write failed) is kept —
+    the user's explicit action is not erased just because Navidrome is behind."""
     account = user_account(user)
     if account is None:
         return {"skipped": "нет учётной записи Navidrome"}
@@ -112,7 +125,7 @@ async def sync_listens(db: AsyncSession, user: User) -> dict:
     known = set((await db.execute(select(Track.id))).scalars())
     rows = 0
     active: set[str] = set()
-    async for song in nd.songs(token):
+    async for song in nd.songs(token, sort="id"):
         if song["id"] not in known:
             continue
         play_count = int(song.get("playCount") or 0)
@@ -130,20 +143,25 @@ async def sync_listens(db: AsyncSession, user: User) -> dict:
             index_elements=[Listen.user_id, Listen.track_id],
             set_={k: stmt.excluded[k] for k in ("play_count", "last_played", "starred", "rating")}))
         rows += 1
-    # a star or a rating taken back on a track never played: it says nothing any more
-    cleared = (await db.execute(delete(Listen).where(Listen.user_id == user.id, Listen.track_id.not_in(active))
-                                .execution_options(synchronize_session=False))).rowcount
+    # a star or a rating taken back on a track never played: it says nothing any more. Rows Kurai itself wrote within
+    # the last hour (note_listen's optimistic writes) are kept: they may not have reached Navidrome yet.
+    grace = datetime.now(UTC) - timedelta(hours=1)
+    cleared = (await db.execute(
+        delete(Listen).where(Listen.user_id == user.id, Listen.track_id.not_in(active),
+                             Listen.updated_at < grace).execution_options(synchronize_session=False))).rowcount
     await db.commit()
     return {"listens": rows, "cleared": cleared}
 
 
 async def build_taste(db: AsyncSession, user: User) -> dict:
     """The user's taste vectors (from the tags' text and, once analysed, from the sound) and top artists; what they
-    said they like at the start is a prior that fades as they play more (start.py)."""
+    said they like at the start is a prior that fades as they play more (start.py). The audio vector records the
+    effnet model it was made with; a model change leaves it stale until the next rebuild."""
     model_name = await settings.get(db, "embed.model")
+    audio_model = EFFNET_MODEL
     rows = (await db.execute(
         select(Listen, Track, TrackAudio.effnet).join(Track, Track.id == Listen.track_id)
-        .outerjoin(TrackAudio, (TrackAudio.track_id == Track.id) & (TrackAudio.effnet_model == EFFNET_MODEL)
+        .outerjoin(TrackAudio, (TrackAudio.track_id == Track.id) & (TrackAudio.effnet_model == audio_model)
                    & TrackAudio.error.is_(None))
         .where(Listen.user_id == user.id)
     )).all()
@@ -178,10 +196,11 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
         top = top or first["top_artists"]
     stmt = insert(Taste).values(user_id=user.id, vector=vector.tolist() if vector is not None else None,
                                 embedding_model=model_name, audio_vector=sound.tolist() if sound is not None else None,
+                                audio_model=audio_model,
                                 top_artists=top, tracks_used=len(text_vectors), updated_at=now)
     await db.execute(stmt.on_conflict_do_update(index_elements=[Taste.user_id], set_={
-        k: stmt.excluded[k] for k in ("vector", "embedding_model", "audio_vector", "top_artists", "tracks_used",
-                                      "updated_at")}))
+        k: stmt.excluded[k] for k in ("vector", "embedding_model", "audio_vector", "audio_model", "top_artists",
+                                      "tracks_used", "updated_at")}))
     await db.commit()
     return {"tracks_used": len(text_vectors), "has_vector": vector is not None, "by_sound": len(sound_vectors),
             "from_answers": first is not None}
@@ -197,7 +216,8 @@ async def recent_listens(db: AsyncSession, user: User, limit: int, offset: int =
 
 async def note_listen(db: AsyncSession, user: User, track_id: str, **values) -> Listen:
     """The user's record of a track changed at once (a play, a ♥, a rating), not waiting for the next sync with
-    Navidrome, which is told too and brings the same back. `played_at`: one more play then."""
+    Navidrome, which is told too and brings the same back. `played_at`: one more play then. `updated_at` is touched
+    so sync_listens's grace window protects the write if the Navidrome call fails."""
     listen = (await db.execute(select(Listen).where(Listen.user_id == user.id, Listen.track_id == track_id))
               ).scalar_one_or_none() or Listen(user_id=user.id, track_id=track_id, play_count=0, starred=False,
                                                rating=0)
@@ -207,6 +227,7 @@ async def note_listen(db: AsyncSession, user: User, track_id: str, **values) -> 
         listen.last_played = played_at
     for key, value in values.items():
         setattr(listen, key, value)
+    listen.updated_at = datetime.now(UTC)
     db.add(listen)
     await db.commit()
     return listen
@@ -214,4 +235,3 @@ async def note_listen(db: AsyncSession, user: User, track_id: str, **values) -> 
 
 async def active_users(db: AsyncSession) -> list[User]:
     return list((await db.execute(select(User).where(User.active.is_(True)).order_by(User.id))).scalars())
-

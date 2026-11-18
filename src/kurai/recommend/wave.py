@@ -1,5 +1,4 @@
 """«Моя волна»: one playlist per user that follows what they're listening to right now.
-
 The worker watches Navidrome's «now playing» (every music app reports the track it starts), so Kurai sees within
 seconds which track was played on and which was skipped; Kurai's web player tells it directly. After a skip, or a few
 tracks played, the wave is rebuilt as a job: near what was just liked and near the taste of all time, away from what
@@ -20,23 +19,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kurai import db as database
 from kurai import settings
 from kurai.artists import artist_key
+from kurai.audio.tags import mood_of
+from kurai.audio.tags import mood_of_tags
 from kurai.db.models import Listen, Playlist, Taste, Track, User, WaveEvent
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER
 from kurai.jobs import queue
 from kurai.recommend import library, mixing, playlists, related, retrieval, start
+from kurai.recommend import mood as moodmod
 from kurai.recommend.vectors import Candidate, arrange, mean_unit
 
 log = logging.getLogger(__name__)
 
-# how it mixes (how much is new, how long a track or an artist rests, when a version is due…): the «Волна» tab's
-# parameters (mixing.py)
-POLL = 15  # seconds between looks at «now playing»
+POLL = 15
 DEFAULT_DURATION = 240
+# a skip is at most this many seconds regardless of the track's length (very early skip = accidental)
+SKIP_FLOOR_SECONDS = 10
+# a track played this long (and at least a quarter of its length) counts as completed, not skipped
+SKIP_CAP_SECONDS = 180
+SKIP_CAP_FRACTION = 0.25
 KEEP_EVENTS = timedelta(days=30)
 NAME = _("Моя волна")
-ANCHORS = 4  # the directions of what was played lately that «сейчас» follows, each with its share
-ANCHOR_LIKENESS = 0.5  # tracks at least this alike (the joint cosine) are one direction
+ANCHORS = 4
+ANCHOR_LIKENESS = 0.5
 
 
 # ---------- watching ----------
@@ -46,7 +51,7 @@ ANCHOR_LIKENESS = 0.5  # tracks at least this alike (the joint cosine) are one d
 class Playing:
     track_id: str
     duration: int
-    since: datetime | None  # None: it was already playing when the watching began
+    since: datetime | None
 
 
 class Watcher:
@@ -56,12 +61,10 @@ class Watcher:
         self.playing: dict[tuple[str, str], Playing] = {}
         self.started = False
 
-    def update(self, now: datetime, entries: list[dict],
-               skip_share: float = 0.5) -> list[tuple[str, str, bool, int]]:
-        """(username, track id, skipped, seconds played) of each track that has just given way to another; played for
-        less than `skip_share` of its length: skipped."""
+    def update(self, now: datetime, entries: list[dict]) -> list[tuple[int, str, bool, int]]:
+        """(user id, track id, skipped, seconds played) of each track that has just given way to another.
+        The skip test uses the shared `is_skip` (absolute floor and cap, not just a fraction)."""
         events = []
-        # Kurai's own web player reports its events itself (web/routes/player.py)
         current = {(e.get("username", ""), str(e.get("playerId", ""))): e for e in entries
                    if e.get("id") and e.get("playerName") != WEB_PLAYER}
         for key, entry in current.items():
@@ -70,28 +73,49 @@ class Watcher:
                 continue
             if before is not None and before.since is not None:
                 seconds = int((now - before.since).total_seconds())
-                skipped = seconds < skip_share * (before.duration or DEFAULT_DURATION)
-                events.append((key[0], before.track_id, skipped, seconds))
+                # we don't know the user here (Watcher is global across apps); skip/dislike flags come via record()
+                events.append((0, before.track_id, is_skip(seconds, before.duration, False), seconds))
             self.playing[key] = Playing(entry["id"], int(entry.get("duration") or 0), now if self.started else None)
-        # an app that stopped: how its last track ended is unknown (a full play reaches the taste through Navidrome)
         for key in set(self.playing) - set(current):
             del self.playing[key]
         self.started = True
         return events
 
 
-async def record(db: AsyncSession, events: list[tuple[str, str, bool, int]], now: datetime) -> list[int]:
-    """Stores the events of Kurai's users and known tracks; queues a new wave for whoever is due. The users queued."""
+def is_skip(seconds: int, duration: int | None, disliked: bool) -> bool:
+    """Whether `seconds` of playing counts as a skip. Shared by the web player and the Watcher so they agree.
+    A 👎 is always a skip. Otherwise: a track is a skip if it played less than SKIP_FLOOR_SECONDS, or less than the
+    set fraction of its length — unless it played at least SKIP_CAP_SECONDS and a quarter of its length, which counts
+    as a completed track even when the relative fraction is low (long ambient tracks)."""
+    if disliked:
+        return True
+    duration = duration or DEFAULT_DURATION
+    if seconds >= SKIP_FLOOR_SECONDS and seconds >= SKIP_CAP_SECONDS and seconds >= SKIP_CAP_FRACTION * duration:
+        return False
+    return seconds < mixing.standard("wave").skip_share * duration
+
+
+async def record(db: AsyncSession,
+                 events: list[tuple[int | str, str, bool, int, bool, bool]],
+                 now: datetime) -> list[int]:
+    """Stores the events of Kurai's users and known tracks; queues a new wave for whoever is due. The users queued.
+    Each event is (user_id or username, track_id, skipped, seconds, chosen, disliked). `chosen`: the user picked
+    the track themselves (a library-search set). `disliked`: an explicit 👎 regardless of how long it played."""
     if not events:
         return []
-    users = {u.username: u for u in await library.active_users(db)}
-    known = set((await db.execute(select(Track.id).where(Track.id.in_([e[1] for e in events])))).scalars())
+    users_by_name = {u.username: u for u in await library.active_users(db)}
+    known = set((await db.execute(select(Track.id).where(
+        Track.id.in_([e[1] for e in events])))).scalars())
     touched: dict[int, User] = {}
-    for username, track_id, skipped, seconds in events:
-        user = users.get(username)
+    for who, track_id, skipped, seconds, chosen, disliked in events:
+        if isinstance(who, int):
+            user = await db.get(User, who)
+        else:
+            user = users_by_name.get(who)
         if user is None or track_id not in known:
             continue
-        db.add(WaveEvent(user_id=user.id, track_id=track_id, skipped=skipped, seconds=seconds, at=now))
+        db.add(WaveEvent(user_id=user.id, track_id=track_id, skipped=skipped, seconds=seconds,
+                         chosen=chosen, disliked=disliked, at=now))
         touched[user.id] = user
     await db.commit()
     queued = []
@@ -125,10 +149,11 @@ async def watch() -> None:
                 if await settings.get(db, "wave.enabled"):
                     entries = await library.navidrome().now_playing(await library.admin_account(db))
                     now = datetime.now(UTC)
-                    skip_share = (await mixing.load(db, "wave")).skip_share
-                    await record(db, watcher.update(now, entries, skip_share), now)
-            last_error = ""
-        except Exception as e:  # Navidrome restarting: the next look tries again (said once, not every 15 s)
+                    # Watcher can't tell user-side chosen/disliked; those flags come from the web player's event()
+                    await record(db, [(0, tid, sk, sec, False, False)
+                                      for _uid, tid, sk, sec in watcher.update(now, entries)], now)
+                    last_error = ""
+        except Exception as e:
             if str(e) != last_error:
                 log.warning("«now playing» not read: %s", e)
                 last_error = str(e)
@@ -152,11 +177,23 @@ async def recently_heard(db: AsyncSession, user: User, now: datetime, days: floa
     return set((await db.execute(events.union(played))).scalars())
 
 
+async def _track_moods(db: AsyncSession, ids: set[str]) -> dict[str, np.ndarray]:
+    """Mood vectors of the given tracks from their audio tags; tracks without analysis are simply absent."""
+    from kurai.db.models import TrackAudio
+    rows = (await db.execute(select(TrackAudio.track_id, TrackAudio.moods, TrackAudio.danceability,
+                                     TrackAudio.voice).where(TrackAudio.track_id.in_(list(ids)),
+                                                             TrackAudio.error.is_(None)))).all()
+    out: dict[str, np.ndarray] = {}
+    for tid, moods, dance, voice in rows:
+        if (v := mood_of_tags(moods, dance, voice)) is not None:
+            out[tid] = v
+    return out
+
+
 @dataclass
 class Plan:
     """A version of the wave, before it's saved: its tracks (each with the part of the mix it came for) and what the
     job reports; `tracks` empty with `result["skipped"]`: nothing to make it of."""
-
     tracks: list[Candidate]
     result: dict
 
@@ -174,7 +211,12 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
     пропущенного»); in each part, new, known and «слушают вместе» tracks in the set shares; nothing heard within the
     track's pause, the resting artists left out, the ones skipped again and again too. A listener who hasn't played
     anything yet gets what their answers point at with the library's popular tracks between (start.py); without
-    answers either, the popular tracks alone. Nothing is saved (the admins' preview shows it as it is)."""
+    answers either, the popular tracks alone. Nothing is saved (the admins' preview shows it as it is).
+    Mood is computed from the accepted tracks of the session and reported in `result` (shadow): it does not yet
+    affect ranking. `mix.mood` (the checkbox on the «Волна» tab) will gate the ranking bonus when enabled; until
+    then it's observability only."""
+    from kurai.db.models import TrackAudio  # late to keep the import local
+
     mix = mix or await mixing.load(db, "wave")
     now = now or datetime.now(UTC)
     j = await retrieval.joint(db, await retrieval.space_weights(db, "mix"))
@@ -184,7 +226,7 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
                                                              WaveEvent.at >= session_since)
                                      .order_by(WaveEvent.at))).scalars())
     vectors = await retrieval.track_vectors(db, {e.track_id for e in session})
-    fresh: dict[str, float] = {}  # a played track -> how fresh (its latest play)
+    fresh: dict[str, float] = {}
     away = []
     for e in session:
         raw = vectors.get(e.track_id, ("", {}))[1]
@@ -212,7 +254,6 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
     banned = {a for a, n in skips.items() if mix.artist_skip_ban and n >= mix.artist_skip_ban}
     neighbours = related.artists_for(taste_row, mix.related_depth) if mix.related_share else {}
     resting = await mixing.resting_artists(db, user, now, mix.artist_rest_hours, mix.artist_rest_shape)
-    # nothing played yet: every N-th track one of the library's popular ones (their places kept free)
     places = mix.size // mix.popular_every if new_listener and mix.popular_every >= 2 else 0
     size = mix.size - places
     now_count = round(size * (mix.now_weight if has_taste else 1.0)) if anchors else 0
@@ -230,7 +271,11 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
                 if c.id not in heard] if neighbours else []
         found_any = found_any or bool(pool or near)
         known = await retrieval.played(db, user, {c.id for c in pool + near})
-        chosen = mixing.choose(pool, near, known, mix, count, resting, rng, chosen, away)
+        track_moods = await _track_moods(db, {c.id for c in pool + near}) if getattr(mix, "mood", False) else {}
+        chosen = mixing.choose(pool, near, known, mix, count, resting, rng, chosen, away,
+                               mood=sm if getattr(mix, "mood", False) else None,
+                               mood_strength=getattr(mix, "mood_strength", 0.0),
+                               track_moods=track_moods)
     if not found_any:
         return Plan([], {"skipped": _("нет подходящих треков")})
     chosen = arrange(chosen, mix.smooth, mix.artist_gap)
@@ -239,8 +284,25 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
         hits = await start.popular(db, places, heard | {c.id for c in chosen})
         chosen, popular = _between(chosen, _popular(hits), mix.popular_every), len(hits)
     kinds = {k: sum(c.kind == k for c in chosen) for k in ("new", "known", "related")}
-    return Plan(chosen, {"tracks": len(chosen), "played": sum(not e.skipped for e in session),
-                         "skips": sum(e.skipped for e in session), "popular": popular, **kinds})
+    session_moods = await _track_moods(db, {e.track_id for e in session})
+    sm = moodmod.session_mood(session, session_moods, mix.session_half_life, now)
+    shadow = moodmod.shadow_correlation(session, session_moods, mix.session_half_life, now)
+    kinds = {k: sum(c.kind == k for c in chosen) for k in ("new", "known", "related")}
+    result = {"tracks": len(chosen),
+              "played": sum(not e.skipped for e in session),
+              "skips": sum(e.skipped for e in session),
+              "chosen_plays": sum(not e.skipped and e.chosen for e in session),
+              "disliked": sum(e.disliked for e in session),
+              "popular": popular,
+              # shadow mood: always reported, never used for ranking unless mix.mood is on
+              "mood": sm.vector.tolist() if sm.vector is not None else None,
+              "mood_confidence": round(sm.confidence, 3),
+              "mood_regime": sm.regime,
+              "mood_shadow": shadow,
+              "mood_enabled": bool(getattr(mix, "mood", False)),
+              **kinds}
+    return Plan(chosen, result)
+
 
 
 async def build(db: AsyncSession, user: User) -> dict:
@@ -256,7 +318,7 @@ def _anchors(j, played: dict[str, tuple[dict, float]]) -> list[tuple[dict, float
     """The directions of what was played lately: tracks that sound alike (ANCHOR_LIKENESS) grouped, the freshest
     first, at most ANCHORS (a track beyond joins the nearest). Each: its tracks' mean raw vector per space, and their
     freshness summed (its part of «сейчас»)."""
-    groups: list[tuple[np.ndarray, list[dict], float]] = []  # (the first track's joint vector, raws, freshness)
+    groups: list[tuple[np.ndarray, list[dict], float]] = []
     for raw, f in sorted(played.values(), key=lambda p: -p[1]):
         v = j.item(raw)
         likeness = [float(np.dot(v, g[0])) for g in groups]

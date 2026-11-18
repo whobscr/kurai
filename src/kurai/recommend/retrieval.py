@@ -14,14 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kurai import settings
 from kurai.artists import artist_key
 from kurai.audio import CLAP_MODEL, EFFNET_MODEL
-from kurai.db.models import Listen, Track, TrackAudio, User
+from kurai.db.models import Listen, SpaceMean, Track, TrackAudio, User
 from kurai.recommend.vectors import Candidate, Joint, mean_unit, weights_of
 
 POOL = 300
 SPACES = ("text", "sound", "clap")
 
-
-# the writing systems a language can be told by (the request's model picks them): their Unicode ranges
 SCRIPTS = {
     "cyrillic": ["\u0400-\u04ff"],
     "han": ["\u3400-\u4dbf", "\u4e00-\u9fff", "\uf900-\ufaff"],
@@ -48,12 +46,12 @@ def language_filter(scripts: Collection[str] = (), letters: str = "", tags: Coll
         conditions.append(text.op("~")("[" + letters + "]"))
     elif ranges := [r for s in scripts for r in SCRIPTS.get(s, [])]:
         written = text.op("~")("[" + "".join(ranges) + "]")
-        if "han" in scripts and "kana" not in scripts:  # Japanese has the same characters, and kana besides
+        if "han" in scripts and "kana" not in scripts:
             written = and_(written, text.op("!~")("[" + "".join(SCRIPTS["kana"]) + "]"))
         conditions.append(written)
     genres = cast(Track.genres, Text)
     for tag in {t.strip().casefold() for t in tags if t.strip()}:
-        conditions.append(genres.ilike("%" + tag.replace("\\", "").replace("%", "").replace("_", "\\_") + "%"))
+        conditions.append(genres.ilike("%" + tag.replace("\\", "\\").replace("%", "\\%").replace("_", "\\_") + "%"))
     return or_(*conditions) if conditions else None
 
 
@@ -65,7 +63,6 @@ def _valid(space: str, text_model: str):
     """The rows whose vector in this space is there and comes from the current model."""
     if space == "text":
         return [Track.embedding.is_not(None), Track.embedding_model == text_model]
-    # a file whose analysis failed may still hold the vectors of the file before it: not used
     if space == "sound":
         return [TrackAudio.effnet.is_not(None), TrackAudio.effnet_model == EFFNET_MODEL, TrackAudio.error.is_(None)]
     return [TrackAudio.clap.is_not(None), TrackAudio.clap_model == CLAP_MODEL, TrackAudio.error.is_(None)]
@@ -89,17 +86,48 @@ async def space_weights(db: AsyncSession, task: str) -> dict[str, float]:
     return weights_of({"text": 1 - share, "clap": share * 0.7 if clap else 0, "sound": share * (0.3 if clap else 1)})
 
 
+async def _compute_mean(db: AsyncSession, space: str, text_model: str) -> np.ndarray | None:
+    """Live recompute of a space's mean of unit vectors (used when the cache is empty or stale)."""
+    col = _column(space)
+    stmt = _from().add_columns(func.avg(func.l2_normalize(col), type_=Vector())).where(*_valid(space, text_model))
+    mean = (await db.execute(stmt)).scalar_one_or_none()
+    return np.asarray(mean, dtype=np.float32) if mean is not None else None
+
+
 async def joint(db: AsyncSession, weights: dict[str, float]) -> Joint:
-    """The joint space of the given spaces that have vectors in the library, with their means."""
+    """The joint space of the given spaces that have vectors in the library, with their means. The means are read
+    from `SpaceMean` (populated by the nightly job and on model change); if a row is missing, it's computed live and
+    returned so the next caller gets the cached value."""
     text_model = await settings.get(db, "embed.model")
     means = {}
     for space in weights:
-        col = _column(space)
-        stmt = _from().add_columns(func.avg(func.l2_normalize(col), type_=Vector())).where(*_valid(space, text_model))
-        mean = (await db.execute(stmt)).scalar_one_or_none()
-        if mean is not None:
-            means[space] = np.asarray(mean, dtype=np.float32)
+        row = (await db.execute(select(SpaceMean).where(SpaceMean.space == space,
+                                                        SpaceMean.model == text_model))).scalar_one_or_none()
+        if row is not None:
+            means[space] = np.asarray(row.vector, dtype=np.float32)
+        else:
+            live = await _compute_mean(db, space, text_model)
+            if live is not None:
+                means[space] = live
     return Joint(weights_of({s: w for s, w in weights.items() if s in means}), means)
+
+
+async def refresh_means(db: AsyncSession) -> dict:
+    """Recompute and persist the mean of unit vectors per (space, model). Called by the nightly job and by admin.save
+    when a model changes."""
+    text_model = await settings.get(db, "embed.model")
+    written: dict[str, str] = {}
+    for space in SPACES:
+        mean = await _compute_mean(db, space, text_model)
+        if mean is None:
+            continue
+        model = {"text": text_model, "sound": EFFNET_MODEL, "clap": CLAP_MODEL}[space]
+        await db.execute(SpaceMean.__table__.delete().where(
+            (SpaceMean.space == space) & (SpaceMean.model == model)))
+        db.add(SpaceMean(space=space, model=model, vector=mean.tolist(), computed_at=datetime.now(UTC)))
+        written[space] = model
+    await db.commit()
+    return written
 
 
 async def seeds(db: AsyncSession, j: Joint, artists: list[str], limit: int = 200) -> dict[str, np.ndarray]:
@@ -146,7 +174,6 @@ async def candidates(db: AsyncSession, j: Joint, queries: dict[str, np.ndarray],
         filters.append(language)
     ids: set[str] = set()
     for space, q in queries.items():
-        # the nearest by raw cosine: the query moved back from the centred space is close enough for a pool
         raw = (q + j.means[space]).tolist()
         stmt = (_from().add_columns(Track.id).where(*_valid(space, text_model), *filters)
                 .order_by(_column(space).cosine_distance(raw)).limit(pool))

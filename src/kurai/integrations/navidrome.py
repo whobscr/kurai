@@ -132,10 +132,11 @@ class Navidrome:
             if e.status != 404:
                 raise
 
-    async def songs(self, token: str, sort: str = "title", order: str = "ASC",
+    async def songs(self, token: str, sort: str = "id", order: str = "ASC",
                     limit: int | None = None) -> AsyncIterator[dict]:
         """The library's songs, with the token's user's play count, last play, star and rating: page by page until
-        a short page (not by the total in a header, which may be missing)."""
+        a short page (not by the total in a header, which may be missing). Default sort is `id` — unique and stable
+        across pages; `title` could skip rows on ties and a partial page then cost days of audio analysis."""
         start = 0
         while limit is None or start < limit:
             end = start + PAGE if limit is None else min(start + PAGE, limit)
@@ -184,7 +185,7 @@ class Navidrome:
         data = await self._subsonic(account, "createPlaylist", params)
         new_id = data.get("playlist", {}).get("id", playlist_id)
         await self._subsonic(account, "updatePlaylist", [("playlistId", new_id), ("public", "false"),
-                                                           ("comment", comment)])
+                                                         ("comment", comment)])
         return new_id
 
     async def delete_playlist(self, account: Account, playlist_id: str) -> None:
@@ -205,9 +206,14 @@ class Navidrome:
         """A play of the song, counted in Navidrome (its play count, last play) as if a music app reported it."""
         await self._subsonic(account, "scrobble", [("id", song_id), ("time", str(at_ms)), ("submission", "true")])
 
-    async def rate(self, account: Account, song_id: str, starred: bool, rating: int) -> None:
-        """The user's star (♥ in most apps) and rating (0: none, 1–5) of a song."""
-        await self._subsonic(account, "star" if starred else "unstar", [("id", song_id)])
+    async def rate(self, account: Account, song_id: str, starred: bool, rating: int,
+                   current_starred: bool | None = None) -> None:
+        """The user's star (♥ in most apps) and rating (0: none, 1–5) of a song. When `current_starred` is known and
+        already matches `starred`, the star/unstar call is skipped — a single Subsonic round-trip instead of two,
+        and no half-applied state when the second call fails (pressing ♥ on a disliked track used to leave the old
+        rating of 1 in Navidrome)."""
+        if current_starred is None or current_starred != starred:
+            await self._subsonic(account, "star" if starred else "unstar", [("id", song_id)])
         await self._subsonic(account, "setRating", [("id", song_id), ("rating", str(rating))])
 
     async def download(self, account: Account, song_id: str, dest: str) -> None:
