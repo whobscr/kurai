@@ -35,9 +35,6 @@ class PartialFailure(Exception):
         self.result = result
 
 
-JOB_TIMEOUT_S = 3600  # one hour: a hanging job must not stop the night's work or the queue
-
-
 async def _nightly(db, job: Job) -> dict:
     """The night's work, in order: the library, its vectors, each user's listens, taste and mixes, then the plugins'
     steps (e.g. finding new music). A part that fails is noted and the rest goes on; the job fails at the end, naming
@@ -55,10 +52,11 @@ async def _nightly(db, job: Job) -> dict:
             failed.append(f"{name}: {str(e) or e.__class__.__name__}")
 
     async def plugin_step(name: str, run) -> None:
-        """Plugin step in its own session: its failures don't touch the nightly session."""
+        """Plugin step in its own session, committed here: its failures don't touch the nightly session."""
         try:
             async with database.session() as plugin_db:
                 result[name] = await run(plugin_db)
+                await plugin_db.commit()
         except Exception as e:
             log.exception("plugin step %s failed", name)
             failed.append(f"{name}: {str(e) or e.__class__.__name__}")
@@ -66,12 +64,8 @@ async def _nightly(db, job: Job) -> dict:
     await step("library", lambda: library.sync_library(db))
     await step("artist_ids", lambda: artist_ids.look_up(db))
     await step("embeddings", lambda: library.embed_tracks(db))
-    # cached space means for retrieval.joint(): refreshed here so the day's recommendations see them
-    try:
-        result["space_means"] = await retrieval.refresh_means(db)
-    except Exception as e:
-        log.exception("space means refresh failed")
-        failed.append(f"space_means: {e.__class__.__name__}: {e}")
+    # cached space means for retrieval.joint(): refreshed once, after the library and its vectors are current
+    await step("space_means", lambda: retrieval.refresh_means(db))
     wave_on = await settings.get(db, "wave.enabled")
     for user_id, username in [(u.id, u.username) for u in await library.active_users(db)]:
         async def for_user(user_id: int = user_id) -> dict:
@@ -87,12 +81,15 @@ async def _nightly(db, job: Job) -> dict:
             return out
 
         await step(f"user {username}", for_user)
-    # cached space means for retrieval.joint(): refreshed here so the day's recommendations see them
-    try:
-        result["space_means"] = await retrieval.refresh_means(db)
-    except Exception as e:
-        log.exception("space means refresh failed")
-        failed.append(f"space_means: {e.__class__.__name__}: {e}")
+    for plugin in plugins.plugins():
+        for name, fn in plugin.nightly:
+            await plugin_step(name, fn)
+    await step("old_playlists_removed", lambda: playlists.remove_old(db))
+    await step("old_sessions_removed", lambda: accounts.prune_sessions(db))
+    await step("old_jobs_removed", lambda: queue.prune(db))
+    if failed:
+        raise PartialFailure(failed, result)
+    return result
 
     async def plugin_step(name: str, run) -> None:
         """Plugin step in its own session: its failures don't touch the nightly session."""

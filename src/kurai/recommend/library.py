@@ -77,12 +77,14 @@ async def sync_library(db: AsyncSession) -> dict:
         await db.rollback()
         raise RuntimeError(_("Navidrome не вернул ни одного трека: библиотека не тронута (папка с музыкой не "
                              "подключена или идёт пересканирование?)"))
-    would_remove = total - count
-    if would_remove > MAX_DELETE_FRACTION * total:
+    # the rows the sync hasn't touched are exactly what the delete would remove — new tracks in the answer must not
+    # mask a mass deletion (total - count undercounts it)
+    stale = (await db.execute(select(func.count()).select_from(Track).where(Track.seen_at < started))).scalar_one()
+    if stale > MAX_DELETE_FRACTION * total:
         await db.rollback()
         raise RuntimeError(_("Navidrome вернул только {n} из {t} известных треков: библиотека не тронута "
                              "(похоже на временную ошибку, а не на удаление {r} треков)").format(
-            n=count, t=total, r=would_remove))
+            n=total - stale, t=total, r=stale))
     removed = (await db.execute(delete(Track).where(Track.seen_at < started))).rowcount
     await artist_ids.apply(db)  # the ids found by name stay, where the tags still have none
     await db.commit()

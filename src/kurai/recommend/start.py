@@ -37,14 +37,15 @@ async def library_styles(db: AsyncSession, limit: int = STYLES_SHOWN) -> list[st
     return [name for name, _count in rows]
 
 
-async def first_taste(db: AsyncSession, user: User) -> dict | None:
+async def first_taste(db: AsyncSession, user: User, recompute: bool = False) -> dict | None:
     """The taste the answers point at: the mean of the chosen styles' tracks in each space, the own words' embedding
     joined to the text one; with the styles' most frequent artists. None without answers. The result is stored on
-    the user (User.start_* columns) so it doesn't move from night to night — call `store` once when the answers are
-    saved."""
-    stored = _read_stored(user)
-    if stored is not None:
-        return stored
+    the user (User.start_* columns) so it doesn't move from night to night — `store` is called when the answers are
+    saved; `recompute` ignores the stored taste (the answers changed)."""
+    if not recompute:
+        stored = await _read_stored(db, user)
+        if stored is not None:
+            return stored
     styles = [s for s in user.start_styles or [] if isinstance(s, str)]
     words = (user.start_text or "").strip()
     if not styles and not words:
@@ -76,12 +77,16 @@ async def first_taste(db: AsyncSession, user: User) -> dict | None:
             "text_model": model_name, "audio_model": EFFNET_MODEL}
 
 
-def _read_stored(user: User) -> dict | None:
-    """The stored first taste, if the user has one and the models still match. None means "compute it"."""
+async def _read_stored(db: AsyncSession, user: User) -> dict | None:
+    """The stored first taste, if the user has one and its models still match the current ones (a taste of another
+    model can't be compared with today's tracks). None means "compute it"."""
     if user.start_text_vector is None and user.start_audio_vector is None and not user.start_top_artists:
         return None
     from kurai.audio import EFFNET_MODEL  # local: avoids a cycle at module load
-    # The text embedding model has to match current tracks; the audio model is recorded separately.
+    if user.start_text_vector is not None and user.start_text_model != await settings.get(db, "embed.model"):
+        return None
+    if user.start_audio_vector is not None and user.start_audio_model != EFFNET_MODEL:
+        return None
     return {"text": np.asarray(user.start_text_vector, dtype=np.float32) if user.start_text_vector is not None else None,
             "sound": np.asarray(user.start_audio_vector, dtype=np.float32) if user.start_audio_vector is not None else None,
             "top_artists": list(user.start_top_artists or []),

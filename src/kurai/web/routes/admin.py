@@ -5,6 +5,7 @@ import asyncio
 import os
 import signal
 import time
+import logging
 from typing import Any
 from urllib.parse import urlencode
 
@@ -27,6 +28,7 @@ from kurai.web.routes import apps
 from kurai.web.templating import art_hours, render
 
 router = APIRouter(prefix="/admin")
+log = logging.getLogger(__name__)
 
 CORE_TABS = {
     "general": _("Общие"),
@@ -234,9 +236,11 @@ async def _restart_web() -> None:
 async def save_plugins(request: Request, ctx: Ctx) -> RedirectResponse:
     form = await request.form()
     off = sorted(p.name for p in plugins.installed() if form.get(f"plugin.{p.name}") != "on")
+    before = plugins.disabled()
     await settings.put(ctx.db, {plugins.DISABLED_KEY: off})
     await ctx.db.commit()
-    if frozenset(off) == plugins.disabled():
+    plugins.invalidate_disabled()
+    if frozenset(off) == before:
         return back("plugins", _("Сохранено"))
     response = back("plugins", _("Сохранено. Курай перезапускается — обновите страницу через полминуты."))
     response.background = BackgroundTask(_restart_web)
@@ -293,11 +297,6 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
         await plugin_tab.after_save(ctx.db, values, before)
     # a new embedding model: the night's work embeds the library again (vectors of the old model aren't used)
     # an embedding or audio model changed: refresh the cached space means now
-    if tab in ("models", "audio") and any(k in values for k in ("embed.model", "audio.enabled", "audio.clap")):
-        try:
-            await retrieval.refresh_means(ctx.db)
-        except Exception as e:
-            log.warning("space means refresh failed on model change: %s", e)
     return back(tab, _("Сохранено"))
 
 

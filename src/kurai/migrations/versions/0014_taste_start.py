@@ -6,6 +6,8 @@ Revises: 0013
 
 import sqlalchemy as sa
 from alembic import op
+from pgvector.sqlalchemy import Vector
+from kurai.audio import EFFNET_DIM
 
 revision = "0014"
 down_revision = "0013"
@@ -15,8 +17,8 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("tastes", sa.Column("audio_model", sa.String(64), nullable=True))
-    op.add_column("users", sa.Column("start_text_vector", sa.dialects.postgresql.ARRAY(sa.Float())))
-    op.add_column("users", sa.Column("start_audio_vector", sa.dialects.postgresql.ARRAY(sa.Float())))
+    op.add_column("users", sa.Column("start_text_vector", Vector(), nullable=True))
+    op.add_column("users", sa.Column("start_audio_vector", Vector(EFFNET_DIM), nullable=True))
     op.add_column("users", sa.Column("start_top_artists", sa.dialects.postgresql.JSONB(), server_default="[]"))
     op.add_column("users", sa.Column("start_text_model", sa.String(128), nullable=True))
     op.add_column("users", sa.Column("start_audio_model", sa.String(64), nullable=True))

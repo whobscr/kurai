@@ -120,7 +120,8 @@ def fits(a: Analysed | None, bpm_min: int = 0, bpm_max: int = 0, wanted_energy: 
 
 def mood_of(a: Analysed | None) -> np.ndarray | None:
     """A track's mood as a 2-vector: valence (happy/sad), arousal (party/aggressive/danceability vs relaxed).
-    Pure, no DB. None when none of the mood heads produced a usable probability (effnet not run, or unanalysed).
+    Pure, no DB. None when none of the mood heads produced a usable probability (effnet not run, or unanalysed);
+    an axis with no inputs of its own is 0 (a happy-only track is bright, its arousal unknown, not unanalysed).
     The acoustic/electronic heads are deliberately left out: they're timbre, collinear with the sound embedding,
     and would make mood a proxy for genre. Raw bpm is left out too — PercivalBpmEstimator octave-errors freely,
     and arousal already carries tempo via danceability/party. `None` is the unknown-track signal: callers skip
@@ -146,8 +147,8 @@ def mood_of(a: Analysed | None) -> np.ndarray | None:
     arousal_parts = [v for v in (party, aggressive, dance) if v is not None]
     if relaxed is not None:
         arousal_parts.append(-relaxed)
-    if not valence_parts or not arousal_parts:
-        return None
-    out = np.array([float(np.mean(valence_parts)), float(np.mean(arousal_parts))], dtype=np.float32)
+    valence = float(np.mean(valence_parts)) if valence_parts else 0.0
+    arousal = float(np.mean(arousal_parts)) if arousal_parts else 0.0
+    out = np.array([valence, arousal], dtype=np.float32)
     norm = np.linalg.norm(out)
     return out / norm if norm > 0 else out
