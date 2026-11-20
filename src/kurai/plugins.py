@@ -225,6 +225,9 @@ def _load_plugins() -> tuple[Plugin, ...]:
     _plugins_cache: tuple | None = None
 
 
+_plugins_cache: tuple | None = None
+
+
 def _plugins_cache_clear() -> None:
     global _plugins_cache
     _plugins_cache = None
