@@ -218,10 +218,28 @@ def disabled() -> frozenset[str]:
 disabled.cache_clear = _disabled_cache_clear  # the restart simulation in tests; plugins() has the same via lru_cache
 
 
-def plugins() -> tuple[Plugin, ...]:
+def _load_plugins() -> tuple[Plugin, ...]:
     """The plugins switched on: everything the core asks them about."""
     off = disabled()
     return tuple(p for p in installed() if p.name not in off)
+    _plugins_cache: tuple | None = None
+
+
+def _plugins_cache_clear() -> None:
+    global _plugins_cache
+    _plugins_cache = None
+
+
+def plugins() -> tuple:
+    """The loaded plugins, once per process: the web and the worker restart to apply a switch change, so the cache
+    lives until the restart (the test simulates a new process by clearing this cache and disabled()'s)."""
+    global _plugins_cache
+    if _plugins_cache is None:
+        _plugins_cache = _load_plugins()
+    return _plugins_cache
+
+
+plugins.cache_clear = _plugins_cache_clear
 
 
 def merged(attr: str) -> dict:
