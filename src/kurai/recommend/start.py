@@ -87,8 +87,10 @@ async def _read_stored(db: AsyncSession, user: User) -> dict | None:
         return None
     if user.start_audio_vector is not None and user.start_audio_model != EFFNET_MODEL:
         return None
-    return {"text": np.asarray(user.start_text_vector, dtype=np.float32) if user.start_text_vector is not None else None,
-            "sound": np.asarray(user.start_audio_vector, dtype=np.float32) if user.start_audio_vector is not None else None,
+    return {"text": np.asarray(user.start_text_vector, dtype=np.float32) if user.start_text_vector is not None
+             else None,
+            "sound": np.asarray(user.start_audio_vector, dtype=np.float32) if user.start_audio_vector is not None
+             else None,
             "top_artists": list(user.start_top_artists or []),
             "text_model": user.start_text_model, "audio_model": user.start_audio_model or EFFNET_MODEL}
 
