@@ -25,6 +25,7 @@ EMBED_BATCH = 16
 # sync_library: refuse to delete more than this fraction of the known library in one run. A transient partial answer
 # from Navidrome must not cost days of audio analysis.
 MAX_DELETE_FRACTION = 0.25
+NEVER_LOCALLY_WRITTEN = datetime(1970, 1, 1, tzinfo=UTC)  # sync's own rows: the grace hour protects only local writes
 
 
 def navidrome() -> Navidrome:
@@ -77,12 +78,14 @@ async def sync_library(db: AsyncSession) -> dict:
         await db.rollback()
         raise RuntimeError(_("Navidrome не вернул ни одного трека: библиотека не тронута (папка с музыкой не "
                              "подключена или идёт пересканирование?)"))
-    would_remove = total - count
-    if would_remove > MAX_DELETE_FRACTION * total:
+    # the rows the sync hasn't touched are exactly what the delete would remove — new tracks in the answer must not
+    # mask a mass deletion (total - count undercounts it)
+    stale = (await db.execute(select(func.count()).select_from(Track).where(Track.seen_at < started))).scalar_one()
+    if stale > MAX_DELETE_FRACTION * total:
         await db.rollback()
         raise RuntimeError(_("Navidrome вернул только {n} из {t} известных треков: библиотека не тронута "
                              "(похоже на временную ошибку, а не на удаление {r} треков)").format(
-            n=count, t=total, r=would_remove))
+            n=total - stale, t=total, r=stale))
     removed = (await db.execute(delete(Track).where(Track.seen_at < started))).rowcount
     await artist_ids.apply(db)  # the ids found by name stay, where the tags still have none
     await db.commit()
@@ -138,7 +141,7 @@ async def sync_listens(db: AsyncSession, user: User) -> dict:
         last = datetime.fromisoformat(played.replace("Z", "+00:00")) if played else None
         values = {"user_id": user.id, "track_id": song["id"], "play_count": play_count, "last_played": last,
                   "starred": starred, "rating": rating}
-        stmt = insert(Listen).values(**values)
+        stmt = insert(Listen).values(updated_at=NEVER_LOCALLY_WRITTEN,**values)
         await db.execute(stmt.on_conflict_do_update(
             index_elements=[Listen.user_id, Listen.track_id],
             set_={k: stmt.excluded[k] for k in ("play_count", "last_played", "starred", "rating")}))

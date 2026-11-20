@@ -66,7 +66,7 @@ class FakeNavidrome:
     async def scrobble(self, account, song_id, at_ms):
         self.scrobbles.append((account.username, song_id))
 
-    async def rate(self, account, song_id, starred, rating):
+    async def rate(self, account, song_id, starred, rating, current_starred=None):
         self.ratings[(account.username, song_id)] = (starred, rating)
 
     async def save_playlist(self, account, name, track_ids, playlist_id=None, comment=""):

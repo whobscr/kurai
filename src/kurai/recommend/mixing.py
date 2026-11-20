@@ -262,11 +262,11 @@ def choose(pool: list[Candidate], near: list[Candidate], known: set[str], mix: M
     pool = adjust(pool, mix.randomness, resting, REST_LAST, rng, scale, away, push)
     near = adjust(near, mix.randomness, resting, REST_LAST, rng, scale, away, push)
     if mood is not None and mood_strength > 0 and track_moods:
-            def _mooded(c: Candidate) -> Candidate:
-                bonus = moodmod.mood_bonus(track_moods.get(c.id), mood, mood_strength)
-                return replace(c, relevance=c.relevance + bonus * scale)
-            pool = sorted((_mooded(c) for c in pool), key=lambda c: -c.relevance)
-            near = sorted((_mooded(c) for c in near), key=lambda c: -c.relevance)
+        def _mooded(c: Candidate) -> Candidate:
+            bonus = moodmod.mood_bonus(track_moods.get(c.id), mood, mood_strength)
+            return replace(c, relevance=c.relevance + bonus * scale)
+        pool = sorted((_mooded(c) for c in pool), key=lambda c: -c.relevance)
+        near = sorted((_mooded(c) for c in near), key=lambda c: -c.relevance)
     new = [replace(c, kind="new") for c in pool if c.id not in known]
     old = [replace(c, kind="known") for c in pool if c.id in fits and c.id in known]
     rest = [replace(c, kind="known") for c in pool if c.id not in fits and c.id in known]
@@ -275,7 +275,7 @@ def choose(pool: list[Candidate], near: list[Candidate], known: set[str], mix: M
     n_related = round(size * mix.related_share) if near else 0
     n_new = round(size * mix.new_share)
     parts = [(near, n_related), (new, n_new), (old, max(0, size - n_related - n_new)), (rest, 0)]
-    return compose(parts, size, mix.variety, mix.artist_max, chosen)
+    return compose(parts, size, mix.variety, mix.artist_max, chosen, relax=True)
 
 
 def assemble(pool: list[Candidate], near: list[Candidate], known: set[str], mix: Mix, size: int,

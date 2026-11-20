@@ -133,6 +133,10 @@ async def start_styles(request: Request, ctx: Ctx = Depends(user_required)):
         known = set(await start.library_styles(ctx.db, limit=200))
         ctx.user.start_styles = [s for s in form.getlist("style") if s in known][:STYLES_KEPT]
         ctx.user.start_text = str(form.get("text", "")).strip()[:500]
+        # stored once, here — not re-drawn at random nightly; re-answers recompute it
+        taste = await start.first_taste(ctx.db, ctx.user, recompute=True)
+        if taste is not None:
+            await start.store(ctx.db, ctx.user, taste)
         await queue.enqueue(ctx.db, "wave", {"retaste": True}, user_id=ctx.user.id, priority=20,
                             dedupe_key=f"wave-start:{ctx.user.id}")
     ctx.user.start_asked_at = datetime.now(UTC)

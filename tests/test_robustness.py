@@ -143,7 +143,7 @@ async def test_an_empty_answer_from_navidrome_removes_nothing(db, monkeypatch):
         async def login(self, account):
             return "t"
 
-        async def songs(self, token):
+        async def songs(self, token, sort="id"):
             return
             yield
 
@@ -167,7 +167,7 @@ async def test_a_star_taken_back_is_synced(db, monkeypatch):
         async def login(self, account):
             return "t"
 
-        async def songs(self, token):
+        async def songs(self, token, sort="id"):
             for song in songs:
                 yield song
 

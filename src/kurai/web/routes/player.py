@@ -154,7 +154,7 @@ async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = 
         raise HTTPException(404)
     now = datetime.now(UTC)
     seconds = max(0, seconds)
-    skipped = wave.is_skip(seconds, track.duration, disliked)
+    skipped = wave.is_skip(seconds, track.duration, disliked, (await mixing.load(ctx.db, "wave")).skip_share)
     if skipped and chosen and not disliked:
         return {"skipped": True, "rebuilding": False}
     if not skipped:

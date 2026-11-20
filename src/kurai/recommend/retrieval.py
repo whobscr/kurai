@@ -51,7 +51,7 @@ def language_filter(scripts: Collection[str] = (), letters: str = "", tags: Coll
         conditions.append(written)
     genres = cast(Track.genres, Text)
     for tag in {t.strip().casefold() for t in tags if t.strip()}:
-        conditions.append(genres.ilike("%" + tag.replace("\\", "\\").replace("%", "\\%").replace("_", "\\_") + "%"))
+                conditions.append(genres.ilike("%" + tag.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"))
     return or_(*conditions) if conditions else None
 
 
@@ -95,14 +95,16 @@ async def _compute_mean(db: AsyncSession, space: str, text_model: str) -> np.nda
 
 
 async def joint(db: AsyncSession, weights: dict[str, float]) -> Joint:
-    """The joint space of the given spaces that have vectors in the library, with their means. The means are read
-    from `SpaceMean` (populated by the nightly job and on model change); if a row is missing, it's computed live and
-    returned so the next caller gets the cached value."""
+    """The joint space of the given spaces that have vectors in the library, with their means. Each mean is read
+    from `SpaceMean` under its own space's model (the text model for text, the fixed effnet/clap models for sound
+    and clap), populated by the nightly job and on model change; a missing row is computed live for this call —
+    the cache itself is filled by refresh_means, not here."""
     text_model = await settings.get(db, "embed.model")
+    models = {"text": text_model, "sound": EFFNET_MODEL, "clap": CLAP_MODEL}
     means = {}
     for space in weights:
         row = (await db.execute(select(SpaceMean).where(SpaceMean.space == space,
-                                                        SpaceMean.model == text_model))).scalar_one_or_none()
+                                                        SpaceMean.model == models[space]))).scalar_one_or_none()
         if row is not None:
             means[space] = np.asarray(row.vector, dtype=np.float32)
         else:
