@@ -192,7 +192,7 @@ async def run_one(job_id: int) -> None:
                 raise ValueError(_("неизвестная задача {kind}").format(kind=kind))
             result = await asyncio.wait_for(handler(db, job), timeout=JOB_TIMEOUT_S)
             await queue.finish(db, job, result if isinstance(result, dict) else {"result": result})
-        except asyncio.TimeoutError:
+        except TimeoutError:
             log.error("job %s (%s) timed out after %s s", job_id, kind, JOB_TIMEOUT_S)
             await db.rollback()
             job = await db.get(Job, job_id)

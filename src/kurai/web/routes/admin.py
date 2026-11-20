@@ -2,10 +2,10 @@
 «Проверить» buttons. Saving a tab only writes the settings; jobs pick them up (the worker re-reads them)."""
 
 import asyncio
+import logging
 import os
 import signal
 import time
-import logging
 from typing import Any
 from urllib.parse import urlencode
 

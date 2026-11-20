@@ -4,8 +4,8 @@ Revision ID: 0015
 Revises: 0014
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from pgvector.sqlalchemy import Vector
 
 revision = "0015"
