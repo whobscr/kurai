@@ -51,7 +51,8 @@ def language_filter(scripts: Collection[str] = (), letters: str = "", tags: Coll
         conditions.append(written)
     genres = cast(Track.genres, Text)
     for tag in {t.strip().casefold() for t in tags if t.strip()}:
-                conditions.append(genres.ilike("%" + tag.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"))
+                conditions.append(genres.ilike("%" + tag.replace("\\", "\\\\").replace("%", "\\%")
+                .replace("_", "\\_") + "%"))
     return or_(*conditions) if conditions else None
 
 

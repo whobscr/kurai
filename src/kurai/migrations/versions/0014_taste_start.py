@@ -7,6 +7,7 @@ Revises: 0013
 import sqlalchemy as sa
 from alembic import op
 from pgvector.sqlalchemy import Vector
+
 from kurai.audio import EFFNET_DIM
 
 revision = "0014"
