@@ -422,8 +422,9 @@ async def test_wave_follows_plays_and_skips(db, navidrome):
 
     now = datetime.now(UTC)
     # she plays two calm tracks on and skips two loud ones: the first wave is due at once
-    events = [("wava", "w0", False, 190), ("wava", "w1", False, 200), ("wava", "w12", True, 10),
-              ("wava", "w13", True, 8), ("someone", "w2", False, 200), ("wava", "unknown", False, 100)]
+    events = [("wava", "w0", False, 190, False, False), ("wava", "w1", False, 200, False, False),
+              ("wava", "w12", True, 10, False, False), ("wava", "w13", True, 8, False, False),
+              ("someone", "w2", False, 200, False, False), ("wava", "unknown", False, 100, False, False)]
     assert await wave.record(db, events, now) == [user.id]
     stored = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars().all()
     assert len(stored) == 4  # not other people's, not unknown tracks
