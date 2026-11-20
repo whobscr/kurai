@@ -60,6 +60,13 @@ class User(Base):
     start_styles: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     start_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     start_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # the first taste made from those answers (stored once at start_asked_at, not re-drawn nightly): same shape as a
+    # taste vector
+    start_text_vector = mapped_column(Vector(), nullable=True)
+    start_audio_vector = mapped_column(Vector(EFFNET_DIM), nullable=True)
+    start_top_artists: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    start_text_model: Mapped[str | None] = mapped_column(String(128))
+    start_audio_model: Mapped[str | None] = mapped_column(String(64))
     # «Любимое»: how many tracks, and whether the night makes it anew
     favorites_size: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
     favorites_nightly: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
@@ -91,7 +98,6 @@ class Setting(Base):
 
 class Track(Base):
     """A track of the library, as Navidrome knows it."""
-
     __tablename__ = "tracks"
     __table_args__ = (Index("ix_tracks_artist", "artist"), Index("ix_tracks_artist_key", "artist_key"))
 
@@ -125,7 +131,6 @@ class Track(Base):
 class TrackAudio(Base):
     """What the audio analysis heard in a track's file (kurai.audio). A changed file (another size) is analysed again;
     a file that couldn't be analysed keeps its error and is skipped until it changes or an admin retries."""
-
     __tablename__ = "track_audio"
     __table_args__ = (
         Index("ix_track_audio_effnet", "effnet", postgresql_using="hnsw",
@@ -153,7 +158,6 @@ class TrackAudio(Base):
 
 class Listen(Base):
     """What one user did with one track (Navidrome's play count, last play, star and rating)."""
-
     __tablename__ = "listens"
     __table_args__ = (UniqueConstraint("user_id", "track_id"), Index("ix_listens_user", "user_id"))
 
@@ -164,18 +168,22 @@ class Listen(Base):
     last_played: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     starred: Mapped[bool] = mapped_column(Boolean, default=False)
     rating: Mapped[int] = mapped_column(Integer, default=0)  # 0-5, 0: none
+    # when Kurai itself last wrote this row (note_listen). sync_listens's grace window keeps recent local writes even
+    # if Navidrome hasn't caught up yet — a failed Navidrome write no longer erases the user's explicit action.
+    updated_at: Mapped[datetime] = _now()
 
 
 class Taste(Base):
     """A user's taste: the weighted mean of the (unit) vectors of what they played and liked; not normalized, so the
     recommendations can centre it on the library's mean like any track (vectors.Joint)."""
-
     __tablename__ = "tastes"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     vector = mapped_column(Vector(), nullable=True)
     embedding_model: Mapped[str | None] = mapped_column(String(128))
     audio_vector = mapped_column(Vector(EFFNET_DIM), nullable=True)  # the same, from how the tracks sound
+    # the Essentia model that made `audio_vector`; a change invalidates it until the next build_taste
+    audio_model: Mapped[str | None] = mapped_column(String(64))
     top_artists: Mapped[list] = mapped_column(JSONB, default=list)
     # «слушают вместе» (recommend/related.py): [{"name", "mbid", "score", "via", "depth"}], the strongest first
     related_artists: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
@@ -201,7 +209,6 @@ class Playlist(Base):
 
 class Job(Base):
     """A unit of background work. The worker takes them by priority; night-only ones wait for the night window."""
-
     __tablename__ = "jobs"
     __table_args__ = (Index("ix_jobs_queue", "status", "priority", "id"),
                       Index("ix_jobs_dedupe", "dedupe_key", "status"))
@@ -223,15 +230,18 @@ class Job(Base):
 
 class WaveEvent(Base):
     """What a user just did with a track, seen live in Navidrome's «now playing» («Моя волна» follows it): played on
-    or skipped."""
-
+    or skipped. `chosen`: the user picked the track themselves (a library-search set) — not the wave's doing.
+    `disliked`: an explicit 👎, regardless of how long it played — distinct from an abandonment skip."""
     __tablename__ = "wave_events"
+    __table_args__ = (Index("ix_wave_events_user_at", "user_id", "at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     track_id: Mapped[str] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"))
     skipped: Mapped[bool] = mapped_column(Boolean)
     seconds: Mapped[int] = mapped_column(Integer)  # how long it played
+    chosen: Mapped[bool] = mapped_column(Boolean, default=False)
+    disliked: Mapped[bool] = mapped_column(Boolean, default=False)
     at: Mapped[datetime] = _now()
 
 
@@ -258,7 +268,6 @@ class PushSubscription(Base):
 
 class LlmCall(Base):
     """One model request's timing, so the pages can say «usually takes ~N s» and the night's capacity."""
-
     __tablename__ = "llm_calls"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -274,7 +283,6 @@ class LlmCall(Base):
 class Popularity(Base):
     """How much the world listens to an artist or an album (ListenBrainz's listens), by MusicBrainz id: what's popular
     in the library before anyone here has played anything (recommend/popularity.py)."""
-
     __tablename__ = "popularity"
 
     mbid: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -286,9 +294,19 @@ class Popularity(Base):
 class ArtistId(Base):
     """An artist's MusicBrainz id found by name (recommend/artist_ids.py) for the tracks whose tags have none; by the
     artist's key (kurai/artists.py). `mbid` empty: looked up and not found (asked again after a while)."""
-
     __tablename__ = "artist_ids"
 
     artist_key: Mapped[str] = mapped_column(Text, primary_key=True)
     mbid: Mapped[str | None] = mapped_column(String(36))
     looked_up_at: Mapped[datetime] = _now()
+
+
+class SpaceMean(Base):
+    """Cached mean of unit vectors per (space, model), so retrieval.joint() doesn't recompute them on every wave
+    rebuild. Refreshed by the nightly job and on model change (admin.save)."""
+    __tablename__ = "space_means"
+
+    space: Mapped[str] = mapped_column(String(16), primary_key=True)  # "text" | "sound" | "clap"
+    model: Mapped[str] = mapped_column(String(128), primary_key=True)
+    vector = mapped_column(Vector(), nullable=False)
+    computed_at: Mapped[datetime] = _now()

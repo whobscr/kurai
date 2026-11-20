@@ -2,6 +2,7 @@
 «Проверить» buttons. Saving a tab only writes the settings; jobs pick them up (the worker re-reads them)."""
 
 import asyncio
+import logging
 import os
 import signal
 import time
@@ -21,12 +22,13 @@ from kurai.db.models import Job, LlmCall, Taste, Track, User
 from kurai.i18n import _
 from kurai.integrations import public_data
 from kurai.jobs import queue, window
-from kurai.recommend import library, mixing, playlists, related, wave
+from kurai.recommend import library, mixing, playlists, related, retrieval, wave
 from kurai.web.deps import Ctx, admin_required
 from kurai.web.routes import apps
 from kurai.web.templating import art_hours, render
 
 router = APIRouter(prefix="/admin")
+log = logging.getLogger(__name__)
 
 CORE_TABS = {
     "general": _("Общие"),
@@ -236,6 +238,7 @@ async def save_plugins(request: Request, ctx: Ctx) -> RedirectResponse:
     off = sorted(p.name for p in plugins.installed() if form.get(f"plugin.{p.name}") != "on")
     await settings.put(ctx.db, {plugins.DISABLED_KEY: off})
     await ctx.db.commit()
+    # the cache lives until the restart: comparing against it is exactly how a change is detected
     if frozenset(off) == plugins.disabled():
         return back("plugins", _("Сохранено"))
     response = back("plugins", _("Сохранено. Курай перезапускается — обновите страницу через полминуты."))
@@ -278,6 +281,12 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
         for user in await library.active_users(ctx.db):
             await queue.enqueue(ctx.db, "wave", {"retaste": True}, user_id=user.id, priority=30,
                                 dedupe_key=f"wave:{user.id}")
+    # an embedding or audio model changed: refresh the cached space means now so the next recommendation uses them
+    if tab in ("models", "audio") and any(k in values for k in ("embed.model", "audio.enabled", "audio.clap")):
+        try:
+            await retrieval.refresh_means(ctx.db)
+        except Exception as e:
+            log.warning("space means refresh failed on model change: %s", e)
     # what depends on the saved values is re-applied in the background: the plugins' setup after the gateway
     if tab == "gateway":
         for plugin in plugins.plugins():
@@ -286,6 +295,7 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
     if plugin_tab and plugin_tab.after_save:
         await plugin_tab.after_save(ctx.db, values, before)
     # a new embedding model: the night's work embeds the library again (vectors of the old model aren't used)
+    # an embedding or audio model changed: refresh the cached space means now
     return back(tab, _("Сохранено"))
 
 
@@ -303,12 +313,15 @@ async def preview(request: Request, profile: str, user_id: int = Form(...), ctx:
     if profile not in mixing.PROFILES or user is None:
         raise HTTPException(404)
     started = time.monotonic()
+    result = {}
     if profile == "wave":
         made = await wave.plan(ctx.db, user)
-        tracks, why = made.tracks, made.result.get("skipped", "")
+        tracks, result = made.tracks, made.result
+        why = result.get("skipped", "")
     else:
         mixes = await playlists.plan_mixes(ctx.db, user, 1)
-        tracks, why = (mixes[0] if mixes else [], "") if isinstance(mixes, list) else ([], mixes["skipped"])
+        tracks = (mixes[0] if mixes else []) if isinstance(mixes, list) else []
+        why = "" if isinstance(mixes, list) else mixes["skipped"]
     known = {t.id: t for t in (await ctx.db.execute(
         select(Track).where(Track.id.in_([c.id for c in tracks])))).scalars()}
     via = {key: a["via"] for key, a in related.artists_for(await ctx.db.get(Taste, user.id), 2).items()}
@@ -317,7 +330,7 @@ async def preview(request: Request, profile: str, user_id: int = Form(...), ctx:
             for c in tracks if c.id in known]
     counts = {label: sum(c.kind == kind for c in tracks) for kind, label in KIND_LABELS.items()}
     return render(request, "partials/mix_preview.html", ctx, rows=rows, why=why, counts=counts, who=user,
-                  seconds=round(time.monotonic() - started, 1), profile=profile)
+                  seconds=round(time.monotonic() - started, 1), profile=profile, result=result)
 
 
 # ---------- the «Проверить» buttons ----------

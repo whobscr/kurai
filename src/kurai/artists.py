@@ -1,12 +1,18 @@
 """Who a track is by, where artists are kept apart (the wave's and the mixes' limits per artist, the artists' pause,
 the spacing, «Любимое»): its first credited artist. Navidrome joins a track's artists into one line («Charli XCX •
-Charlotte Aitchison • Finn Keane»), and a guest in a single tag («Artist feat. Guest») is common too: taken whole,
-each guest made another artist of the same one, so one artist could fill a whole wave."""
+Charlotte Aitchison • Finn Keane»), and a guest in a single tag («Artist feat. Guest», «Artist (feat. Guest)») is common
+too: taken whole, each guest made another artist of the same one, so one artist could fill a whole wave.
+
+The same rule lives in web/static/js/player.js (the player's own spacing) and was written in SQL by migration 0010;
+migration 0013 refills the keys after this rule changed. Change all three together."""
 
 import re
 
 SEPARATOR = " • "  # Navidrome's join of a track's several artists
-_GUESTS = re.compile(r"\s+(?:feat\.?|ft\.|featuring)\s.*$", re.IGNORECASE)
+# A guest credit, from its separator to the end of the line. Before the marker: whitespace, or an opening bracket
+# («Artist (feat. Guest)», «Artist [ft. Guest]»). After it: a dot («feat.Guest»), or whitespace/end — never a letter,
+# so «The Features» stays whole. «with» and «vs» are deliberately not here: «Dance with the Dead» is one artist.
+_GUESTS = re.compile(r"(?:\s+|\s*[\(\[]\s*)(?:feat\.|ft\.|(?:feat|ft|featuring)(?=\s|$))\s*.*$", re.IGNORECASE)
 
 
 def main_artist(artist: str | None) -> str:

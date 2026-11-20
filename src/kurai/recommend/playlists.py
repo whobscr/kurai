@@ -58,13 +58,17 @@ PLAN_SCHEMA = {
 
 
 async def taste_of(db: AsyncSession, user: User) -> dict[str, np.ndarray]:
-    """The user's taste in each space it's known in (not centred)."""
+    """The user's taste in each space it's known in (not centred). The audio vector is only returned when its
+    effnet model matches the current one — a stored taste from before a model change would otherwise be compared
+    with new-model track vectors and pull the query into meaningless space."""
+    from kurai.audio import EFFNET_MODEL  # local: keeps audio optional for imports
     taste = await db.get(Taste, user.id)
     if taste is None:
         return {}
-    # a taste of another embedding model (it changed since the night) can't be compared with the tracks
-    same_model = taste.embedding_model == await settings.get(db, "embed.model")
-    parts = {"text": taste.vector if same_model else None, "sound": taste.audio_vector}
+    same_text_model = taste.embedding_model == await settings.get(db, "embed.model")
+    same_audio_model = taste.audio_model == EFFNET_MODEL
+    parts = {"text": taste.vector if same_text_model else None,
+             "sound": taste.audio_vector if same_audio_model else None}
     return {s: np.asarray(v, dtype=np.float32) for s, v in parts.items() if v is not None}
 
 

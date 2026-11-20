@@ -1,8 +1,11 @@
 """The start of a listener who hasn't played anything yet: what they said they like (styles of the library, their own
 words) as a first taste, and the library's popular tracks (here, then in the world) for the wave.
-
 The first taste joins the taste from listens as a prior that fades: it counts like PRIOR tracks, so it leads at first
-and is a hint once dozens of tracks are played (library.build_taste)."""
+and is a hint once dozens of tracks are played (library.build_taste).
+
+The first taste is computed once, at start_asked_at, and stored on the User. It used to be re-drawn at random nightly,
+so a new user's wave swung for no reason and the top artists seeded «слушают вместе» from a different sample every
+night."""
 
 import logging
 
@@ -20,9 +23,9 @@ from kurai.recommend.vectors import mean_unit
 
 log = logging.getLogger(__name__)
 
-STYLES_SHOWN = 24  # the library's styles offered in the question
-STYLE_TRACKS = 400  # tracks of the chosen styles a first taste is made of, at most
-PRIOR = 10  # the first taste counts like this many played tracks
+STYLES_SHOWN = 24
+STYLE_TRACKS = 400
+PRIOR = 10
 POPULAR_PER_ARTIST = 2
 
 
@@ -34,9 +37,15 @@ async def library_styles(db: AsyncSession, limit: int = STYLES_SHOWN) -> list[st
     return [name for name, _count in rows]
 
 
-async def first_taste(db: AsyncSession, user: User) -> dict | None:
+async def first_taste(db: AsyncSession, user: User, recompute: bool = False) -> dict | None:
     """The taste the answers point at: the mean of the chosen styles' tracks in each space, the own words' embedding
-    joined to the text one; with the styles' most frequent artists. None without answers."""
+    joined to the text one; with the styles' most frequent artists. None without answers. The result is stored on
+    the user (User.start_* columns) so it doesn't move from night to night — `store` is called when the answers are
+    saved; `recompute` ignores the stored taste (the answers changed)."""
+    if not recompute:
+        stored = await _read_stored(db, user)
+        if stored is not None:
+            return stored
     styles = [s for s in user.start_styles or [] if isinstance(s, str)]
     words = (user.start_text or "").strip()
     if not styles and not words:
@@ -57,14 +66,45 @@ async def first_taste(db: AsyncSession, user: User) -> dict | None:
             artists.append((artist, 1))
     text_vector = mean_unit(text)
     described = ", ".join(styles) + (f". {words}" if words else "")
-    try:  # the own words in the text space: as much as all the styles' tracks together
+    try:
         said = np.asarray((await (await llm.embed_model(db)).embed([described]))[0], dtype=np.float32)
         said /= np.linalg.norm(said) or 1.0
         text_vector = said if text_vector is None else 0.5 * text_vector + 0.5 * said
-    except Exception as e:  # no embedding model: the styles' tracks alone
+    except Exception as e:
         log.info("the answers not embedded: %s", e)
     top = top_artists(artists)
-    return {"text": text_vector, "sound": mean_unit(sound), "top_artists": top}
+    return {"text": text_vector, "sound": mean_unit(sound), "top_artists": top,
+            "text_model": model_name, "audio_model": EFFNET_MODEL}
+
+
+async def _read_stored(db: AsyncSession, user: User) -> dict | None:
+    """The stored first taste, if the user has one and its models still match the current ones (a taste of another
+    model can't be compared with today's tracks). None means "compute it"."""
+    if user.start_text_vector is None and user.start_audio_vector is None and not user.start_top_artists:
+        return None
+    from kurai.audio import EFFNET_MODEL  # local: avoids a cycle at module load
+    if user.start_text_vector is not None and user.start_text_model != await settings.get(db, "embed.model"):
+        return None
+    if user.start_audio_vector is not None and user.start_audio_model != EFFNET_MODEL:
+        return None
+    return {"text": np.asarray(user.start_text_vector, dtype=np.float32) if user.start_text_vector is not None
+             else None,
+            "sound": np.asarray(user.start_audio_vector, dtype=np.float32) if user.start_audio_vector is not None
+             else None,
+            "top_artists": list(user.start_top_artists or []),
+            "text_model": user.start_text_model, "audio_model": user.start_audio_model or EFFNET_MODEL}
+
+
+async def store(db: AsyncSession, user: User, taste: dict) -> None:
+    """Persist a computed first taste on the user. Call once, at start_asked_at. Commit is the caller's."""
+    text = taste.get("text")
+    sound = taste.get("sound")
+    user.start_text_vector = text.tolist() if text is not None else None
+    user.start_audio_vector = sound.tolist() if sound is not None else None
+    user.start_top_artists = list(taste.get("top_artists") or [])
+    user.start_text_model = taste.get("text_model")
+    user.start_audio_model = taste.get("audio_model")
+    db.add(user)
 
 
 def with_prior(learned: np.ndarray | None, first: np.ndarray | None, played: int) -> np.ndarray | None:

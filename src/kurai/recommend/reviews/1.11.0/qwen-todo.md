@@ -1,0 +1,15 @@
+1. Fix artist identity.** `main_artist` doesn't strip `(feat. …)` / `[ft. …]`, so one artist becomes two keys — every cooldown, cap and gap misses them. Likely cause of your "same artist a few tracks away" bug. Fix in all three copies (`artists.py`, `player.js`, migration SQL) + backfill; they also disagree on casefold vs lower.
+
+2. Fix negative-feedback semantics.** A 👎 stays *positive* from 7 plays onward, and at any play count if starred — it still pulls the taste vector and seeds `top_artists` → «слушают вместе». Also negatives never decay while positives do, and one recent play refreshes the whole aggregated `play_count`. Explicit dislike must override implicit interest, not be added to it.
+
+3. Stop silently losing data.** `rate` commits locally, then `sync_listens` deletes the row when the Navidrome write failed — your "disliked tracks in the playlist" bug. `sync_library` deletes unseen tracks (cascading to days of audio analysis) with only an empty-response guard: page by `id`, refuse large drops. Persist `first_taste` (currently re-drawn at random nightly) and model-guard `audio_vector`.
+
+4. Two performance fixes.** `joint()` recomputes three full-table vector averages on *every* rebuild; `mmr_select` recomputes norms in its innermost loop. Cache the means, precompute unit vectors. On a 1-CPU shared Postgres this is what makes the wave feel instant — and it funds everything below.
+
+5. Fix the event labels before adding mood.** `WaveEvent` already exists for all apps, but `Watcher.seconds` is wall-clock (pauses read as completions) while the web player measures real playback; the last track of each session is never logged. Add absolute-time thresholds, a dislike flag, and persist `chosen` — one column that gives both exposure attribution and a strong intent signal.
+
+6. Build mood small, not the document's subsystem.** The features already exist (`MOOD_HEADS`, `danceability`, `energy()`). Two *centered* axes, drop the genre-like heads, no raw bpm. Shadow mode first. No θ/φ online ratings — taste rebuilds nightly, so context-weighting `listen_weight` is enough. Wave-only, two knobs. Two holes to avoid: cosine on non-negative probabilities is meaningless, and mood inferred from acceptances can't represent a bad day — use a session regime detector instead. Add «Не сейчас».
+
+7. Make selection and ordering honest.** `arrange` front-loads one cluster and the player replaces the unplayed tail, so MMR's diversity is largely never heard. `artist_max` never relaxes (3 artists → a 6-track wave), and overflow bypasses the "better half" rule. Give popular candidates real vectors before touching ordering.
+
+8. Contain plugin version mismatch.** Nothing checks compatibility (`--no-deps` skips the pin), and one bad import bricks `migrate()` *and* the page you'd use to disable it. Add per-plugin try/except, a `requires` check, collision detection (a plugin can currently replace core job handlers and admin tabs), and `include_object` in core's `env.py`.

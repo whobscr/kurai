@@ -78,7 +78,7 @@ async def _unheard_wave(ctx: Ctx, playlist: Playlist) -> list[str] | None:
         return ids
     last = (await ctx.db.execute(select(Job).where(Job.user_id == ctx.user.id, Job.kind == "wave")
                                  .order_by(Job.id.desc()))).scalars().first()
-    rebuilt_in_vain = (last is not None and last.status in ("done", "failed") and last.finished_at is not None
+    rebuilt_in_vain = (last is not None and last.status == "done" and last.finished_at is not None
                        and last.finished_at > playlist.created_at)
     if rebuilt_in_vain:
         return ids or playlist.track_ids
@@ -146,14 +146,15 @@ async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = 
                 chosen: bool = Body(False), ctx: Ctx = Depends(user_required)):
     """A track gave way to the next one (or the player stopped) after `seconds` of playing: played on or skipped
     (a 👎 is a skip however long it played). A play counts in Navidrome and in «История» at once. A track the user
-    chose themselves (`chosen`: the library search) skipped without a 👎 says nothing of their taste: not counted."""
+    chose themselves (`chosen`: the library search) skipped without a 👎 says nothing of their taste: not counted.
+    `chosen` and `disliked` are persisted on the WaveEvent so the wave can tell a deliberate play apart from a passive
+    completion, and a deliberate dislike from a contextual skip."""
     track = await ctx.db.get(Track, track_id)
     if track is None:
         raise HTTPException(404)
     now = datetime.now(UTC)
     seconds = max(0, seconds)
-    skip_share = (await mixing.load(ctx.db, "wave")).skip_share
-    skipped = disliked or seconds < skip_share * (track.duration or wave.DEFAULT_DURATION)
+    skipped = wave.is_skip(seconds, track.duration, disliked, (await mixing.load(ctx.db, "wave")).skip_share)
     if skipped and chosen and not disliked:
         return {"skipped": True, "rebuilding": False}
     if not skipped:
@@ -164,27 +165,36 @@ async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = 
             log.warning("scrobble: %s", e)
     rebuilding = False
     if await settings.get(ctx.db, "wave.enabled"):
-        rebuilding = bool(await wave.record(ctx.db, [(ctx.user.username, track_id, skipped, seconds)], now))
+        rebuilding = bool(await wave.record(ctx.db, [(ctx.user.id, track_id, skipped, seconds, chosen, disliked)],
+                                            now))
     return {"skipped": skipped, "rebuilding": rebuilding}
 
 
 @router.post("/rate")
 async def rate(track_id: str = Body(), value: str = Body(), ctx: Ctx = Depends(user_required)):
     """♥ («like»: a star), 👎 («dislike»: a rating of 1) or neither («none»), in Navidrome (so every music app sees it)
-    and in Kurai at once; the nightly taste weighs them (a star like several plays, a low rating against)."""
+    and in Kurai at once; the nightly taste weighs them (a star like several plays, a low rating against).
+
+    Write-through: Navidrome is written first, Kurai's row only on success. A Navidrome failure leaves the click
+    undone instead of writing locally and letting the next sync erase it (a 👎 on a never-played track used to
+    disappear within 30 minutes and the track came back eligible)."""
     if value not in RATINGS or await ctx.db.get(Track, track_id) is None:
         raise HTTPException(404)
-    before = (await ctx.db.execute(select(Listen.rating).where(Listen.user_id == ctx.user.id,
-                                                               Listen.track_id == track_id))).scalar() or 0
+    before = (await ctx.db.execute(select(Listen).where(Listen.user_id == ctx.user.id,
+                                                        Listen.track_id == track_id))).scalar_one_or_none()
+    before_starred = bool(before and before.starred)
+    before_rating = (before.rating if before else 0) or 0
     # 👎 is a rating of 1; ♥ or neither take only a 👎's low rating back (a 4★ set in an app stays)
     starred = value == "like"
-    rating = 1 if value == "dislike" else 0 if before in (1, 2) else before
-    listen = await library.note_listen(ctx.db, ctx.user, track_id, starred=starred, rating=rating)
+    rating = 1 if value == "dislike" else 0 if before_rating in (1, 2) else before_rating
+    # Navidrome first. nd.rate is a single call when the star state already matches, so pressing 👎 on a fresh track
+    # is one round-trip, not two.
     try:
-        await library.navidrome().rate(_account(ctx), track_id, starred, rating)
-    except NavidromeError as e:  # kept in Kurai; the next sync would bring Navidrome's back, so it's said
+        await library.navidrome().rate(_account(ctx), track_id, starred, rating, current_starred=before_starred)
+    except NavidromeError as e:
         log.warning("rate: %s", e)
         raise HTTPException(502, _("Navidrome не сохранил оценку: {e}").format(e=e)) from e
+    listen = await library.note_listen(ctx.db, ctx.user, track_id, starred=starred, rating=rating)
     return {"liked": listen.starred, "disliked": listen.rating in (1, 2)}
 
 
