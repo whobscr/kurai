@@ -15,7 +15,6 @@ A plugin that fails to load (import error, version mismatch) is collected in `lo
 entry point is never imported again."""
 
 import logging
-import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -181,29 +180,26 @@ def installed() -> tuple[Plugin, ...]:
     return _load_all()
 
 
-_disabled_cache: tuple[float, frozenset[str]] | None = None
-DISABLED_TTL_S = 30.0
+_disabled_cache: frozenset[str] | None = None
 
 
-def invalidate_disabled() -> None:
-    """Forget the cached switches: admin.save calls it right after writing them."""
+def _disabled_cache_clear() -> None:
     global _disabled_cache
     _disabled_cache = None
 
 
 def disabled() -> frozenset[str]:
-    """The plugins switched off. Cached for DISABLED_TTL_S — plugins() is asked on every request and job, and a sync
-    engine per call is too dear; a failed read is never cached, so a transient DB error doesn't stick for the whole
-    process (the lru_cache of the previous revision cached failures). When the settings table doesn't yet exist
-    (first start), returns an empty set: everything on until the admin switches something off."""
+    """The plugins switched off, read once per process: the web and the worker restart to apply a change, and
+    worker.plugins_switched detects it by comparing the saved switches against this very cache. A failed read is
+    NOT cached, so a transient DB error doesn't stick for the whole process; when the settings table doesn't yet
+    exist (first start), returns an empty set: everything on until the admin switches something off."""
     global _disabled_cache
     from sqlalchemy import create_engine, text
 
     from kurai.config import get_config
 
-    now = time.monotonic()
-    if _disabled_cache is not None and now - _disabled_cache[0] < DISABLED_TTL_S:
-        return _disabled_cache[1]
+    if _disabled_cache is not None:
+        return _disabled_cache
     try:
         engine = create_engine(get_config().database_url)
         try:
@@ -215,9 +211,11 @@ def disabled() -> frozenset[str]:
         if "does not exist" not in str(e).lower() and "no such table" not in str(e).lower():
             log.error("plugin switches not read: %s", e)
         return frozenset()
-    off = frozenset(value or ())
-    _disabled_cache = (now, off)
-    return off
+    _disabled_cache = frozenset(value or ())
+    return _disabled_cache
+
+
+disabled.cache_clear = _disabled_cache_clear  # the restart simulation in tests; plugins() has the same via lru_cache
 
 
 def plugins() -> tuple[Plugin, ...]:

@@ -236,11 +236,10 @@ async def _restart_web() -> None:
 async def save_plugins(request: Request, ctx: Ctx) -> RedirectResponse:
     form = await request.form()
     off = sorted(p.name for p in plugins.installed() if form.get(f"plugin.{p.name}") != "on")
-    before = plugins.disabled()
     await settings.put(ctx.db, {plugins.DISABLED_KEY: off})
     await ctx.db.commit()
-    plugins.invalidate_disabled()
-    if frozenset(off) == before:
+    # the cache lives until the restart: comparing against it is exactly how a change is detected
+    if frozenset(off) == plugins.disabled():
         return back("plugins", _("Сохранено"))
     response = back("plugins", _("Сохранено. Курай перезапускается — обновите страницу через полминуты."))
     response.background = BackgroundTask(_restart_web)
