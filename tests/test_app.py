@@ -444,7 +444,7 @@ async def test_wave_follows_plays_and_skips(db, navidrome):
     job.status = "done"
     await db.commit()
     assert not await wave.due(db, user, now + timedelta(minutes=1))
-    await wave.record(db, [("wava", "w2", True, 5)], now + timedelta(minutes=5))
+    await wave.record(db, [("wava", "w2", True, 5, False, False)], now + timedelta(minutes=5))
     assert await wave.due(db, user, now + timedelta(minutes=5))  # a skip after the gap
     await wave.build(db, user)
     assert (await db.execute(select(func.count()).select_from(Playlist).where(

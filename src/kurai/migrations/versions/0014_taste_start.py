@@ -24,7 +24,7 @@ def upgrade() -> None:
     op.add_column("users", sa.Column("start_audio_model", sa.String(64), nullable=True))
     op.add_column("listens", sa.Column("updated_at", sa.DateTime(timezone=True),
                                        server_default=sa.func.now(), nullable=False))
-    op.execute("update listens set updated_at = coalesce(last_played, now())")
+    op.execute("update listens set updated_at = coalesce(last_played, 'epoch')")
     # existing start_asked_at rows had no stored taste: clear them so the onboarding page re-runs once
     op.execute("update users set start_asked_at = null where start_asked_at is not null")
 

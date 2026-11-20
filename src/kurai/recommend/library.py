@@ -25,6 +25,7 @@ EMBED_BATCH = 16
 # sync_library: refuse to delete more than this fraction of the known library in one run. A transient partial answer
 # from Navidrome must not cost days of audio analysis.
 MAX_DELETE_FRACTION = 0.25
+NEVER_LOCALLY_WRITTEN = datetime(1970, 1, 1, tzinfo=UTC)  # sync's own rows: the grace hour protects only local writes
 
 
 def navidrome() -> Navidrome:
@@ -140,7 +141,7 @@ async def sync_listens(db: AsyncSession, user: User) -> dict:
         last = datetime.fromisoformat(played.replace("Z", "+00:00")) if played else None
         values = {"user_id": user.id, "track_id": song["id"], "play_count": play_count, "last_played": last,
                   "starred": starred, "rating": rating}
-        stmt = insert(Listen).values(**values)
+        stmt = insert(Listen).values(updated_at=NEVER_LOCALLY_WRITTEN,**values)
         await db.execute(stmt.on_conflict_do_update(
             index_elements=[Listen.user_id, Listen.track_id],
             set_={k: stmt.excluded[k] for k in ("play_count", "last_played", "starred", "rating")}))
