@@ -169,19 +169,6 @@ def _load_all() -> tuple[Plugin, ...]:
         except Exception as e:
             failures[ep.name] = f"load: {e.__class__.__name__}: {e}"
             continue
-        if not isinstance(p, Plugin):
-            failures[ep.name] = f"entry point is {type(p).__name__}, not Plugin"
-            continue
-        if reason := _check_requires(ep.name, p.requires):
-            failures[ep.name] = reason
-            continue
-        if reason := _check_collisions(p):
-            failures[ep.name] = reason
-            continue
-        if reason := _check_settings_prefix(p):
-            failures[ep.name] = reason
-            continue
-        out.append(p)
     _loaded = tuple(out)
     _load_failures = failures
     return _loaded
