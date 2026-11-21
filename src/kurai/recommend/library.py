@@ -236,7 +236,7 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
     extra_ids = [t for t in skip_neg if t not in seen]
     if extra_ids:
         extra = (await db.execute(
-            select(Track, TrackAudio.effnet).join(Track, Track.id == TrackAudio.track_id)
+            select(Track, TrackAudio.effnet)
             .outerjoin(TrackAudio, (TrackAudio.track_id == Track.id) & (TrackAudio.effnet_model == audio_model)
                        & TrackAudio.error.is_(None))
             .where(Track.id.in_(extra_ids)))).all()

@@ -13,6 +13,7 @@ def test_is_skip_uses_the_set_share():
     assert wave.is_skip(100, 240, False, skip_share=0.3) is False  # 100 >= 72
     assert wave.is_skip(10, 240, True, skip_share=0.0) is True     # a 👎 is a skip however long it played
 
+
 async def test_record_stores_external_app_events_by_username(db):
     user = User(username="watcher-ann", password_hash="x")
     db.add(user)
@@ -32,3 +33,14 @@ async def test_record_stores_external_app_events_by_username(db):
     stored = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars().all()
     assert len(stored) == 2
     assert queued2 == []  # nothing stored -> no rebuild queued
+
+
+def test_watcher_logs_a_track_once_when_it_gives_way():
+    w = wave.Watcher()
+    t0 = datetime(2026, 1, 1, tzinfo=UTC)
+    def entry(tid):
+        return [{"username": "ann", "playerId": "1", "id": tid, "duration": 240, "playerName": "DSub"}]
+    events = []
+    for tid, sec in [("a", 0), ("a", 15), ("b", 30), ("b", 45), ("b", 60), ("c", 75)]:
+        events += w.update(t0 + timedelta(seconds=sec), entry(tid), 0.5)
+    assert events == [("ann", "b", True, 45)]  # one event for b — not a 15 s «skip» on every poll

@@ -68,6 +68,8 @@ class Watcher:
                    if e.get("id") and e.get("playerName") != WEB_PLAYER}
         for key, entry in current.items():
             before = self.playing.get(key)
+            if before is not None and before.track_id == entry["id"]:
+                continue  # still the same track: log it only when it gives way, not a «skip» every poll
             if before is not None and before.since is not None:
                 seconds = int((now - before.since).total_seconds())
                 if before.duration:
@@ -176,9 +178,10 @@ async def _playlist(db: AsyncSession, user: User) -> Playlist | None:
 
 async def recently_heard(db: AsyncSession, user: User, now: datetime, days: float) -> set[str]:
     """The tracks the user played or skipped within `days`, in Kurai's player or any app: the wave leaves them out
-    («Пауза для трека»), so it doesn't repeat itself."""
+    («Пауза для трека»), so it doesn't repeat itself. «Не сейчас» is not a rest: the track is fine, just not now."""
     since = now - timedelta(days=days)
-    events = select(WaveEvent.track_id).where(WaveEvent.user_id == user.id, WaveEvent.at >= since)
+    events = select(WaveEvent.track_id).where(WaveEvent.user_id == user.id, WaveEvent.at >= since,
+                                              WaveEvent.not_now.is_(False))
     played = select(Listen.track_id).where(Listen.user_id == user.id, Listen.last_played >= since)
     return set((await db.execute(events.union(played))).scalars())
 
@@ -274,8 +277,8 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
         known = await retrieval.played(db, user, {c.id for c in pool + near})
         track_moods = await moodmod.track_vectors(db, {c.id for c in pool + near}) if mood_on else {}
         chosen = mixing.choose(pool, near, known, mix, count, resting, rng, chosen, away,
-                               mood=sm,
-                               mood_strength=getattr(mix, "mood_strength", 0.0) if mood_on else 0.0,
+                               mood=sm if mood_on else None,  # off: shadow only — no bonus and no comfort mode
+                               mood_strength=getattr(mix, "mood_strength", 0.0),
                                track_moods=track_moods)
     if not found_any:
         return Plan([], {"skipped": _("нет подходящих треков")})
