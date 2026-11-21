@@ -21,7 +21,7 @@
 {% block shell %}
   {% from "partials/track_macros.html" import rate_buttons with context %}
   {# the first entry is the app's main one: drawn as a circle of the accent colour (kurai.css: .main-nav) #}
-  {% set nav = [("/", "waves", _("Для вас")), ("/ask", "chat", _("Спросить")), ("/history", "history", _("История")),
+  {% set nav = [("/", "pulses", _("Для вас")), ("/ask", "chat", _("Спросить")), ("/history", "history", _("История")),
          ("/music", "library_music", _("Музыка"))]
      + nav_extra + [("/me", "person", _("Кабинет"))] %}
   {% if user and user.is_admin %}{% set nav = nav + [("/admin", "tune", _("Система"))] %}{% endif %}
@@ -80,7 +80,7 @@
       <b id="player-title"></b>
       <span class="small-text" id="player-artist"></span>
     </div>
-    <span class="chip small player-source" id="player-source"><i>waves</i><span></span></span>
+    <span class="chip small player-source" id="player-source"><i>pulses</i><span></span></span>
     <button type="button" class="circle transparent" id="player-prev" title="{{ _('Предыдущий') }} (Shift+←)"><i>skip_previous</i></button>
     <button type="button" class="circle player-toggle" id="player-toggle" title="{{ _('Пауза / играть') }} ({{ _('пробел') }})"><i>play_arrow</i></button>
     <button type="button" class="circle transparent" id="player-next" title="{{ _('Следующий') }} (Shift+→)"><i>skip_next</i></button>
@@ -102,11 +102,11 @@
     </div>
     <audio id="player-audio" preload="auto"
       data-pending="{{ _('Собираю волну по вашему вкусу…') }}" data-updated="{{ _('Волна обновилась в {t} — по тому, что вы слушаете') }}"
-      data-now="{{ _('Сейчас: {track}') }}" data-error="{{ _('Не получилось включить:') }}" data-wave="{{ _('Моя волна') }}"
+      data-now="{{ _('Сейчас: {track}') }}" data-error="{{ _('Не получилось включить:') }}" data-pulse="{{ _('Пульс') }}"
       data-repeat-off="{{ _('Повтор выключен') }}" data-repeat-all="{{ _('Повтор плейлиста') }}" data-repeat-one="{{ _('Повтор трека') }}"
       data-volume="{{ _('Громкость {n}%') }}" data-muted="{{ _('Звук выключен') }}"
       data-queue="{{ _('Очередь') }}" data-added="{{ _('В очереди: +{n}') }}" data-next="{{ _('Далее — добавленное вами') }}"
-      data-then="{{ _('Потом — «{name}»') }}" data-after="{{ _('Когда закончится — «Моя волна»') }}"
+      data-then="{{ _('Потом — «{name}»') }}" data-after="{{ _('Когда закончится — «Пульс»') }}"
       data-saved="{{ _('Сохранено: «{name}» в «Плейлистах»') }}" data-remove="{{ _('Убрать из очереди') }}"></audio>
   </footer>
   {# what went wrong with a ♥ or 👎, and what a key did (player.js) #}
@@ -130,7 +130,7 @@
       <button type="button" class="round border small" id="player-queue-clear"><i>clear_all</i><span>{{ _("Очистить") }}</span></button>
     </div>
     <ol class="player-queue-list" id="player-queue-list"></ol>
-    <p class="small-text player-queue-empty" id="player-queue-empty">{{ _("Пусто. Найдите музыку в «Музыке» и нажмите «В очередь» — или включите «Мою волну».") }}</p>
+    <p class="small-text player-queue-empty" id="player-queue-empty">{{ _("Пусто. Найдите музыку в «Музыке» и нажмите «В очередь» — или включите «Пульс».") }}</p>
   </dialog>
   {# the keys (player.js, kurai.js); opened by «?» or the bar's button #}
   {# the header and «Понятно» stay; only the list scrolls (a shadow says there's more), a click outside closes it #}

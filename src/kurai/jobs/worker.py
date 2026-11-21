@@ -12,7 +12,7 @@ from kurai.db.models import Job, User
 from kurai.i18n import _
 from kurai.jobs import queue, window
 from kurai.notify import notify, send_telegram
-from kurai.recommend import artist_ids, library, playlists, popularity, related, retrieval, wave
+from kurai.recommend import artist_ids, library, playlists, popularity, pulse, related, retrieval
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ async def _nightly(db, job: Job) -> dict:
     await step("embeddings", lambda: library.embed_tracks(db))
     # cached space means for retrieval.joint(): refreshed once, after the library and its vectors are current
     await step("space_means", lambda: retrieval.refresh_means(db))
-    wave_on = await settings.get(db, "wave.enabled")
+    pulse_on = await settings.get(db, "pulse.enabled")
     for user_id, username in [(u.id, u.username) for u in await library.active_users(db)]:
         async def for_user(user_id: int = user_id) -> dict:
             user = await db.get(User, user_id)
@@ -77,8 +77,8 @@ async def _nightly(db, job: Job) -> dict:
                    "playlists": await playlists.nightly(db, user)}
             if user.favorites_nightly:
                 out["favorites"] = await playlists.build_favorites(db, user, create=False)
-            if wave_on:
-                out["wave"] = await wave.build(db, user)
+            if pulse_on:
+                out["pulse"] = await pulse.build(db, user)
             return out
 
         await step(f"user {username}", for_user)
@@ -131,13 +131,13 @@ async def _ask(db, job: Job) -> dict:
     return result
 
 
-async def _wave(db, job: Job) -> dict:
-    """A new version of the wave; with «retaste» (the user just said what they like), from their taste made anew."""
+async def _pulse(db, job: Job) -> dict:
+    """A new version of the pulse; with «retaste» (the user just said what they like), from their taste made anew."""
     # jobs queued before 0.2.23 have the user in the payload only
     user = await db.get(User, job.user_id or job.payload["user_id"])
     if (job.payload or {}).get("retaste"):
         await library.build_taste(db, user)
-    return await wave.build(db, user)
+    return await pulse.build(db, user)
 
 
 async def _explain(db, job: Job) -> dict:
@@ -151,7 +151,7 @@ HANDLERS = {
     "sync_listens": _sync_listens,
     "ask": _ask,
     "explain": _explain,
-    "wave": _wave,
+    "pulse": _pulse,
     "popularity": lambda db, job: popularity.refresh(db),
     "artist_ids": lambda db, job: artist_ids.look_up(db),
     "analyze_audio": audio_analyze.run,  # taken only by the audio container's lane
@@ -286,7 +286,7 @@ async def main() -> None:
     # the scheduler returns when the plugins' switches change: the worker then stops, and Docker starts it again
     # (restart: unless-stopped); a job cut short is queued again at start
     tasks = [asyncio.create_task(c) for c in (scheduler(state), lane(False, state), lane(True, state), run_bot(),
-                                              wave.watch())]
+                                              pulse.watch())]
     done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     for task in pending:
         task.cancel()

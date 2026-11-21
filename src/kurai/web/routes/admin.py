@@ -22,7 +22,7 @@ from kurai.db.models import Job, LlmCall, Taste, Track, User
 from kurai.i18n import _
 from kurai.integrations import public_data
 from kurai.jobs import queue, window
-from kurai.recommend import library, mixing, playlists, related, retrieval, wave
+from kurai.recommend import library, mixing, playlists, pulse, related, retrieval
 from kurai.web.deps import Ctx, admin_required
 from kurai.web.routes import apps
 from kurai.web.templating import art_hours, render
@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 
 CORE_TABS = {
     "general": _("Общие"),
-    "wave": _("Волна"),
+    "pulse": _("Волна"),
     "playlists": _("Плейлисты"),
     "models": _("Модели"),
     "audio": _("Звук"),
@@ -44,14 +44,14 @@ CORE_TABS = {
 }
 # each tab's help page, linked at its top (a plugin's tab says its own: AdminTab.docs)
 TASTE_KEYS = ("taste.half_life_days", "taste.floor", "taste.window", "taste.window_days")
-CORE_DOCS = {"general": "/docs/admin/first-run", "wave": "/docs/admin/mixing#wave",
+CORE_DOCS = {"general": "/docs/admin/first-run", "pulse": "/docs/admin/mixing#pulse",
              "playlists": "/docs/admin/mixing#playlists", "models": "/docs/admin/models", "audio": "/docs/admin/audio",
              "gateway": "/docs/admin/gateway", "users": "/docs/admin/users", "apps": "/docs/admin/apps#apps",
              "plugins": "/docs/admin/apps#plugins", "jobs": "/docs/admin/jobs"}
 # «Запустить» on «Задачи»: Kurai's own; plugins add theirs
 CORE_MANUAL_JOBS = {
     "nightly": (_("Ночная работа сейчас"),
-                _("Всё, что обычно делается ночью, сразу: библиотека, вкусы, новые ночные миксы и «Моя волна», ночные "
+                _("Всё, что обычно делается ночью, сразу: библиотека, вкусы, новые ночные миксы и «Пульс», ночные "
                   "шаги плагинов. Долго и нагружает сервер; каждый запуск добавляет миксы.")),
     "sync_library": (_("Синхронизировать библиотеку"),
                      _("Забрать список треков из Navidrome: новые появятся, удалённые исчезнут. Само — раз в час.")),
@@ -92,11 +92,11 @@ def manual_jobs() -> dict[str, tuple[str, str]]:
 
 # which settings each tab's form may write, and their types
 FIELDS: dict[str, dict[str, type]] = {
-    "general": {"ui.default_accent": str, "ui.wave_art_hours": float, "ui.hero_art_hours": float,
+    "general": {"ui.default_accent": str, "ui.pulse_art_hours": float, "ui.hero_art_hours": float,
                 "night.start": str, "night.end": str, "telegram.enabled": bool,
                 "telegram.token": str, "listenbrainz.token": str, "musicbrainz.contact": str},
-    "wave": {"wave.enabled": bool, "taste.half_life_days": float, "taste.floor": float, "taste.window": bool,
-             "taste.window_days": float, **mixing.fields("wave")},
+    "pulse": {"pulse.enabled": bool, "taste.half_life_days": float, "taste.floor": float, "taste.window": bool,
+             "taste.window_days": float, **mixing.fields("pulse")},
     "playlists": {"playlists.per_night": int, "playlists.keep_days": float, "ask.keep_days": float,
                   **mixing.fields("playlists")},
     "models": {"llm.enabled": bool, "llm.provider": str, "llm.server_type": str, "llm.base_url": str,
@@ -149,7 +149,7 @@ def _validate(values: dict[str, Any]) -> str | None:
         except ValueError:
             return _("DNS-сервер — IP-адрес, например 10.8.0.1 или 10.8.0.1:53, а не имя")
     if any(values[k] is None or not 0 < values[k] <= 8760
-           for k in ("ui.wave_art_hours", "ui.hero_art_hours") if k in values):
+           for k in ("ui.pulse_art_hours", "ui.hero_art_hours") if k in values):
         return _("Смена картинок — больше 0 и не больше 8760 ч (год)")
     if "llm.parallel" in values and not 1 <= values["llm.parallel"] <= 16:
         return _("Параллельных запросов — от 1 до 16")
@@ -276,11 +276,11 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
         if values.get("ui.default_accent"):
             request.app.state.default_accent = values["ui.default_accent"]
         request.app.state.art_hours = art_hours(values)
-    # «Память вкуса» changed: everyone's taste made anew now (with the wave on it), not only at night
-    if tab == "wave" and any(values.get(k) != before.get(k) for k in TASTE_KEYS) and values.get("wave.enabled"):
+    # «Память вкуса» changed: everyone's taste made anew now (with the pulse on it), not only at night
+    if tab == "pulse" and any(values.get(k) != before.get(k) for k in TASTE_KEYS) and values.get("pulse.enabled"):
         for user in await library.active_users(ctx.db):
-            await queue.enqueue(ctx.db, "wave", {"retaste": True}, user_id=user.id, priority=30,
-                                dedupe_key=f"wave:{user.id}")
+            await queue.enqueue(ctx.db, "pulse", {"retaste": True}, user_id=user.id, priority=30,
+                                dedupe_key=f"pulse:{user.id}")
     # an embedding or audio model changed: refresh the cached space means now so the next recommendation uses them
     if tab in ("models", "audio") and any(values.get(k) != before.get(k)
                                           for k in ("embed.model", "audio.enabled", "audio.clap")):
@@ -300,14 +300,14 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
     return back(tab, _("Сохранено"))
 
 
-# ---------- what the wave or a mix would be ----------
+# ---------- what the pulse or a mix would be ----------
 
 KIND_LABELS = {"new": _("новое"), "known": _("знакомое"), "related": _("слушают вместе"), "popular": _("популярное")}
 
 
 @router.post("/preview/{profile}")
 async def preview(request: Request, profile: str, user_id: int = Form(...), ctx: Ctx = Depends(admin_required)):
-    """The next version of a user's wave, or a nightly mix as it would be made now, with the current parameters and
+    """The next version of a user's pulse, or a nightly mix as it would be made now, with the current parameters and
     nothing saved: for the admins to see what changing them does (the users see only what they played). A part of
     the «Волна» or «Плейлисты» tab, put in by HTMX."""
     user = await ctx.db.get(User, user_id)
@@ -315,8 +315,8 @@ async def preview(request: Request, profile: str, user_id: int = Form(...), ctx:
         raise HTTPException(404)
     started = time.monotonic()
     result = {}
-    if profile == "wave":
-        made = await wave.plan(ctx.db, user)
+    if profile == "pulse":
+        made = await pulse.plan(ctx.db, user)
         tracks, result = made.tracks, made.result
         why = result.get("skipped", "")
     else:

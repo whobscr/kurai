@@ -1,4 +1,4 @@
-"""The pages every user has: «Для вас» (the wave's big button, the playlists, notifications), «Спросить», «История», and
+"""The pages every user has: «Для вас» (the pulse's big button, the playlists, notifications), «Спросить», «История», and
 the PWA's share target."""
 
 from urllib.parse import quote
@@ -37,13 +37,13 @@ async def home(request: Request, open_sheet: bool = Query(False, alias="playlist
                                   .order_by(Notification.created_at.desc()).limit(10))).scalars().all()
     await ctx.db.execute(update(Notification).where(Notification.user_id == ctx.user.id).values(read=True))
     await ctx.db.commit()
-    wave = next((p for p in mixes if p.kind == "wave"), None)
-    # a listener who hasn't played anything and wasn't asked yet: what do they like (the wave starts from it)
+    pulse = next((p for p in mixes if p.kind == "pulse"), None)
+    # a listener who hasn't played anything and wasn't asked yet: what do they like (the pulse starts from it)
     ask_start = ctx.user.start_asked_at is None and not (await ctx.db.execute(
         select(Listen.track_id).where(Listen.user_id == ctx.user.id).limit(1))).first()
-    return render(request, "home.html", ctx, wave=wave, mixes=[p for p in mixes if p.kind != "wave"], notes=notes,
-                  open_sheet=open_sheet, wave_art=art("wave", request.app.state.art_hours["wave"]),
-                  wave_on=await settings.get(ctx.db, "wave.enabled"),
+    return render(request, "home.html", ctx, pulse=pulse, mixes=[p for p in mixes if p.kind != "pulse"], notes=notes,
+                  open_sheet=open_sheet, pulse_art=art("pulse", request.app.state.art_hours["pulse"]),
+                  pulse_on=await settings.get(ctx.db, "pulse.enabled"),
                   styles=await start.library_styles(ctx.db) if ask_start else [], ask_start=ask_start)
 
 
@@ -81,9 +81,9 @@ async def feedback(playlist_id: int, value: int = Form(...), sheet: bool = Form(
 @router.post("/playlists/{playlist_id}/delete")
 async def delete(playlist_id: int, ctx: Ctx = Depends(user_required)):
     """A generated playlist removed at once, from Kurai and the user's Navidrome; nothing is said of the taste by it.
-    «Моя волна» isn't one to remove: it's made again all the time."""
+    «Пульс» isn't one to remove: it's made again all the time."""
     playlist = await _own_playlist(ctx, playlist_id)
-    if playlist.kind == "wave":
+    if playlist.kind == "pulse":
         raise HTTPException(404)
     try:
         await playlists.remove(ctx.db, ctx.user, playlist)

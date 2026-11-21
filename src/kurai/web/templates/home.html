@@ -19,26 +19,26 @@
   {% endfor %}
 {% endmacro %}
 
-{# the wave: one big button that plays it here, in the browser; the player keeps up with its new versions #}
-<section class="wave-stage">
+{# the pulse: one big button that plays it here, in the browser; the player keeps up with its new versions #}
+<section class="pulse-stage">
   {# a picture behind it: the next one of the pool every so often (templating.art) #}
-  <div class="wave-art" aria-hidden="true">{% include wave_art %}</div>
+  <div class="pulse-art" aria-hidden="true">{% include pulse_art %}</div>
   <button type="button" class="playlists-open" id="playlists-open" aria-haspopup="dialog">
     <i>menu</i><span>{{ _("Плейлисты") }}</span>{% if mixes %}<span class="count">{{ mixes | length }}</span>{% endif %}
   </button>
-  <div class="wave-body">
-    <button type="button" class="wave-play" data-play="wave" {{ 'disabled' if not wave_on }}
-            aria-label="{{ _('Слушать «Мою волну»') }}"><i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
-    <div class="wave-text">
+  <div class="pulse-body">
+    <button type="button" class="pulse-play" data-play="pulse" {{ 'disabled' if not pulse_on }}
+            aria-label="{{ _('Слушать «Пульс»') }}"><i class="when-stopped">play_arrow</i><i class="when-playing">pause</i></button>
+    <div class="pulse-text">
       <span class="kicker">{{ _("Подстраивается под вас") }}</span>
-      <h2>{{ _("Моя волна") }}</h2>
-      {# the player writes here what plays now and when the wave changed #}
-      <p class="wave-status" data-player-status="wave">
-        {% if not wave_on %}{{ _("Выключена администратором.") }}
-        {% elif wave and wave.description %}{{ wave.description }}
+      <h2>{{ _("Пульс") }}</h2>
+      {# the player writes here what plays now and when the pulse changed #}
+      <p class="pulse-status" data-player-status="pulse">
+        {% if not pulse_on %}{{ _("Выключена администратором.") }}
+        {% elif pulse and pulse.description %}{{ pulse.description }}
         {% else %}{{ _("Бесконечный поток по вашему вкусу: пропускайте, что не нравится, — и он сразу поменяется.") }}{% endif %}
       </p>
-      {% if wave %}<div class="row wave-rate">{{ rate(wave) }}</div>{% endif %}
+      {% if pulse %}<div class="row pulse-rate">{{ rate(pulse) }}</div>{% endif %}
     </div>
   </div>
 </section>
@@ -78,7 +78,7 @@
 {% if ask_start %}
 <dialog id="start-styles" class="start-dialog" data-open-at-start aria-labelledby="start-title">
   <h5 id="start-title">{{ _("Что вы любите слушать?") }}</h5>
-  <p class="small-text">{{ _("Отметьте стили из вашей библиотеки или напишите своими словами — «Моя волна» начнёт с похожего и популярного, а дальше подстроится под то, что вы слушаете.") }}</p>
+  <p class="small-text">{{ _("Отметьте стили из вашей библиотеки или напишите своими словами — «Пульс» начнёт с похожего и популярного, а дальше подстроится под то, что вы слушаете.") }}</p>
   {% set back = "home" %}{% include "partials/start_styles.html" %}
 </dialog>
 {% endif %}

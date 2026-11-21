@@ -9,7 +9,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 
 cd "$ROOT"
 
-BRANCH="refactor/rename-wave-to-pulse"
+BRANCH="refactor/rename-pulse-to-pulse"
 
 if [[ -n "$(git status --porcelain)" ]]; then
     echo "ERROR: Working tree is not clean."
@@ -76,7 +76,7 @@ def rename_text(text: str) -> str:
         (r"мою\s+волну", "Пульс"),
         (r"моей\s+волны", "Пульс"),
         (r"моей\s+волне", "Пульс"),
-        (r"my\s+wave", "Pulse"),
+        (r"my\s+pulse", "Pulse"),
     ]
 
     for pattern, replacement in russian:
@@ -98,7 +98,7 @@ def rename_text(text: str) -> str:
             return "Pulse"
         return "pulse"
 
-    text = re.sub(r"wave", replace_identifier, text, flags=re.IGNORECASE)
+    text = re.sub(r"pulse", replace_identifier, text, flags=re.IGNORECASE)
 
     return text
 
@@ -187,7 +187,7 @@ echo
 echo "=== Remaining references (excluding historical migrations) ==="
 
 if command -v rg >/dev/null 2>&1; then
-    rg -n -i 'wave|моя[[:space:]]+волна|мою[[:space:]]+волну' \
+    rg -n -i 'pulse|моя[[:space:]]+волна|мою[[:space:]]+волну' \
         --hidden \
         -g '!.git/**' \
         -g '!**/migrations/**' \

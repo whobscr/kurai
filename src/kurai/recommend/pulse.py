@@ -1,9 +1,9 @@
-"""«Моя волна»: one playlist per user that follows what they're listening to right now.
+"""«Пульс»: one playlist per user that follows what they're listening to right now.
 The worker watches Navidrome's «now playing» (every music app reports the track it starts), so Kurai sees within
 seconds which track was played on and which was skipped; Kurai's web player tells it directly. After a skip, or a few
-tracks played, the wave is rebuilt as a job: near what was just liked and near the taste of all time, away from what
+tracks played, the pulse is rebuilt as a job: near what was just liked and near the taste of all time, away from what
 was skipped, without anything heard today or the artists skipped twice. It's the same playlist in Navidrome every
-time: an app plays its own copy of a playlist, so the new version is heard when the wave is opened again (Kurai's web
+time: an app plays its own copy of a playlist, so the new version is heard when the pulse is opened again (Kurai's web
 player picks it up by itself)."""
 
 import asyncio
@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kurai import db as database
 from kurai import settings
 from kurai.artists import artist_key
-from kurai.db.models import Listen, Playlist, Taste, Track, User, WaveEvent
+from kurai.db.models import Listen, Playlist, PulseEvent, Taste, Track, User
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER
 from kurai.jobs import queue
@@ -37,7 +37,7 @@ SKIP_FLOOR_SECONDS = 10
 SKIP_CAP_SECONDS = 180
 SKIP_CAP_FRACTION = 0.25
 KEEP_EVENTS = timedelta(days=30)
-NAME = _("Моя волна")
+NAME = _("Пульс")
 ANCHORS = 4
 ANCHOR_LIKENESS = 0.5
 
@@ -92,14 +92,14 @@ class Watcher:
 def is_skip(seconds: int, duration: int | None, disliked: bool, skip_share: float | None = None) -> bool:
     """Whether `seconds` of playing counts as a skip. Shared by the web player and the Watcher so they agree.
     A 👎 is always a skip. Otherwise: a skip below the set fraction of the length («Порог пропуска», `skip_share`;
-    None: the standard wave's) — unless it played at least SKIP_CAP_SECONDS and a quarter of its length, which counts
+    None: the standard pulse's) — unless it played at least SKIP_CAP_SECONDS and a quarter of its length, which counts
     as completed even when the relative fraction is low (long ambient tracks)."""
     if disliked:
         return True
     duration = duration or DEFAULT_DURATION
     if seconds >= SKIP_CAP_SECONDS and seconds >= SKIP_CAP_FRACTION * duration:
         return False
-    share = mixing.standard("wave").skip_share if skip_share is None else skip_share
+    share = mixing.standard("pulse").skip_share if skip_share is None else skip_share
     return seconds < share * duration
 
 
@@ -120,43 +120,43 @@ async def record(db: AsyncSession,
         user = await db.get(User, who) if isinstance(who, int) else users_by_name.get(who)
         if user is None or track_id not in known:
             continue
-        db.add(WaveEvent(user_id=user.id, track_id=track_id, skipped=skipped, seconds=seconds,
+        db.add(PulseEvent(user_id=user.id, track_id=track_id, skipped=skipped, seconds=seconds,
                          chosen=chosen, disliked=disliked, not_now=not_now, at=now))
         touched[user.id] = user
     await db.commit()
     queued = []
     for user in touched.values():
         if await due(db, user, now):
-            await queue.enqueue(db, "wave", user_id=user.id, priority=20, dedupe_key=f"wave:{user.id}")
+            await queue.enqueue(db, "pulse", user_id=user.id, priority=20, dedupe_key=f"pulse:{user.id}")
             queued.append(user.id)
     return queued
 
 
 async def due(db: AsyncSession, user: User, now: datetime) -> bool:
     """A new version after a skip or a few tracks played since the last one, but not more often than set."""
-    wave = await _playlist(db, user)
-    if wave is None:
+    pulse = await _playlist(db, user)
+    if pulse is None:
         return True
-    mix = await mixing.load(db, "wave")
-    if now - wave.created_at < timedelta(minutes=mix.rebuild_minutes):
+    mix = await mixing.load(db, "pulse")
+    if now - pulse.created_at < timedelta(minutes=mix.rebuild_minutes):
         return False
-    since = (await db.execute(select(WaveEvent.skipped).where(WaveEvent.user_id == user.id,
-                                                              WaveEvent.not_now.is_(False),
-                                                              WaveEvent.at > wave.created_at))).scalars().all()
+    since = (await db.execute(select(PulseEvent.skipped).where(PulseEvent.user_id == user.id,
+                                                              PulseEvent.not_now.is_(False),
+                                                              PulseEvent.at > pulse.created_at))).scalars().all()
     return any(since) or len(since) >= mix.rebuild_plays
 
 
 async def watch() -> None:
-    """The worker's watching loop (while «Моя волна» is on)."""
+    """The worker's watching loop (while «Пульс» is on)."""
     watcher = Watcher()
     last_error = ""
     while True:
         try:
             async with database.session() as db:
-                if await settings.get(db, "wave.enabled"):
+                if await settings.get(db, "pulse.enabled"):
                     entries = await library.navidrome().now_playing(await library.admin_account(db))
                     now = datetime.now(UTC)
-                    mix = await mixing.load(db, "wave")
+                    mix = await mixing.load(db, "pulse")
                     # the watcher can't tell chosen/disliked: those flags come from the web player's event()
                     await record(db, [(uname, tid, sk, sec, False, False, False)
                                       for uname, tid, sk, sec in watcher.update(now, entries, mix.skip_share)], now)
@@ -172,23 +172,23 @@ async def watch() -> None:
 
 
 async def _playlist(db: AsyncSession, user: User) -> Playlist | None:
-    return (await db.execute(select(Playlist).where(Playlist.user_id == user.id, Playlist.kind == "wave")
+    return (await db.execute(select(Playlist).where(Playlist.user_id == user.id, Playlist.kind == "pulse")
                              .order_by(Playlist.id.desc()))).scalars().first()
 
 
 async def recently_heard(db: AsyncSession, user: User, now: datetime, days: float) -> set[str]:
-    """The tracks the user played or skipped within `days`, in Kurai's player or any app: the wave leaves them out
+    """The tracks the user played or skipped within `days`, in Kurai's player or any app: the pulse leaves them out
     («Пауза для трека»), so it doesn't repeat itself. «Не сейчас» is not a rest: the track is fine, just not now."""
     since = now - timedelta(days=days)
-    events = select(WaveEvent.track_id).where(WaveEvent.user_id == user.id, WaveEvent.at >= since,
-                                              WaveEvent.not_now.is_(False))
+    events = select(PulseEvent.track_id).where(PulseEvent.user_id == user.id, PulseEvent.at >= since,
+                                              PulseEvent.not_now.is_(False))
     played = select(Listen.track_id).where(Listen.user_id == user.id, Listen.last_played >= since)
     return set((await db.execute(events.union(played))).scalars())
 
 
 @dataclass
 class Plan:
-    """A version of the wave, before it's saved: its tracks (each with the part of the mix it came for) and what the
+    """A version of the pulse, before it's saved: its tracks (each with the part of the mix it came for) and what the
     job reports; `tracks` empty with `result["skipped"]`: nothing to make it of."""
     tracks: list[Candidate]
     result: dict
@@ -204,7 +204,7 @@ async def _popular(db: AsyncSession, j, ids: list[str]) -> list[Candidate]:
 
 async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now: datetime | None = None,
                rng: random.Random | None = None) -> Plan:
-    """The next version of the user's wave: «now_weight» of it near what was just played («сейчас»), the rest near the
+    """The next version of the user's pulse: «now_weight» of it near what was just played («сейчас»), the rest near the
     taste of all time («всегда»). Each kind gets its share of the tracks by its own queries (one query between them
     would give everything to whichever is a little closer): «сейчас» is up to ANCHORS tracks played lately, each
     with a part by how fresh it is («Затухание «сейчас»»). Tracks like the skipped ones are lowered («Отталкивание от
@@ -214,14 +214,14 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
     answers either, the popular tracks alone. Nothing is saved (the admins' preview shows it as it is).
     The session's mood is computed from the accepted tracks and always reported in `result` (shadow); it steers the
     ranking only when «Учитывать настроение» (`mix.mood`) is on, by a capped bonus, never a hard filter."""
-    mix = mix or await mixing.load(db, "wave")
+    mix = mix or await mixing.load(db, "pulse")
     now = now or datetime.now(UTC)
     j = await retrieval.joint(db, await retrieval.space_weights(db, "mix"))
     taste = await playlists.taste_of(db, user)
     session_since = now - timedelta(hours=mix.session_hours)
-    session = list((await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id,
-                                                             WaveEvent.at >= session_since)
-                                     .order_by(WaveEvent.at))).scalars())
+    session = list((await db.execute(select(PulseEvent).where(PulseEvent.user_id == user.id,
+                                                             PulseEvent.at >= session_since)
+                                     .order_by(PulseEvent.at))).scalars())
     vectors = await retrieval.track_vectors(db, {e.track_id for e in session})
     fresh: dict[str, float] = {}
     away = []
@@ -306,7 +306,7 @@ async def plan(db: AsyncSession, user: User, mix: mixing.Mix | None = None, now:
 
 
 async def build(db: AsyncSession, user: User) -> dict:
-    """The next version of the user's wave, written into Navidrome over the last one."""
+    """The next version of the user's pulse, written into Navidrome over the last one."""
     now = datetime.now(UTC)
     made = await plan(db, user, now=now)
     if not made.tracks:
@@ -354,12 +354,12 @@ def _between(items: list, extra: list, every: int) -> list:
 
 
 async def _save(db: AsyncSession, user: User, ids: list[str], now: datetime, result: dict) -> dict:
-    wave = await _playlist(db, user) or Playlist(user_id=user.id, kind="wave", name=NAME)
-    wave.track_ids = ids
-    wave.description = _("Обновлено в {t} — по тому, что вы слушаете").format(t=now.astimezone().strftime("%H:%M"))
-    wave.created_at = now
-    db.add(wave)
-    await playlists.write(db, user, wave)
-    await db.execute(delete(WaveEvent).where(WaveEvent.user_id == user.id, WaveEvent.at < now - KEEP_EVENTS))
+    pulse = await _playlist(db, user) or Playlist(user_id=user.id, kind="pulse", name=NAME)
+    pulse.track_ids = ids
+    pulse.description = _("Обновлено в {t} — по тому, что вы слушаете").format(t=now.astimezone().strftime("%H:%M"))
+    pulse.created_at = now
+    db.add(pulse)
+    await playlists.write(db, user, pulse)
+    await db.execute(delete(PulseEvent).where(PulseEvent.user_id == user.id, PulseEvent.at < now - KEEP_EVENTS))
     await db.commit()
     return result

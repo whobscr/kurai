@@ -197,7 +197,7 @@ class Playlist(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    # "wave" | "nightly" | "ask" | "starter" | "saved" (the user's own) | "favorites" («Любимое», one a user)
+    # "pulse" | "nightly" | "ask" | "starter" | "saved" (the user's own) | "favorites" («Любимое», one a user)
     kind: Mapped[str] = mapped_column(String(16))
     name: Mapped[str] = mapped_column(Text)
     description: Mapped[str] = mapped_column(Text, default="")
@@ -228,12 +228,12 @@ class Job(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class WaveEvent(Base):
-    """What a user just did with a track, seen live in Navidrome's «now playing» («Моя волна» follows it): played on
-    or skipped. `chosen`: the user picked the track themselves (a library-search set) — not the wave's doing.
+class PulseEvent(Base):
+    """What a user just did with a track, seen live in Navidrome's «now playing» («Пульс» follows it): played on
+    or skipped. `chosen`: the user picked the track themselves (a library-search set) — not the pulse's doing.
     `disliked`: an explicit 👎, regardless of how long it played — distinct from an abandonment skip."""
-    __tablename__ = "wave_events"
-    __table_args__ = (Index("ix_wave_events_user_at", "user_id", "at"),)
+    __tablename__ = "pulse_events"
+    __table_args__ = (Index("ix_pulse_events_user_at", "user_id", "at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
@@ -303,7 +303,7 @@ class ArtistId(Base):
 
 
 class SpaceMean(Base):
-    """Cached mean of unit vectors per (space, model), so retrieval.joint() doesn't recompute them on every wave
+    """Cached mean of unit vectors per (space, model), so retrieval.joint() doesn't recompute them on every pulse
     rebuild. Refreshed by the nightly job and on model change (admin.save)."""
     __tablename__ = "space_means"
 

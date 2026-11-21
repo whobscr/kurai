@@ -4,7 +4,7 @@ A self-hosted music server for a household: it keeps your library, learns what e
 music itself, and makes playlists for everyone every night.
 
 You listen in any Subsonic app (Symfonium, Feishin, Substreamer, Amperfy…): Kurai's playlists simply appear there. Or
-right in Kurai's own web app (installable as a PWA): its main page is one big button that plays «My wave», a stream
+right in Kurai's own web app (installable as a PWA): its main page is one big button that plays «Pulse», a stream
 that changes as you listen, and the playlists. The web app and an optional Telegram bot also do what a player can't:
 asking for a playlist in words, explanations, settings.
 
@@ -14,7 +14,7 @@ asking for a playlist in words, explanations, settings.
 
 - **Learns tastes** from what each user plays, stars and rates in their player (Navidrome), and turns them into taste
   vectors.
-- **«My wave»** per user: a playlist rebuilt from what they play and skip right now. Kurai's web player plays it as an
+- **«Pulse»** per user: a playlist rebuilt from what they play and skip right now. Kurai's web player plays it as an
   endless stream and picks up each new version at once (a skip changes what comes next within seconds); other apps
   get the new version when they open the playlist again.
 - **Nightly mixes** per user: a varied selection (maximal marginal relevance) ordered so neighbours sound alike,

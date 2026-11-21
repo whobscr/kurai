@@ -12,7 +12,7 @@
   <g class="se"><ellipse cx="330" cy="460" rx="9" ry="30" transform="rotate(20 330 460)"/>
     <ellipse cx="381" cy="512" rx="8" ry="26" transform="rotate(30 381 512)"/>
     <ellipse cx="236" cy="582" rx="8" ry="24" transform="rotate(-20 236 582)"/></g>
-  <!-- a kurai held up, the sound leaving it: the wave crosses behind the form -->
+  <!-- a kurai held up, the sound leaving it: the pulse crosses behind the form -->
   <g transform="rotate(-24 470 520)">
     <rect class="p" x="330" y="505" width="270" height="30" rx="15"/>
     <circle class="pc" cx="420" cy="520" r="6"/><circle class="pc" cx="456" cy="520" r="6"/>

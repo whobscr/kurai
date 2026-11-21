@@ -3,7 +3,7 @@ import datetime
 import numpy as np
 
 from kurai.audio.tags import mood_of
-from kurai.db.models import WaveEvent
+from kurai.db.models import PulseEvent
 from kurai.recommend.mood import SessionMood, mood_bonus, mood_of_tags, session_mood, shadow_correlation
 
 NOW = datetime.datetime.now(datetime.UTC)
@@ -21,7 +21,7 @@ class _A:
 
 
 def _event(skipped, minutes_ago, track_id):
-    e = WaveEvent(user_id=1, track_id=track_id, skipped=skipped, seconds=100)
+    e = PulseEvent(user_id=1, track_id=track_id, skipped=skipped, seconds=100)
     e.at = NOW - datetime.timedelta(minutes=minutes_ago)
     return e
 

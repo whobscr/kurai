@@ -14,7 +14,7 @@ from kurai import llm, security, settings
 from kurai.artists import top_artists
 from kurai.audio import EFFNET_MODEL
 from kurai.config import get_config
-from kurai.db.models import Listen, Taste, Track, TrackAudio, User, WaveEvent
+from kurai.db.models import Listen, PulseEvent, Taste, Track, TrackAudio, User
 from kurai.i18n import _
 from kurai.integrations.navidrome import Account, Navidrome, song_fields
 from kurai.recommend import artist_ids, start
@@ -35,25 +35,25 @@ async def _skip_context(db: AsyncSession, user: User, values: dict, now: datetim
                         since: datetime | None = None) -> tuple[dict[str, float], set[str]]:
     """Contextual skips as gentle, mood-weighted negatives (only when «Учитывать настроение» is on) and the tracks
     the user chose to play. Explicit 👎 stays in listen_weight at full weight; «Не сейчас» says nothing."""
-    if not values.get("mix.wave.mood"):
+    if not values.get("mix.pulse.mood"):
         return {}, set()
-    event_query = select(WaveEvent).where(WaveEvent.user_id == user.id)
+    event_query = select(PulseEvent).where(PulseEvent.user_id == user.id)
 
     # Apply the same history window to contextual events as to Listen rows.
     # Old skips must not influence the taste vector when the taste window is enabled.
     if since is not None:
-        event_query = event_query.where(WaveEvent.at >= since)
+        event_query = event_query.where(PulseEvent.at >= since)
 
     events = [
-        e for e in (await db.execute(event_query.order_by(WaveEvent.at))).scalars()
+        e for e in (await db.execute(event_query.order_by(PulseEvent.at))).scalars()
         if not e.not_now
     ]
     if not events:
         return {}, set()
     chosen = {e.track_id for e in events if e.chosen and not e.skipped}
     moods = await moodmod.track_vectors(db, {e.track_id for e in events})
-    hours = float(values.get("mix.wave.session_hours", 3))
-    hl = float(values.get("mix.wave.session_half_life", 45))
+    hours = float(values.get("mix.pulse.session_hours", 3))
+    hl = float(values.get("mix.pulse.session_half_life", 45))
     ats = [e.at for e in events]
     neg: dict[str, float] = {}
     for i, e in enumerate(events):
@@ -256,7 +256,7 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
             add(track, effnet, skip_neg[track.id])
     vector = taste_vector(text_vectors, text_weights)
     sound = taste_vector(sound_vectors, sound_weights)
-    # top artists from explicit feedback and deliberate plays first; passive wave plays only as a fallback
+    # top artists from explicit feedback and deliberate plays first; passive pulse plays only as a fallback
     top = top_artists(artists_explicit + artists_chosen) or top_artists(artists_all)
     first = await start.first_taste(db, user) if user.start_asked_at else None
     if first is not None:

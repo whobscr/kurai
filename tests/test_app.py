@@ -212,13 +212,13 @@ async def test_csrf_settings_validation_and_users(client, navidrome):
                                                   "ui.default_accent": "#123456", "playlists.per_night": "3"})
     assert "message=" in r.headers["location"]
     r = await client.post("/admin/general", data={"csrf": token, "night.start": "05:00", "night.end": "10:00",
-                                                  "ui.wave_art_hours": "0", "ui.hero_art_hours": "24"})
+                                                  "ui.pulse_art_hours": "0", "ui.hero_art_hours": "24"})
     assert "картинок" in httpx.URL(r.headers["location"]).params["message"]
     r = await client.post("/admin/general", data={"csrf": token, "night.start": "06:00", "night.end": "10:00",
-                                                  "ui.wave_art_hours": "0.5", "ui.hero_art_hours": "48",
+                                                  "ui.pulse_art_hours": "0.5", "ui.hero_art_hours": "48",
                                                   "ui.default_accent": "#6750a4", "musicbrainz.contact": ""})
     assert httpx.URL(r.headers["location"]).params["message"] == "Сохранено"
-    assert 'name="ui.wave_art_hours" type="number" value="0.5"' in (await client.get("/admin/general")).text
+    assert 'name="ui.pulse_art_hours" type="number" value="0.5"' in (await client.get("/admin/general")).text
     r = await client.post("/admin/gateway", data={"csrf": token, "outbound.proxy": "socks5h://10.0.0.2:1080",
                                                   "outbound.dns": "not-an-ip"})
     assert "DNS" in httpx.URL(r.headers["location"]).params["message"]
@@ -253,7 +253,7 @@ async def test_user_cannot_open_admin_and_totp_flow(client, db):
 
 async def test_pages_docs_errors_and_pwa(client):
     await login(client, "admin", "a-long-password")
-    for path in ("/", "/ask", "/me", "/docs", "/docs/admin/audio", "/docs/user/wave", "/docs/changelog",
+    for path in ("/", "/ask", "/me", "/docs", "/docs/admin/audio", "/docs/user/pulse", "/docs/changelog",
                  "/admin/models", "/admin/gateway", "/admin/users", "/admin/apps", "/admin/plugins", "/admin/jobs"):
         r = await client.get(path)
         assert r.status_code == 200, (path, r.status_code)
@@ -263,7 +263,7 @@ async def test_pages_docs_errors_and_pwa(client):
     assert 'href="/admin/apps/navidrome/" target="_blank"' in apps  # the new tab
     # the band's light / dark switch remembers the choice
     home = (await client.get("/")).text
-    assert 'id="mode-toggle"' in home and 'data-play="wave"' in home and 'id="playlists-open"' in home
+    assert 'id="mode-toggle"' in home and 'data-play="pulse"' in home and 'id="playlists-open"' in home
     assert 'class="main-nav' in home and 'id="player"' in home and 'id="page"' in home
     from kurai import __version__
 
@@ -398,22 +398,22 @@ async def test_an_app_is_asked_only_for_encodings_the_proxy_unpacks(client, monk
         await runner.cleanup()
 
 
-# ---------- «Моя волна» ----------
+# ---------- «Пульс» ----------
 
 
-async def test_wave_follows_plays_and_skips(db, navidrome):
+async def test_pulse_follows_plays_and_skips(db, navidrome):
     from datetime import UTC, datetime, timedelta
 
     from kurai import security
-    from kurai.db.models import WaveEvent
-    from kurai.recommend import wave
+    from kurai.db.models import PulseEvent
+    from kurai.recommend import pulse
 
     model_name = await settings.get(db, "embed.model")
     rng = np.random.default_rng(7)
     calm, loud = np.eye(8)[0] * 5, np.eye(8)[1] * 5
     for i in range(24):
         base = calm if i < 12 else loud
-        db.add(Track(id=f"w{i}", title=f"Wave {i}", artist=f"Wave artist {i}", album="W", duration=200,
+        db.add(Track(id=f"w{i}", title=f"Pulse {i}", artist=f"Pulse artist {i}", album="W", duration=200,
                      embedding=(base + 0.1 * rng.normal(size=8)).tolist(), embedding_model=model_name))
     user = User(username="wava", display_name="Wava", password_hash="x", navidrome_id="nd-wava",
                 navidrome_password=security.encrypt("pw"))
@@ -421,38 +421,38 @@ async def test_wave_follows_plays_and_skips(db, navidrome):
     await db.commit()
 
     now = datetime.now(UTC)
-    # she plays two calm tracks on and skips two loud ones: the first wave is due at once
+    # she plays two calm tracks on and skips two loud ones: the first pulse is due at once
     events = [("wava", "w0", False, 190, False, False, False), ("wava", "w1", False, 200, False, False, False),
               ("wava", "w12", True, 10, False, False, False), ("wava", "w13", True, 12, False, False, False),
               ("someone", "w2", False, 200, False, False, False), ("wava", "unknown", False, 100, False, False, False)]
-    assert await wave.record(db, events, now) == [user.id]
-    stored = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars().all()
+    assert await pulse.record(db, events, now) == [user.id]
+    stored = (await db.execute(select(PulseEvent).where(PulseEvent.user_id == user.id))).scalars().all()
     assert len(stored) == 4  # not other people's, not unknown tracks
-    job = (await db.execute(select(Job).where(Job.dedupe_key == f"wave:{user.id}"))).scalar_one()
-    assert job.kind == "wave" and job.status == "queued"
+    job = (await db.execute(select(Job).where(Job.dedupe_key == f"pulse:{user.id}"))).scalar_one()
+    assert job.kind == "pulse" and job.status == "queued"
 
-    result = await wave.build(db, user)
+    result = await pulse.build(db, user)
     assert result["played"] == 2 and result["skips"] == 2
     playlist = (await db.execute(select(Playlist).where(Playlist.user_id == user.id,
-                                                        Playlist.kind == "wave"))).scalar_one()
+                                                        Playlist.kind == "pulse"))).scalar_one()
     calm_ids = {f"w{i}" for i in range(12)}
-    assert playlist.name == "Моя волна" and set(playlist.track_ids[:3]) <= calm_ids  # near what she played on
+    assert playlist.name == "Пульс" and set(playlist.track_ids[:3]) <= calm_ids  # near what she played on
     assert not {"w0", "w1", "w12", "w13"} & set(playlist.track_ids)  # nothing she just heard
     assert navidrome.playlists[playlist.navidrome_id][1] == playlist.track_ids
 
     # the same playlist next time, and not more often than every few minutes
     job.status = "done"
     await db.commit()
-    assert not await wave.due(db, user, now + timedelta(minutes=1))
-    await wave.record(db, [("wava", "w2", True, 15, False, False, False)], now + timedelta(minutes=5))
-    assert await wave.due(db, user, now + timedelta(minutes=5))  # a skip after the gap
-    await wave.build(db, user)
+    assert not await pulse.due(db, user, now + timedelta(minutes=1))
+    await pulse.record(db, [("wava", "w2", True, 15, False, False, False)], now + timedelta(minutes=5))
+    assert await pulse.due(db, user, now + timedelta(minutes=5))  # a skip after the gap
+    await pulse.build(db, user)
     assert (await db.execute(select(func.count()).select_from(Playlist).where(
-        Playlist.user_id == user.id, Playlist.kind == "wave"))).scalar_one() == 1
+        Playlist.user_id == user.id, Playlist.kind == "pulse"))).scalar_one() == 1
 
 
-async def test_the_wave_and_playlists_tabs_save_check_and_preview(client, db, navidrome):
-    """The mixing parameters are saved per profile and checked; the preview shows a user's next wave with where each
+async def test_the_pulse_and_playlists_tabs_save_check_and_preview(client, db, navidrome):
+    """The mixing parameters are saved per profile and checked; the preview shows a user's next pulse with where each
     track comes from, and changes nothing of theirs; only admins reach it."""
     from kurai import security
 
@@ -472,32 +472,32 @@ async def test_the_wave_and_playlists_tabs_save_check_and_preview(client, db, na
     await library.build_taste(db, vera)
 
     await login(client, "admin", "a-long-password")
-    page = await client.get("/admin/wave")
+    page = await client.get("/admin/pulse")
     assert page.status_code == 200 and "Доля нового" in page.text and "Тонкая настройка" in page.text
-    assert 'name="mix.wave.now_weight"' in page.text and "Вера (vera)" in page.text
-    assert 'name="mix.wave.taste_weight"' not in page.text  # «Спросить»'s, on «Плейлисты»
+    assert 'name="mix.pulse.now_weight"' in page.text and "Вера (vera)" in page.text
+    assert 'name="mix.pulse.taste_weight"' not in page.text  # «Спросить»'s, on «Плейлисты»
     token = csrf_of(page.text)
-    form_values = {"csrf": token, "wave.enabled": "on", **{k: str(v) for k, v in mixing_defaults("wave").items()}}
-    r = await client.post("/admin/wave", data={**form_values, "mix.wave.new_share": "0.9"})
+    form_values = {"csrf": token, "pulse.enabled": "on", **{k: str(v) for k, v in mixing_defaults("pulse").items()}}
+    r = await client.post("/admin/pulse", data={**form_values, "mix.pulse.new_share": "0.9"})
     assert "не больше 1" in httpx.URL(r.headers["location"]).params["message"]  # with the related share: over 1
-    r = await client.post("/admin/wave", data={**form_values, "mix.wave.new_share": "0.6", "mix.wave.smooth": ""})
+    r = await client.post("/admin/pulse", data={**form_values, "mix.pulse.new_share": "0.6", "mix.pulse.smooth": ""})
     assert httpx.URL(r.headers["location"]).params["message"] == "Сохранено"
-    assert await settings.get(db, "mix.wave.new_share") == 0.6 and await settings.get(db, "mix.wave.smooth") is False
+    assert await settings.get(db, "mix.pulse.new_share") == 0.6 and await settings.get(db, "mix.pulse.smooth") is False
     playlists_tab = (await client.get("/admin/playlists")).text
     assert "Хранить плейлисты «Спросить»" in playlists_tab and "Действует и на «Спросить»" in playlists_tab
 
-    preview = await client.post("/admin/preview/wave", data={"csrf": token, "user_id": str(vera.id)})
+    preview = await client.post("/admin/preview/pulse", data={"csrf": token, "user_id": str(vera.id)})
     assert preview.status_code == 200 and "Preview" in preview.text and "новое" in preview.text
-    assert "pv0" not in preview.text  # what she played is left out like in the real wave
+    assert "pv0" not in preview.text  # what she played is left out like in the real pulse
     assert not (await db.execute(select(Playlist).where(Playlist.user_id == vera.id))).first()  # nothing saved
     mix = await client.post("/admin/preview/playlists", data={"csrf": token, "user_id": str(vera.id)})
     assert mix.status_code == 200 and "Preview" in mix.text
-    await settings.put(db, {"mix.wave.new_share": 0.4, "mix.wave.smooth": True})
+    await settings.put(db, {"mix.pulse.new_share": 0.4, "mix.pulse.smooth": True})
     await db.commit()
 
     client.cookies.clear()
     await login(client, "vera", "vera-password")
-    assert (await client.post("/admin/preview/wave", data={"csrf": csrf_of((await client.get("/")).text),
+    assert (await client.post("/admin/preview/pulse", data={"csrf": csrf_of((await client.get("/")).text),
                                                            "user_id": str(vera.id)})).status_code == 403
 
 
@@ -505,7 +505,7 @@ def mixing_defaults(profile):
     """The tab's form as it comes with the defaults: the mixing parameters (and on «Волна», «Память вкуса»)."""
     from kurai.recommend import mixing
 
-    taste = {k: v for k, v in settings.defaults().items() if k.startswith("taste.")} if profile == "wave" else {}
+    taste = {k: v for k, v in settings.defaults().items() if k.startswith("taste.")} if profile == "pulse" else {}
     return {k: ("on" if v is True else "" if v is False else v) for k, v in {**mixing.defaults(), **taste}.items()
             if k.startswith((f"mix.{profile}.", "taste."))}
 
@@ -521,7 +521,7 @@ async def test_generated_playlists_are_kept_as_long_as_set(db, navidrome):
     db.add(owner)
     await db.commit()
     old = datetime.now(UTC) - timedelta(days=20)
-    for kind, feedback in (("nightly", 0), ("nightly", 1), ("ask", 0), ("wave", 0)):
+    for kind, feedback in (("nightly", 0), ("nightly", 1), ("ask", 0), ("pulse", 0)):
         db.add(Playlist(user_id=owner.id, kind=kind, name=kind, track_ids=[], feedback=feedback, created_at=old))
     await db.commit()
 
@@ -529,11 +529,11 @@ async def test_generated_playlists_are_kept_as_long_as_set(db, navidrome):
         return select(Playlist.kind).where(Playlist.user_id == owner.id).order_by(Playlist.kind)
 
     assert await playlists.remove_old(db) == {"nightly": 1}  # «Спросить»'s kept for good by default; 👍 stays
-    assert sorted((await db.execute(kinds())).scalars()) == ["ask", "nightly", "wave"]
+    assert sorted((await db.execute(kinds())).scalars()) == ["ask", "nightly", "pulse"]
     await settings.put(db, {"ask.keep_days": 7, "playlists.keep_days": 30})
     await db.commit()
     assert await playlists.remove_old(db) == {"nightly": 0, "ask": 1}
-    assert sorted((await db.execute(kinds())).scalars()) == ["nightly", "wave"]
+    assert sorted((await db.execute(kinds())).scalars()) == ["nightly", "pulse"]
     await settings.put(db, {"ask.keep_days": 0, "playlists.keep_days": 14})
     await db.commit()
 
@@ -665,15 +665,15 @@ async def test_navidromes_login_limit_is_waited_out_and_logins_are_reused(monkey
         await runner.cleanup()
 
 
-async def test_the_web_player_plays_the_wave_and_reports_plays_and_skips(client, db, navidrome, monkeypatch):
-    """The wave's queue (made first when there's none), a playlist's, the music as the user with the browser's Range,
-    and a track's end: a play (scrobbled) or a skip, both events of the wave at once."""
+async def test_the_web_player_plays_the_pulse_and_reports_plays_and_skips(client, db, navidrome, monkeypatch):
+    """The pulse's queue (made first when there's none), a playlist's, the music as the user with the browser's Range,
+    and a track's end: a play (scrobbled) or a skip, both events of the pulse at once."""
     from kurai import security
-    from kurai.db.models import WaveEvent
-    from kurai.recommend import wave
+    from kurai.db.models import PulseEvent
+    from kurai.recommend import pulse
     from kurai.web.routes import player
 
-    await settings.put(db, {"wave.enabled": True})
+    await settings.put(db, {"pulse.enabled": True})
     for i in range(3):
         db.add(Track(id=f"p{i}", title=f"Song {i}", artist="Pia's band", album="A", duration=200))
     pia = User(username="pia", display_name="Пиа", password_hash=security.hash_password("pia-password"),
@@ -683,18 +683,18 @@ async def test_the_web_player_plays_the_wave_and_reports_plays_and_skips(client,
     await login(client, "pia", "pia-password")
     token = csrf_of((await client.get("/")).text)
 
-    first = (await client.get("/player/queue/wave")).json()
+    first = (await client.get("/player/queue/pulse")).json()
     assert first == {"pending": True}
-    assert (await db.execute(select(Job).where(Job.dedupe_key == f"wave:{pia.id}"))).scalar_one().kind == "wave"
+    assert (await db.execute(select(Job).where(Job.dedupe_key == f"pulse:{pia.id}"))).scalar_one().kind == "pulse"
 
-    playlist = Playlist(user_id=pia.id, kind="wave", name="Моя волна", track_ids=["p2", "gone", "p0"])
+    playlist = Playlist(user_id=pia.id, kind="pulse", name="Пульс", track_ids=["p2", "gone", "p0"])
     other = Playlist(user_id=1, kind="nightly", name="Чужой", track_ids=["p1"])
     db.add_all([playlist, other])
     await db.commit()
-    queue = (await client.get("/player/queue/wave")).json()
+    queue = (await client.get("/player/queue/pulse")).json()
     assert [t["id"] for t in queue["tracks"]] == ["p2", "p0"] and queue["version"]  # in order, unknown left out
     assert queue["artist_gap"] == 5  # the player keeps «Между треками одного исполнителя» into the next version
-    assert (await client.get(f"/player/queue/{playlist.id}")).json()["name"] == "Моя волна"
+    assert (await client.get(f"/player/queue/{playlist.id}")).json()["name"] == "Пульс"
     assert (await client.get(f"/player/queue/{other.id}")).status_code == 404
 
     asked = {}
@@ -715,12 +715,12 @@ async def test_the_web_player_plays_the_wave_and_reports_plays_and_skips(client,
     skipped = await client.post("/player/event", json={"track_id": "p0", "seconds": 15}, headers=form)
     assert played.json()["skipped"] is False and skipped.json()["skipped"] is True
     assert navidrome.scrobbles == [("pia", "p2")]  # only a play counts in Navidrome
-    events = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == pia.id))).scalars().all()
+    events = (await db.execute(select(PulseEvent).where(PulseEvent.user_id == pia.id))).scalars().all()
     assert sorted((e.track_id, e.skipped) for e in events) == [("p0", True), ("p2", False)]
     assert (await client.post("/player/event", json={"track_id": "p0", "seconds": 1})).status_code == 403  # no token
 
     # the web player's own «now playing» isn't counted again by the watching of the other apps
-    watcher = wave.Watcher()
+    watcher = pulse.Watcher()
     watcher.update(datetime_now(), [{"id": "p1", "username": "pia", "playerId": "7", "playerName": "kurai-web"}])
     assert watcher.playing == {}
 
@@ -731,13 +731,13 @@ def datetime_now():
     return datetime.now(UTC)
 
 
-async def test_a_new_listener_is_asked_what_they_like_and_the_wave_starts_from_it(client, db, navidrome, monkeypatch):
+async def test_a_new_listener_is_asked_what_they_like_and_the_pulse_starts_from_it(client, db, navidrome, monkeypatch):
     """Nothing played: «Для вас» asks for styles of the library; the answers make a first taste (the styles' tracks and
-    the own words), and the wave is made of it with the library's popular tracks between. Without answers either,
+    the own words), and the pulse is made of it with the library's popular tracks between. Without answers either,
     the popular tracks alone."""
     from kurai import security
     from kurai.db.models import Listen, Taste
-    from kurai.recommend import library, start, wave
+    from kurai.recommend import library, pulse, start
 
     class Words:
         async def embed(self, texts):
@@ -769,7 +769,7 @@ async def test_a_new_listener_is_asked_what_they_like_and_the_wave_starts_from_i
     assert r.headers["location"] == "/"
     await db.refresh(neo)
     assert neo.start_styles == ["Jazz"] and neo.start_text == "тихий джаз" and neo.start_asked_at
-    job = (await db.execute(select(Job).where(Job.dedupe_key == f"wave-start:{neo.id}"))).scalar_one()
+    job = (await db.execute(select(Job).where(Job.dedupe_key == f"pulse-start:{neo.id}"))).scalar_one()
     assert job.payload == {"retaste": True}
     assert 'id="start-styles"' not in (await client.get("/")).text  # asked once
     assert 'value="Jazz" checked' in (await client.get("/me")).text  # changed later in «Кабинет»
@@ -779,11 +779,11 @@ async def test_a_new_listener_is_asked_what_they_like_and_the_wave_starts_from_i
     taste = await db.get(Taste, neo.id)
     assert int(np.argmax(taste.vector)) == 2 and taste.top_artists[0]["name"].startswith("Jazz")
     # a version smaller than the library, five tracks an artist: what the answers point at can lead
-    await settings.put(db, {"mix.wave.size": 20, "mix.wave.artist_max": 5})
+    await settings.put(db, {"mix.pulse.size": 20, "mix.pulse.artist_max": 5})
     await db.commit()
-    result = await wave.build(db, neo)
+    result = await pulse.build(db, neo)
     ids = (await db.execute(select(Playlist.track_ids).where(Playlist.user_id == neo.id,
-                                                              Playlist.kind == "wave"))).scalar_one()
+                                                              Playlist.kind == "pulse"))).scalar_one()
     assert result["popular"] > 0 and "cs20" in ids  # the most played, between
     ours = [int(i[2:]) for i in ids if i.startswith("cs")]
     jazz, metal = [n for n in ours if n < 15], [n for n in ours if n >= 15]
@@ -793,9 +793,9 @@ async def test_a_new_listener_is_asked_what_they_like_and_the_wave_starts_from_i
     await db.delete(taste)
     neo.start_styles, neo.start_text = [], ""
     await db.commit()
-    alone = await wave.build(db, neo)
+    alone = await pulse.build(db, neo)
     assert alone["popular"] == alone["tracks"] > 0
-    await settings.put(db, {"mix.wave.size": 40, "mix.wave.artist_max": 2})
+    await settings.put(db, {"mix.pulse.size": 40, "mix.pulse.artist_max": 2})
     await db.commit()
 
 
@@ -852,10 +852,10 @@ async def test_the_worlds_popularity_fills_in_and_leads_when_nobody_here_has_pla
 
 
 async def test_likes_dislikes_and_the_history(client, db, navidrome):
-    """♥ stars a track (in Navidrome and Kurai), 👎 rates it 1 and is a skip of the wave; ♥ takes back only a 👎's low
+    """♥ stars a track (in Navidrome and Kurai), 👎 rates it 1 and is a skip of the pulse; ♥ takes back only a 👎's low
     rating; a play from the web player is in «История» at once, which plays on from any of its tracks."""
     from kurai import security
-    from kurai.db.models import Listen, WaveEvent
+    from kurai.db.models import Listen, PulseEvent
 
     for i in range(3):
         db.add(Track(id=f"h{i}", title=f"Track {i}", artist="Hist", album="H", duration=200))
@@ -889,11 +889,11 @@ async def test_likes_dislikes_and_the_history(client, db, navidrome):
     unknown = await client.post("/player/rate", json={"track_id": "h2", "value": "love"}, headers=form)
     assert unknown.status_code == 404
 
-    # 👎 on what plays: a skip of the wave however long it played
-    await settings.put(db, {"wave.enabled": True})
+    # 👎 on what plays: a skip of the pulse however long it played
+    await settings.put(db, {"pulse.enabled": True})
     r = await client.post("/player/event", json={"track_id": "h1", "seconds": 190, "disliked": True}, headers=form)
     assert r.json()["skipped"] is True
-    event = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == hana.id, WaveEvent.track_id == "h1"))
+    event = (await db.execute(select(PulseEvent).where(PulseEvent.user_id == hana.id, PulseEvent.track_id == "h1"))
              ).scalar_one()
     assert event.skipped
 
@@ -904,15 +904,15 @@ async def test_likes_dislikes_and_the_history(client, db, navidrome):
     assert f'class="circle mix-play" data-play="{mix.id}"' in (await client.get("/")).text
 
 
-async def test_coming_back_to_the_wave_never_starts_with_what_was_just_heard(client, db, navidrome):
-    """The wave's queue leaves out what the user played or skipped lately (the web player's events, any app's last
+async def test_coming_back_to_the_pulse_never_starts_with_what_was_just_heard(client, db, navidrome):
+    """The pulse's queue leaves out what the user played or skipped lately (the web player's events, any app's last
     plays); too little left: a fresh version is asked for; a version made since that found nothing new plays as is."""
     from datetime import UTC, datetime
 
     from kurai import security
-    from kurai.db.models import Listen, WaveEvent
+    from kurai.db.models import Listen, PulseEvent
 
-    await settings.put(db, {"wave.enabled": True})
+    await settings.put(db, {"pulse.enabled": True})
     ids = [f"rw{i}" for i in range(40)]
     for i in ids:
         db.add(Track(id=i, title=i, artist="Again", album="A", duration=200))
@@ -920,29 +920,29 @@ async def test_coming_back_to_the_wave_never_starts_with_what_was_just_heard(cli
                 navidrome_id="nd-rina", navidrome_password=security.encrypt("nd"))
     db.add(rina)
     await db.commit()
-    db.add(Playlist(user_id=rina.id, kind="wave", name="Моя волна", track_ids=ids))
+    db.add(Playlist(user_id=rina.id, kind="pulse", name="Пульс", track_ids=ids))
     now = datetime.now(UTC)
-    db.add(WaveEvent(user_id=rina.id, track_id="rw0", skipped=False, seconds=200, at=now))  # in the web player
+    db.add(PulseEvent(user_id=rina.id, track_id="rw0", skipped=False, seconds=200, at=now))  # in the web player
     db.add(Listen(user_id=rina.id, track_id="rw1", play_count=1, last_played=now))  # in an app
     await db.commit()
     await login(client, "rina", "rina-password")
 
-    first = (await client.get("/player/queue/wave")).json()
+    first = (await client.get("/player/queue/pulse")).json()
     assert [t["id"] for t in first["tracks"]][:2] == ["rw2", "rw3"]
-    assert not (await db.execute(select(Job).where(Job.user_id == rina.id, Job.kind == "wave"))).first()
+    assert not (await db.execute(select(Job).where(Job.user_id == rina.id, Job.kind == "pulse"))).first()
 
     # most of it heard: a fresh version is asked for, the rest plays meanwhile
-    db.add_all([WaveEvent(user_id=rina.id, track_id=i, skipped=True, seconds=5, at=now) for i in ids[2:-3]])
+    db.add_all([PulseEvent(user_id=rina.id, track_id=i, skipped=True, seconds=5, at=now) for i in ids[2:-3]])
     await db.commit()
-    rest = (await client.get("/player/queue/wave")).json()
+    rest = (await client.get("/player/queue/pulse")).json()
     assert [t["id"] for t in rest["tracks"]] == ids[-3:]
-    job = (await db.execute(select(Job).where(Job.user_id == rina.id, Job.kind == "wave"))).scalar_one()
+    job = (await db.execute(select(Job).where(Job.user_id == rina.id, Job.kind == "pulse"))).scalar_one()
 
     # all heard, and a version made since found nothing new: it plays as it is rather than not at all
-    db.add_all([WaveEvent(user_id=rina.id, track_id=i, skipped=True, seconds=5, at=now) for i in ids[-3:]])
+    db.add_all([PulseEvent(user_id=rina.id, track_id=i, skipped=True, seconds=5, at=now) for i in ids[-3:]])
     job.status, job.finished_at = "done", datetime.now(UTC)
     await db.commit()
-    assert len((await client.get("/player/queue/wave")).json()["tracks"]) == 40
+    assert len((await client.get("/player/queue/pulse")).json()["tracks"]) == 40
 
 
 async def test_the_name_is_in_the_pages_language(client):
@@ -951,18 +951,18 @@ async def test_the_name_is_in_the_pages_language(client):
     home = (await client.get("/")).text
     assert '<span class="wordmark">Курай</span>' in home and "· Курай</title>" in home
     for path in ("/", "/me", "/history", "/ask", "/admin/general", "/admin/apps", "/docs/user/start",
-                 "/docs/user/wave", "/docs/admin/architecture", "/docs/changelog"):
+                 "/docs/user/pulse", "/docs/admin/architecture", "/docs/changelog"):
         # «Kurai» quoted as the English name (the changelog says so) is the only Latin one allowed
         assert not re.findall(r"(?<!«)\bKurai\b", (await client.get(path)).text), path
     assert (await client.get("/manifest.webmanifest")).json()["name"] == "Курай"
 
 
-async def test_listened_together_artists_are_found_and_mixed_into_the_wave(db, navidrome, monkeypatch):
+async def test_listened_together_artists_are_found_and_mixed_into_the_pulse(db, navidrome, monkeypatch):
     """ListenBrainz's neighbours of a user's favourites (depth 1, and the neighbours' own at depth 2) that the library
-    has are kept for the user, the favourites left out; the wave takes its share of them, however they sound."""
+    has are kept for the user, the favourites left out; the pulse takes its share of them, however they sound."""
     from kurai import security
     from kurai.db.models import Taste
-    from kurai.recommend import library, related, wave
+    from kurai.recommend import library, pulse, related
 
     model_name = await settings.get(db, "embed.model")
     rows = [("lt-rock", "Rock One", "rock-1", np.eye(8)[5]), ("lt-alt", "Alt Two", "alt-2", np.eye(8)[6]),
@@ -999,25 +999,25 @@ async def test_listened_together_artists_are_found_and_mixed_into_the_wave(db, n
     assert result["related"] == 2 and names == ["Alt Two", "Elec Three"] and asked == ["rock-1"]
     assert taste.related_artists[0]["via"] == "Rock One"
 
-    await settings.put(db, {"mix.wave.related_depth": 2, "mix.wave.related_share": 0.5, "mix.wave.new_share": 0.5})
+    await settings.put(db, {"mix.pulse.related_depth": 2, "mix.pulse.related_share": 0.5, "mix.pulse.new_share": 0.5})
     await db.commit()
     await related.refresh(db, lia)
     await db.refresh(taste)
     far = next(a for a in taste.related_artists if a["name"] == "Far Four")
     assert far["depth"] == 2 and far["via"] == "Alt Two"
-    made = await wave.plan(db, lia)
+    made = await pulse.plan(db, lia)
     together = [c for c in made.tracks if c.kind == "related"]
     assert len(together) >= 5 and {c.artist for c in together} <= {"Alt Two", "Elec Three", "Far Four"}
-    await settings.put(db, {"mix.wave.related_depth": 1, "mix.wave.related_share": 0.15, "mix.wave.new_share": 0.4})
+    await settings.put(db, {"mix.pulse.related_depth": 1, "mix.pulse.related_share": 0.15, "mix.pulse.new_share": 0.4})
     await db.commit()
 
 
-async def test_the_library_search_plays_what_was_chosen_then_the_wave(client, db, navidrome):
+async def test_the_library_search_plays_what_was_chosen_then_the_pulse(client, db, navidrome):
     """«Музыка → В библиотеке»: artists (with every album), albums and tracks by every word of the query, or only the
-    kinds ticked; an artist plays most played first, an album in its order, then the player goes on into the wave; a
-    chosen track skipped isn't a skip of the wave, a 👎 of it is."""
+    kinds ticked; an artist plays most played first, an album in its order, then the player goes on into the pulse; a
+    chosen track skipped isn't a skip of the pulse, a 👎 of it is."""
     from kurai import security
-    from kurai.db.models import WaveEvent
+    from kurai.db.models import PulseEvent
 
     db.add_all([
         Track(id="lib1", title="Paranoid Android", artist="Radiohead", album="OK Computer", album_id="al-ok", year=1997,
@@ -1062,13 +1062,13 @@ async def test_the_library_search_plays_what_was_chosen_then_the_wave(client, db
     played = await client.post("/player/event", json={"track_id": "lib3", "seconds": 190, "chosen": True},
                                headers=form)
     assert skipped.json()["skipped"] and disliked.json()["skipped"] and not played.json()["skipped"]
-    events = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == sam.id))).scalars().all()
+    events = (await db.execute(select(PulseEvent).where(PulseEvent.user_id == sam.id))).scalars().all()
     assert sorted((e.track_id, e.skipped) for e in events) == [("lib2", True), ("lib3", False)]
     assert navidrome.scrobbles[-1] == ("sam", "lib3")
 
 
 async def test_a_playlist_is_removed_and_its_rating_taken_back(client, db, navidrome):
-    """The (x) in «Плейлисты» removes a playlist at once (from Navidrome too; not the wave); 👍 or 👎 pressed again is
+    """The (x) in «Плейлисты» removes a playlist at once (from Navidrome too; not the pulse); 👍 or 👎 pressed again is
     taken back; both open the sheet again."""
     from kurai import security
 
@@ -1083,13 +1083,13 @@ async def test_a_playlist_is_removed_and_its_rating_taken_back(client, db, navid
     db.add(rae)
     await db.commit()
     mix = Playlist(user_id=rae.id, kind="ask", name="Бодрое", track_ids=[], navidrome_id="nd-pl-1")
-    wave = Playlist(user_id=rae.id, kind="wave", name="Моя волна", track_ids=[])
+    pulse = Playlist(user_id=rae.id, kind="pulse", name="Пульс", track_ids=[])
     other = Playlist(user_id=1, kind="ask", name="Чужое", track_ids=[])
-    db.add_all([mix, wave, other])
+    db.add_all([mix, pulse, other])
     await db.commit()
     await login(client, "rae", "rae-password")
     page = (await client.get("/")).text
-    assert f'action="/playlists/{mix.id}/delete"' in page and f'action="/playlists/{wave.id}/delete"' not in page
+    assert f'action="/playlists/{mix.id}/delete"' in page and f'action="/playlists/{pulse.id}/delete"' not in page
     token = csrf_of(page)
 
     async def rate(value):
@@ -1101,11 +1101,11 @@ async def test_a_playlist_is_removed_and_its_rating_taken_back(client, db, navid
     assert [await rate(1), await rate(1), await rate(-1), await rate(1)] == [1, 0, -1, 1]
     assert "data-open-at-start" in (await client.get("/?playlists=1")).text
 
-    assert (await client.post(f"/playlists/{wave.id}/delete", data={"csrf": token})).status_code == 404
+    assert (await client.post(f"/playlists/{pulse.id}/delete", data={"csrf": token})).status_code == 404
     assert (await client.post(f"/playlists/{other.id}/delete", data={"csrf": token})).status_code == 404
     r = await client.post(f"/playlists/{mix.id}/delete", data={"csrf": token})
     assert r.status_code == 303 and removed == ["nd-pl-1"]
-    ids = (mix.id, wave.id)
+    ids = (mix.id, pulse.id)
     db.expire_all()
     assert await db.get(Playlist, ids[0]) is None and await db.get(Playlist, ids[1]) is not None
 
@@ -1144,14 +1144,14 @@ async def test_the_players_list_is_saved_as_the_users_own_playlist(client, db, n
     assert saved.kind not in playlists.KEEP_DAYS  # never removed by itself
 
 
-async def test_the_waves_settings_change_the_music_as_they_say(db):
-    """The wave's dials against a small library of three «genres» (directions): «"Сейчас" против "всегда"» gives
+async def test_the_pulses_settings_change_the_music_as_they_say(db):
+    """The pulse's dials against a small library of three «genres» (directions): «"Сейчас" против "всегда"» gives
     its share of the version to what was just played, step by step (not all-or-nothing); skips alone (nothing
-    played yet) move the wave away from what was skipped; «Пауза для исполнителя» keeps a just-heard artist out."""
+    played yet) move the pulse away from what was skipped; «Пауза для исполнителя» keeps a just-heard artist out."""
     from datetime import UTC, datetime, timedelta
 
-    from kurai.db.models import Taste, WaveEvent
-    from kurai.recommend import mixing, wave
+    from kurai.db.models import PulseEvent, Taste
+    from kurai.recommend import mixing, pulse
 
     model = await settings.get(db, "embed.model")
     rng = np.random.default_rng(3)
@@ -1173,15 +1173,15 @@ async def test_the_waves_settings_change_the_music_as_they_say(db):
     now = datetime.now(UTC)
 
     async def session(events):
-        await db.execute(WaveEvent.__table__.delete().where(WaveEvent.user_id == vic.id))
-        db.add_all([WaveEvent(user_id=vic.id, track_id=t, skipped=skipped, seconds=10 if skipped else 200,
+        await db.execute(PulseEvent.__table__.delete().where(PulseEvent.user_id == vic.id))
+        db.add_all([PulseEvent(user_id=vic.id, track_id=t, skipped=skipped, seconds=10 if skipped else 200,
                               at=now - timedelta(minutes=10)) for t, skipped in events])
         await db.commit()
 
     async def version(**values):
-        mix = mixing.Mix("wave", {"mix.wave.size": 20, "mix.wave.related_share": 0, "mix.wave.randomness": 0,
-                                  **{f"mix.wave.{k}": v for k, v in values.items()}})
-        return [c.id for c in (await wave.plan(db, vic, mix, now=now)).tracks]
+        mix = mixing.Mix("pulse", {"mix.pulse.size": 20, "mix.pulse.related_share": 0, "mix.pulse.randomness": 0,
+                                  **{f"mix.pulse.{k}": v for k, v in values.items()}})
+        return [c.id for c in (await pulse.plan(db, vic, mix, now=now)).tracks]
 
     def share(ids, g):
         return sum(genre.get(i) == g for i in ids) / len(ids)
@@ -1192,8 +1192,8 @@ async def test_the_waves_settings_change_the_music_as_they_say(db):
     assert 0.3 <= steps[2] <= 0.7 and steps[1] < steps[2] < steps[3], steps  # a dial, not a switch
 
     # «Затухание «сейчас»»: genre 1 played long ago, genre 2 just now — the slower the fading, the more of genre 1
-    await db.execute(WaveEvent.__table__.delete().where(WaveEvent.user_id == vic.id))
-    db.add_all([WaveEvent(user_id=vic.id, track_id=f"wv-g{g}a{a}t0", skipped=False, seconds=200,
+    await db.execute(PulseEvent.__table__.delete().where(PulseEvent.user_id == vic.id))
+    db.add_all([PulseEvent(user_id=vic.id, track_id=f"wv-g{g}a{a}t0", skipped=False, seconds=200,
                           at=now - timedelta(minutes=ago)) for g, ago in ((1, 90), (2, 5)) for a in range(3)])
     await db.commit()
     older = [share(await version(now_weight=1, session_half_life=h, artist_rest_hours=0, artist_max=4), 1)
@@ -1217,7 +1217,7 @@ async def test_the_waves_settings_change_the_music_as_they_say(db):
 
 
 async def test_the_taste_memory_is_saved_rebuilds_tastes_and_can_count_only_recent_listens(client, db, navidrome):
-    """«Память вкуса» on «Волна»: checked and saved; a change makes everyone's taste anew at once (a wave job with
+    """«Память вкуса» on «Волна»: checked and saved; a change makes everyone's taste anew at once (a pulse job with
     «retaste»); with «Только последние N дней» on, a track not played within them leaves the taste (a 👎 stays)."""
     from datetime import UTC, datetime, timedelta
 
@@ -1260,15 +1260,15 @@ async def test_the_taste_memory_is_saved_rebuilds_tastes_and_can_count_only_rece
     assert "Old band" not in top and vector[1] == 0 and vector[3] < 0  # out of the window; the 👎 still counts
 
     await login(client, "admin", "a-long-password")
-    page = (await client.get("/admin/wave")).text
+    page = (await client.get("/admin/pulse")).text
     assert 'name="taste.half_life_days"' in page and 'name="taste.window"' in page
-    form = {"csrf": csrf_of(page), "wave.enabled": "on", **{k: str(v) for k, v in mixing_defaults("wave").items()}}
-    r = await client.post("/admin/wave", data={**form, "taste.floor": "120"})
+    form = {"csrf": csrf_of(page), "pulse.enabled": "on", **{k: str(v) for k, v in mixing_defaults("pulse").items()}}
+    r = await client.post("/admin/pulse", data={**form, "taste.floor": "120"})
     assert "от 0 до 100" in httpx.URL(r.headers["location"]).params["message"]
-    r = await client.post("/admin/wave", data={**form, "taste.half_life_days": "60"})
+    r = await client.post("/admin/pulse", data={**form, "taste.half_life_days": "60"})
     assert httpx.URL(r.headers["location"]).params["message"] == "Сохранено"
     assert await settings.get(db, "taste.half_life_days") == 60
-    jobs = (await db.execute(select(Job).where(Job.kind == "wave", Job.user_id == wes.id))).scalars().all()
+    jobs = (await db.execute(select(Job).where(Job.kind == "pulse", Job.user_id == wes.id))).scalars().all()
     assert any((j.payload or {}).get("retaste") for j in jobs)
     await settings.put(db, {k: v for k, v in settings.defaults().items() if k.startswith("taste.")})
     await db.commit()
@@ -1277,9 +1277,9 @@ async def test_the_taste_memory_is_saved_rebuilds_tastes_and_can_count_only_rece
 async def test_forgetting_the_listens_makes_the_music_account_anew(client, db, navidrome):
     """«Забыть прослушивания»: only once ticked; the Navidrome account is deleted and made anew with the same name
     and password, Kurai's plays, skips and taste go, its playlists are written into the new account, the answers stay
-    and the wave is made anew. A failure after the deletion leaves no stale id: a second try only makes the account."""
+    and the pulse is made anew. A failure after the deletion leaves no stale id: a second try only makes the account."""
     from kurai import security
-    from kurai.db.models import Taste, WaveEvent
+    from kurai.db.models import PulseEvent, Taste
 
     db.add(Track(id="fg1", title="Forget", artist="F", album="F", duration=200))
     fay = User(username="fay", display_name="Фэй", password_hash=security.hash_password("fay-password"),
@@ -1287,7 +1287,7 @@ async def test_forgetting_the_listens_makes_the_music_account_anew(client, db, n
     db.add(fay)
     await db.commit()
     db.add_all([Listen(user_id=fay.id, track_id="fg1", play_count=7, starred=True),
-                WaveEvent(user_id=fay.id, track_id="fg1", skipped=True, seconds=3),
+                PulseEvent(user_id=fay.id, track_id="fg1", skipped=True, seconds=3),
                 Taste(user_id=fay.id, top_artists=[{"name": "F", "weight": 1}]),
                 Playlist(user_id=fay.id, kind="saved", name="Своё", track_ids=["fg1"], navidrome_id="old-pl"),
                 Listen(user_id=1, track_id="fg1", play_count=2)])
@@ -1316,13 +1316,13 @@ async def test_forgetting_the_listens_makes_the_music_account_anew(client, db, n
     assert navidrome.deleted == ["nd-fay-old"]  # not again: the old account is already gone
     assert fay.navidrome_id == "nd-fay" and navidrome.users["fay"] == "fay-nd"
     assert security.verify_password(fay.password_hash, "fay-password") and fay.start_text == "джаз"
-    for model in (Listen, WaveEvent, Taste):
+    for model in (Listen, PulseEvent, Taste):
         assert (await db.execute(select(func.count()).select_from(model).where(model.user_id == fay.id))).scalar() == 0
     others = select(Listen.play_count).where(Listen.user_id == 1, Listen.track_id == "fg1")
     assert (await db.execute(others)).scalar_one() == 2  # someone else's plays stay
     saved = (await db.execute(select(Playlist).where(Playlist.user_id == fay.id))).scalar_one()
     assert saved.navidrome_id != "old-pl" and navidrome.playlists[saved.navidrome_id] == ("Своё", ["fg1"])
-    job = (await db.execute(select(Job).where(Job.dedupe_key == f"wave-start:{fay.id}"))).scalar_one()
+    job = (await db.execute(select(Job).where(Job.dedupe_key == f"pulse-start:{fay.id}"))).scalar_one()
     assert job.payload == {"retaste": True}
 
 
@@ -1397,15 +1397,15 @@ async def test_favorites_are_built_by_the_button_and_every_night_unless_switched
     assert "Пока не из чего собрать" in r.text
 
 
-async def test_one_artist_with_many_guests_is_still_one_artist_in_the_wave(db):
+async def test_one_artist_with_many_guests_is_still_one_artist_in_the_pulse(db):
     """Navidrome joins a track's artists into one line: «Charli XCX • Finn Keane», «Charli XCX • George Daniel»… The
-    wave's «Треков одного исполнителя в подборке», «Между треками одного исполнителя» and «Пауза для исполнителя»
-    take them as one artist (the library's sync keeps the key; seen on a real wave: five such tracks on top)."""
+    pulse's «Треков одного исполнителя в подборке», «Между треками одного исполнителя» and «Пауза для исполнителя»
+    take them as one artist (the library's sync keeps the key; seen on a real pulse: five such tracks on top)."""
     from datetime import UTC, datetime, timedelta
 
-    from kurai.db.models import Taste, WaveEvent
+    from kurai.db.models import PulseEvent, Taste
     from kurai.integrations.navidrome import song_fields
-    from kurai.recommend import mixing, wave
+    from kurai.recommend import mixing, pulse
 
     model = await settings.get(db, "embed.model")
     rng = np.random.default_rng(5)
@@ -1427,16 +1427,16 @@ async def test_one_artist_with_many_guests_is_still_one_artist_in_the_wave(db):
     now = datetime.now(UTC)
 
     async def version(**values):
-        mix = mixing.Mix("wave", {"mix.wave.size": 15, "mix.wave.related_share": 0, "mix.wave.randomness": 0,
-                                  **{f"mix.wave.{k}": v for k, v in values.items()}})
-        return [c.artist for c in (await wave.plan(db, uma, mix, now=now)).tracks]
+        mix = mixing.Mix("pulse", {"mix.pulse.size": 15, "mix.pulse.related_share": 0, "mix.pulse.randomness": 0,
+                                  **{f"mix.pulse.{k}": v for k, v in values.items()}})
+        return [c.artist for c in (await pulse.plan(db, uma, mix, now=now)).tracks]
 
     artists = await version(artist_rest_hours=0, artist_max=2, artist_gap=1)
     stars = [i for i, a in enumerate(artists) if a.startswith("Star")]
     assert len(stars) == 2, artists  # not twelve «different» artists
     assert all(b - a > 1 for a, b in zip(stars, stars[1:], strict=False)), artists
 
-    db.add(WaveEvent(user_id=uma.id, track_id="gs-star0", skipped=False, seconds=200, at=now - timedelta(minutes=5)))
+    db.add(PulseEvent(user_id=uma.id, track_id="gs-star0", skipped=False, seconds=200, at=now - timedelta(minutes=5)))
     await db.commit()
     resting = await version(artist_rest_hours=24, artist_rest_shape=8, artist_max=2)
     assert not any(a.startswith("Star") for a in resting), resting  # heard just now: the pause holds them all

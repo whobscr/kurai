@@ -1,7 +1,7 @@
-"""Who a track is by, where artists are kept apart (the wave's and the mixes' limits per artist, the artists' pause,
+"""Who a track is by, where artists are kept apart (the pulse's and the mixes' limits per artist, the artists' pause,
 the spacing, «Любимое»): its first credited artist. Navidrome joins a track's artists into one line («Charli XCX •
 Charlotte Aitchison • Finn Keane»), and a guest in a single tag («Artist feat. Guest», «Artist (feat. Guest)») is common
-too: taken whole, each guest made another artist of the same one, so one artist could fill a whole wave.
+too: taken whole, each guest made another artist of the same one, so one artist could fill a whole pulse.
 
 The same rule lives in web/static/js/player.js (the player's own spacing) and was written in SQL by migration 0010;
 migration 0013 refills the keys after this rule changed. Change all three together."""

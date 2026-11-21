@@ -19,7 +19,7 @@ from kurai.i18n import _
 PAGE = 500
 CLIENT = "kurai"
 # the client name of Kurai's web player: its «now playing» entries are left to the player itself (it reports the
-# wave's events directly, so the watching of «now playing» mustn't count them again)
+# pulse's events directly, so the watching of «now playing» mustn't count them again)
 WEB_PLAYER = "kurai-web"
 # Navidrome's URL base (ND_BASEURL in docker-compose.yml): it lives under the path the «Приложения» tab shows it at, so
 # every API of it is under this path too

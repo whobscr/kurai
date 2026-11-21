@@ -1,7 +1,7 @@
 <svg class="art" viewBox="0 0 600 1000" preserveAspectRatio="xMinYMid slice" xmlns="http://www.w3.org/2000/svg">
   <rect class="bg" width="600" height="1000"/>
   <circle class="tc soft" cx="520" cy="900" r="230"/>
-  <!-- the waves arrive from the left and reach a radio in a window -->
+  <!-- the pulses arrive from the left and reach a radio in a window -->
   <path class="line" d="M0 150 a150 150 0 0 1 40 100" stroke-width="9" opacity=".25"/>
   <path class="line soft" d="M0 230 a80 80 0 0 1 20 50" stroke-width="9"/>
   <rect class="sc" x="80" y="300" width="400" height="460" rx="40"/>

@@ -52,9 +52,9 @@ def _defaults() -> dict[str, Any]:
     return {
         # the look
         "ui.default_accent": "#6750a4",
-        # the pictures (web/templating.art): «Моя волна»'s card and the pages' band turn to the next of their pool
+        # the pictures (web/templating.art): «Пульс»'s card and the pages' band turn to the next of their pool
         # this often, hours
-        "ui.wave_art_hours": 1,
+        "ui.pulse_art_hours": 1,
         "ui.hero_art_hours": 24,
         # the night window for model and analysis work (local time, HH:MM); may cross midnight
         "night.start": "06:00",
@@ -108,9 +108,9 @@ def _defaults() -> dict[str, Any]:
         # MusicBrainz asks for a contact in every request
         "listenbrainz.token": "",
         "musicbrainz.contact": "",
-        # «Моя волна»: a playlist that follows what each user is listening to (Navidrome's «now playing»)
-        "wave.enabled": True,
-        # how the wave and the playlists mix the music (recommend/mixing.py)
+        # «Пульс»: a playlist that follows what each user is listening to (Navidrome's «now playing»)
+        "pulse.enabled": True,
+        # how the pulse and the playlists mix the music (recommend/mixing.py)
         **mixing.defaults(),
         # the plugins switched off on «Плагины» (their names)
         plugins.DISABLED_KEY: [],

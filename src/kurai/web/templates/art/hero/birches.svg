@@ -1,5 +1,5 @@
 <svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
-  <!-- birches in the wind, the wind drawn as a sound wave -->
+  <!-- birches in the wind, the wind drawn as a sound pulse -->
   <path class="pc" d="M0 160 C140 148 300 144 480 150 V160 Z" opacity=".45"/>
   <g class="op" opacity=".9"><rect x="300" y="10" width="10" height="150" rx="5"/><rect x="350" y="26" width="8" height="134" rx="4"/><rect x="420" y="0" width="11" height="160" rx="5"/></g>
   <g class="t"><rect x="300" y="40" width="6" height="3" rx="1.5"/><rect x="304" y="78" width="6" height="3" rx="1.5"/><rect x="300" y="116" width="7" height="3" rx="1.5"/>

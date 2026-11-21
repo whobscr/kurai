@@ -1,11 +1,11 @@
-"""Mood as a context layer over the wave. A track's mood comes from its audio tags (audio/tags.mood_of), z-scored
+"""Mood as a context layer over the pulse. A track's mood comes from its audio tags (audio/tags.mood_of), z-scored
 across the library (mood.centered) so cosine measures difference, not the direction all music shares. The session's
 current mood comes from the tracks the user ACCEPTED — never from skips (ambiguous), explicit 👎 (a deliberate «no»,
 not a mood signal) or «Не сейчас». Permanent taste is touched only through the opt-in context weighting in
-library.build_taste; a bad evening damps implicit negatives there and in the wave, it does not rewrite what the user
+library.build_taste; a bad evening damps implicit negatives there and in the pulse, it does not rewrite what the user
 generally likes.
 
-Shadow first: wave.plan always reports the session mood; it reranks only when «Учитывать настроение» (mix.wave.mood)
+Shadow first: pulse.plan always reports the session mood; it reranks only when «Учитывать настроение» (mix.pulse.mood)
 is on, by a capped bonus that never hard-filters and never touches the «слушают вместе» part."""
 
 from dataclasses import dataclass
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai.audio import EFFNET_MODEL
 from kurai.audio.tags import mood_of
-from kurai.db.models import SpaceMean, TrackAudio, WaveEvent
+from kurai.db.models import PulseEvent, SpaceMean, TrackAudio
 
 REQUIRED_EFFECTIVE_TRACKS = 3.0
 MOOD_FLOOR = 0.5            # z-score magnitude below which a track's mood is neutral/unknown: no evidence, no bonus
@@ -117,12 +117,12 @@ async def track_vectors(db: AsyncSession, ids: set[str]) -> dict[str, np.ndarray
     return out
 
 
-def _contextual(e: WaveEvent) -> bool:
+def _contextual(e: PulseEvent) -> bool:
     """Neither an explicit 👎 nor «Не сейчас» — those are deliberate, not ambiguous contextual signals."""
     return not getattr(e, "disliked", False) and not getattr(e, "not_now", False)
 
 
-def session_mood(events: list[WaveEvent], tag_vectors: dict[str, np.ndarray], half_life_min: float,
+def session_mood(events: list[PulseEvent], tag_vectors: dict[str, np.ndarray], half_life_min: float,
                  now: datetime) -> SessionMood:
     """The session mood from ACCEPTED tracks. The regime is decided from the counts alone, so a bad day is still
     detected when the accepted tracks have no mood analysis. Coherence is freshness-weighted like the mean."""
@@ -161,7 +161,7 @@ def mood_bonus(track_mood: np.ndarray | None, mood: SessionMood, strength: float
     return max(-strength, min(strength, strength * mood.confidence * fit))
 
 
-def shadow_correlation(events: list[WaveEvent], tag_vectors: dict[str, np.ndarray], half_life_min: float,
+def shadow_correlation(events: list[PulseEvent], tag_vectors: dict[str, np.ndarray], half_life_min: float,
                        now: datetime) -> dict:
     """The acceptance gate, leave-one-out: each completed track is scored against the mood of the OTHER accepted
     tracks, so a single completion can't trivially pass by defining the mood it is compared to."""

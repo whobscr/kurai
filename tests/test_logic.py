@@ -105,7 +105,7 @@ def test_a_resting_artist_is_left_out_while_others_can_fill_the_mix():
     far — unless the others can't fill it; then they come back, after everyone else."""
     import random
 
-    mix = mixing.Mix("wave", {"mix.wave.randomness": 0, "mix.wave.artist_max": 2, "mix.wave.size": 10})
+    mix = mixing.Mix("pulse", {"mix.pulse.randomness": 0, "mix.pulse.artist_max": 2, "mix.pulse.size": 10})
     best = [_cand(f"a{i}", "Favourite", [1, 0.01 * i], 0.99 - 0.001 * i) for i in range(5)]
     others = [_cand(f"o{i}", f"Other {i}", [0.5, 0.1 * i], 0.5 - 0.01 * i) for i in range(12)]
     picked = mixing.assemble(best + others, [], set(), mix, 10, resting={"favourite"}, rng=random.Random(1))
@@ -118,8 +118,8 @@ def test_a_resting_artist_is_left_out_while_others_can_fill_the_mix():
 def test_a_mix_takes_its_shares_of_new_known_and_related():
     import random
 
-    mix = mixing.Mix("wave", {"mix.wave.new_share": 0.5, "mix.wave.related_share": 0.25, "mix.wave.randomness": 0,
-                              "mix.wave.artist_max": 5})
+    mix = mixing.Mix("pulse", {"mix.pulse.new_share": 0.5, "mix.pulse.related_share": 0.25, "mix.pulse.randomness": 0,
+                              "mix.pulse.artist_max": 5})
     pool = [_cand(f"n{i}", f"N{i}", [1, 0.01 * i], 0.95 - 0.01 * i) for i in range(10)]
     pool += [_cand(f"k{i}", f"K{i}", [1, 0.02 * i], 0.95 - 0.01 * i) for i in range(10)]
     near = [_cand(f"r{i}", f"R{i}", [0, 1], 0.2) for i in range(10)]
@@ -138,8 +138,8 @@ def test_a_share_takes_only_what_fits_and_the_halves_continue_each_other():
     share (what fits fills it instead). A second part of a version continues the first: no repeats, artists counted."""
     import random
 
-    mix = mixing.Mix("wave", {"mix.wave.new_share": 0.5, "mix.wave.related_share": 0, "mix.wave.randomness": 0,
-                              "mix.wave.artist_max": 1})
+    mix = mixing.Mix("pulse", {"mix.pulse.new_share": 0.5, "mix.pulse.related_share": 0, "mix.pulse.randomness": 0,
+                              "mix.pulse.artist_max": 1})
     near_new = [_cand(f"n{i}", f"N{i}", [1, 0.01 * i], 0.9 - 0.01 * i) for i in range(10)]
     far_known = [_cand(f"k{i}", f"K{i}", [0, 1], 0.1 - 0.01 * i) for i in range(10)]
     known = {c.id for c in far_known}
@@ -164,11 +164,11 @@ def test_an_artist_comes_back_within_the_pause_by_its_shape():
 
 
 def test_mixing_parameters_are_checked():
-    assert mixing.validate("wave", {"mix.wave.new_share": 0.5, "mix.wave.related_share": 0.4}) is None
-    assert "не больше 1" in mixing.validate("wave", {"mix.wave.new_share": 0.8, "mix.wave.related_share": 0.4})
-    assert "от 1 до 20" in mixing.validate("wave", {"mix.wave.artist_max": 0})
-    assert "mix.playlists.now_weight" not in mixing.defaults()  # the wave's only
-    assert mixing.standard("playlists").taste_weight == 0.15 and mixing.standard("wave").size == 40
+    assert mixing.validate("pulse", {"mix.pulse.new_share": 0.5, "mix.pulse.related_share": 0.4}) is None
+    assert "не больше 1" in mixing.validate("pulse", {"mix.pulse.new_share": 0.8, "mix.pulse.related_share": 0.4})
+    assert "от 1 до 20" in mixing.validate("pulse", {"mix.pulse.artist_max": 0})
+    assert "mix.playlists.now_weight" not in mixing.defaults()  # the pulse's only
+    assert mixing.standard("playlists").taste_weight == 0.15 and mixing.standard("pulse").size == 40
 
 
 def test_a_request_s_tempo_energy_and_vocals_are_checked_against_the_sound():
@@ -290,8 +290,8 @@ def test_times_are_shown_in_the_servers_time_zone(monkeypatch):
         time.tzset()
 
 
-def test_wave_watcher_tells_plays_from_skips():
-    from kurai.recommend.wave import Watcher
+def test_pulse_watcher_tells_plays_from_skips():
+    from kurai.recommend.pulse import Watcher
 
     w = Watcher()
     t0 = datetime(2026, 11, 15, 20, 0, tzinfo=UTC)
@@ -424,10 +424,10 @@ def test_the_pictures_take_turns_the_same_for_everyone():
             day += timedelta(days=1)
         return day
 
-    start = round_start("wave", 1)
-    hourly = [art("wave", 1, start + timedelta(hours=h)) for h in range(len(ART_POOLS["wave"]))]
-    assert art("wave", 1, start + timedelta(minutes=59)) == hourly[0]  # the same all the hour, at any request
-    assert sorted(hourly) == sorted(f"art/wave/{n}" for n in ART_POOLS["wave"])  # a round shows each once
+    start = round_start("pulse", 1)
+    hourly = [art("pulse", 1, start + timedelta(hours=h)) for h in range(len(ART_POOLS["pulse"]))]
+    assert art("pulse", 1, start + timedelta(minutes=59)) == hourly[0]  # the same all the hour, at any request
+    assert sorted(hourly) == sorted(f"art/pulse/{n}" for n in ART_POOLS["pulse"])  # a round shows each once
     start = round_start("hero", 24)
     daily = [art("hero", 24, start + timedelta(days=d)) for d in range(len(ART_POOLS["hero"]))]
     assert art("hero", 24, start + timedelta(hours=23, minutes=59)) == daily[0]  # changes at midnight
@@ -475,12 +475,12 @@ def test_mood_bonus_does_not_change_related_artist_candidates():
     """The related share is intentionally exploratory and must not be reranked by session mood."""
     from kurai.recommend.mood import SessionMood
 
-    mix = mixing.Mix("wave", {
-        "mix.wave.new_share": 0,
-        "mix.wave.related_share": 1,
-        "mix.wave.randomness": 0,
-        "mix.wave.artist_max": 5,
-        "mix.wave.variety": 0,
+    mix = mixing.Mix("pulse", {
+        "mix.pulse.new_share": 0,
+        "mix.pulse.related_share": 1,
+        "mix.pulse.randomness": 0,
+        "mix.pulse.artist_max": 5,
+        "mix.pulse.variety": 0,
     })
 
     pool = [_cand("p1", "Pool artist", [1, 0], 0.9)]

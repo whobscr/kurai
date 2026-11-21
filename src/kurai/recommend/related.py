@@ -4,7 +4,7 @@ lead to the neighbouring genres people actually combine: from rock to the altern
 also play. Depth 2 follows the neighbours' neighbours too: wider, further from the habitual.
 
 `neighbours` is the walk itself (the plugins use it too); `refresh` keeps each user's list of such artists that the
-library has, for the wave and the playlists (mixing.Param «related_share»)."""
+library has, for the pulse and the playlists (mixing.Param «related_share»)."""
 
 import logging
 from datetime import UTC, datetime

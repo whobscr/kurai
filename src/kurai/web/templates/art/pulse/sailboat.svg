@@ -1,5 +1,5 @@
 <svg class="art" viewBox="0 0 600 400" preserveAspectRatio="xMaxYMax slice" xmlns="http://www.w3.org/2000/svg">
-  <!-- a sailboat on rolling waves, seagulls, the sound of the sea drawn as waves of a song -->
+  <!-- a sailboat on rolling pulses, seagulls, the sound of the sea drawn as pulses of a song -->
   <circle class="tc" cx="480" cy="110" r="70"/>
   <g class="line-s" stroke-width="4" opacity=".7"><path d="M300 90 q10 -10 20 0 q10 -10 20 0"/><path d="M380 50 q8 -8 16 0 q8 -8 16 0"/></g>
   <path class="p" opacity=".16" d="M0 400 V270 C40 250 80 290 120 270 C160 250 200 290 240 270 C280 250 320 290 360 270 C400 250 440 290 480 270 C520 250 560 290 600 270 V400 Z"/>

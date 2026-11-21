@@ -37,11 +37,11 @@ Step = Callable[[Any], Awaitable[dict]]
 Check = Callable[[Any], Awaitable[str]]
 
 # names the core reserves: a plugin declaring any of them is refused with a collision error, instead of silently
-# overwriting core behaviour (a plugin's jobs={"wave": …} used to replace the wave builder)
+# overwriting core behaviour (a plugin's jobs={"pulse": …} used to replace the pulse builder)
 CORE_RESERVED_JOBS = {"nightly", "sync_library", "embed_new", "sync_listens", "ask", "explain",
-                      "wave", "popularity", "artist_ids", "analyze_audio"}
+                      "pulse", "popularity", "artist_ids", "analyze_audio"}
 CORE_RESERVED_CHECKS = {"telegram", "llm", "embed", "audio", "public_data", "musicbrainz", "webpush", "models"}
-CORE_ADMIN_TABS = {"general", "wave", "playlists", "models", "audio", "gateway", "users", "apps", "plugins", "jobs"}
+CORE_ADMIN_TABS = {"general", "pulse", "playlists", "models", "audio", "gateway", "users", "apps", "plugins", "jobs"}
 # keep in sync with worker.EVERY: a plugin must not change a core job's interval
 CORE_RESERVED_EVERY = {"sync_library", "sync_listens", "embed_new", "popularity", "artist_ids"}
 

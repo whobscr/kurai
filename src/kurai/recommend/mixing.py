@@ -1,8 +1,8 @@
-"""How chaotic or familiar the music is: the parameters of «Моя волна» and of the generated playlists (the nightly mixes
+"""How chaotic or familiar the music is: the parameters of «Пульс» and of the generated playlists (the nightly mixes
 and «Спросить»), server-wide, set on the «Волна» and «Плейлисты» tabs. One schema here serves the settings' defaults,
 both tabs' forms, their checks and the code that picks the tracks; /docs/admin/mixing explains each one at length.
 
-A profile is one set of values: «wave» or «playlists». A parameter belongs to the profiles it has a default in."""
+A profile is one set of values: «pulse» or «playlists». A parameter belongs to the profiles it has a default in."""
 
 import hashlib
 import random
@@ -16,12 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import settings
 from kurai.artists import artist_key
-from kurai.db.models import Listen, Track, User, WaveEvent
+from kurai.db.models import Listen, PulseEvent, Track, User
 from kurai.i18n import _
 from kurai.recommend import mood as moodmod
 from kurai.recommend.vectors import Candidate, adjust, arrange, compose, spread
 
-PROFILES = {"wave": _("«Моя волна»"), "playlists": _("Плейлисты")}
+PROFILES = {"pulse": _("«Пульс»"), "playlists": _("Плейлисты")}
 # a resting artist let back in (others ran short): this many spreads lower, so after everyone else
 REST_LAST = 10
 BAD_DAY_PUSH = 0.25    # comfort mode: a bad day's skip_push is capped (it otherwise pushes away from everything liked)
@@ -59,88 +59,88 @@ PARAMS: tuple[Param, ...] = (
     Param("new_share", _("Доля нового"),
           _("Треки, которые человек ещё ни разу не слушал, но близкие к его вкусу. 0 — только знакомое (если "
             "знакомого, что подходит, хватает)."),
-          float, {"wave": 0.4, "playlists": 0.5}),
+          float, {"pulse": 0.4, "playlists": 0.5}),
     Param("related_share", _("Доля «слушают вместе»"),
           _("Исполнители, которых в мире слушают те же люди, что и любимых исполнителей человека (ListenBrainz), — "
             "даже если звучат иначе: так в подборку приходят соседние жанры."),
-          float, {"wave": 0.15, "playlists": 0.15}),
+          float, {"pulse": 0.15, "playlists": 0.15}),
     Param("variety", _("Разнообразие"),
           _("0 — самые похожие на вкус треки подряд; 1 — каждый следующий как можно непохожее на уже выбранные."),
-          float, {"wave": 0.35, "playlists": 0.35}, ask=True),
+          float, {"pulse": 0.35, "playlists": 0.35}, ask=True),
     Param("randomness", _("Случайность"),
           _("Сколько случая в выборе: 0 — всегда одно и то же при тех же данных; 1 — разброс размером со всю "
             "разницу между кандидатами."),
-          float, {"wave": 0.15, "playlists": 0.1}, ask=True),
+          float, {"pulse": 0.15, "playlists": 0.1}, ask=True),
     Param("now_weight", _("«Сейчас» против «всегда»"),
           _("Доля волны, которая идёт за тем, что играет последние часы; остальное — по вкусу за всё время. 0.6 — "
             "60 % треков."),
-          float, {"wave": 0.6}),
+          float, {"pulse": 0.6}),
     Param("taste_weight", _("Вкус в «Спросить»"),
           _("Насколько запрос тянется к вкусу человека. Большой вес подменяет просьбу привычным."),
           float, {"playlists": 0.15}, ask=True),
     Param("track_rest_days", _("Пауза для трека, дней"),
           _("Трек, сыгранный за эти дни, не попадает в подборку — чтобы успеть по нему соскучиться."),
-          float, {"wave": 7, "playlists": 7}, high=365),
+          float, {"pulse": 7, "playlists": 7}, high=365),
     Param("artist_rest_hours", _("Пауза для исполнителя, ч"),
           _("Самое большее столько часов исполнитель, только что звучавший, не попадает в подборку (пока хватает "
             "других; если не хватает — возвращается, последним). Когда именно он вернётся — решает «Форма паузы». "
             "0 — без паузы."),
-          float, {"wave": 6, "playlists": 24}, high=24 * 30),
+          float, {"pulse": 6, "playlists": 24}, high=24 * 30),
     # ---- the advanced ones ----
     Param("artist_rest_shape", _("Форма паузы исполнителя"),
           _("Когда в пределах паузы исполнитель возвращается: 1 — в любой момент с равной вероятностью; 2 — чем "
             "ближе к концу, тем вероятнее (к середине паузы вернулась четверть); 8 и больше — почти все в самом "
             "конце."),
-          float, {"wave": 2, "playlists": 2}, low=1, high=20, advanced=True),
+          float, {"pulse": 2, "playlists": 2}, low=1, high=20, advanced=True),
     Param("artist_max", _("Треков одного исполнителя в подборке"),
           _("Не больше стольких треков одного исполнителя в одной версии волны или в одном плейлисте. Уступает "
             "нехватке: если подходящих исполнителей мало, лимит поднимается, чтобы набрать подборку."),
-          int, {"wave": 2, "playlists": 2}, low=1, high=20, advanced=True, ask=True),
+          int, {"pulse": 2, "playlists": 2}, low=1, high=20, advanced=True, ask=True),
     Param("artist_gap", _("Между треками одного исполнителя"),
           _("Сколько других треков стоит между двумя треками одного исполнителя (если хватает других)."),
-          int, {"wave": 5, "playlists": 4}, high=30, advanced=True, ask=True),
+          int, {"pulse": 5, "playlists": 4}, high=30, advanced=True, ask=True),
     Param("smooth", _("Плавные переходы"),
           _("Соседние треки звучат похоже. Выключено — порядок по тому, насколько трек подходит."),
-          bool, {"wave": True, "playlists": True}, advanced=True, ask=True),
+          bool, {"pulse": True, "playlists": True}, advanced=True, ask=True),
     Param("size", _("Треков в подборке"),
           _("В одной версии волны; в одном ночном миксе."),
-          int, {"wave": 40, "playlists": 30}, low=10, high=200, advanced=True),
+          int, {"pulse": 40, "playlists": 30}, low=10, high=200, advanced=True),
     Param("related_depth", _("Глубина «слушают вместе»"),
           _("1 — соседи любимых исполнителей; 2 — ещё и соседи соседей: шире, дальше от привычного."),
-          int, {"wave": 1, "playlists": 1}, low=1, high=2, advanced=True),
+          int, {"pulse": 1, "playlists": 1}, low=1, high=2, advanced=True),
     Param("skip_push", _("Отталкивание от пропущенного"),
           _("Насколько опускаются треки, похожие на пропущенные: 0 — никак, 1 — сильно (волна уходит от их звучания)."),
-          float, {"wave": 0.3}, advanced=True),
+          float, {"pulse": 0.3}, advanced=True),
     Param("skip_share", _("Что считать пропуском"),
           _("Трек, сыгранный меньше этой доли своей длины, считается пропущенным."),
-          float, {"wave": 0.5}, low=0.05, high=0.95, advanced=True),
+          float, {"pulse": 0.5}, low=0.05, high=0.95, advanced=True),
     Param("artist_skip_ban", _("Убрать исполнителя после пропусков"),
           _("Столько пропусков одного исполнителя за «сейчас» — и он уходит из волны до конца сеанса. 0 — никогда."),
-          int, {"wave": 2}, high=10, advanced=True),
+          int, {"pulse": 2}, high=10, advanced=True),
     Param("session_hours", _("Что считается «сейчас», ч"),
           _("За сколько последних часов прослушивания и пропуски направляют волну."),
-          float, {"wave": 3}, low=0.5, high=24, advanced=True),
+          float, {"pulse": 3}, low=0.5, high=24, advanced=True),
     Param("session_half_life", _("Затухание «сейчас», мин"),
           _("Через столько минут трек весит вдвое меньше: чем меньше, тем больше волны — за последним, что звучало; "
             "чем больше — тем ровнее за всем сеансом."),
-          float, {"wave": 45}, low=5, high=24 * 60, advanced=True),
+          float, {"pulse": 45}, low=5, high=24 * 60, advanced=True),
     Param("rebuild_plays", _("Обновлять после стольких треков"),
           _("Новая версия волны — после стольких дослушанных треков (после пропуска — сразу)."),
-          int, {"wave": 3}, low=1, high=50, advanced=True),
+          int, {"pulse": 3}, low=1, high=50, advanced=True),
     Param("rebuild_minutes", _("Обновлять не чаще, мин"),
           _("Не чаще одной версии волны за столько минут."),
-          float, {"wave": 4}, high=120, advanced=True),
+          float, {"pulse": 4}, high=120, advanced=True),
     Param("popular_every", _("Новичкам — популярный трек каждые"),
           _("Пока человек ничего не слушал: каждый N-й трек — из популярного в библиотеке. 0 — без них."),
-          int, {"wave": 3}, high=20, advanced=True),
+          int, {"pulse": 3}, high=20, advanced=True),
     Param("mood", _("Учитывать настроение"),
           _("Подборка тянется к звучанию в такт текущему настроению сессии (считается по принятым трекам). "
             "Выключено — настроение только видно в «Задачах», на выбор не влияет."),
-          bool, {"wave": False}, advanced=True),
+          bool, {"pulse": False}, advanced=True),
     Param("mood_strength", _("Влияние настроения"),
           _("Насколько сильно настроение сдвигает порядок треков (в разбросах, как прочие поправки). Работает, "
             "только когда «Учитывать настроение» включено и у сессии достаточно уверенности."),
-          float, {"wave": 0.25}, low=0, high=1, advanced=True),
+          float, {"pulse": 0.25}, low=0, high=1, advanced=True),
 )
 BY_KEY = {p.key: p for p in PARAMS}
 
@@ -180,8 +180,8 @@ def _number(x: float) -> str:
 
 @dataclass(frozen=True)
 class Mix:
-    """One profile's values, read when a wave or a playlist is made; a parameter the profile lacks reads as the
-    wave's default (it isn't used there)."""
+    """One profile's values, read when a pulse or a playlist is made; a parameter the profile lacks reads as the
+    pulse's default (it isn't used there)."""
 
     profile: str
     values: dict[str, Any]
@@ -219,8 +219,8 @@ async def resting_artists(db: AsyncSession, user: User, now: datetime, hours: fl
         return set()
     since = now - timedelta(hours=hours)
     last: dict[str, datetime] = {}
-    for stmt in (select(Track.artist_key, func.max(WaveEvent.at)).join(WaveEvent, WaveEvent.track_id == Track.id)
-                 .where(WaveEvent.user_id == user.id, WaveEvent.at >= since).group_by(Track.artist_key),
+    for stmt in (select(Track.artist_key, func.max(PulseEvent.at)).join(PulseEvent, PulseEvent.track_id == Track.id)
+                 .where(PulseEvent.user_id == user.id, PulseEvent.at >= since).group_by(Track.artist_key),
                  select(Track.artist_key, func.max(Listen.last_played)).join(Listen, Listen.track_id == Track.id)
                  .where(Listen.user_id == user.id, Listen.last_played >= since).group_by(Track.artist_key)):
         for artist, at in (await db.execute(stmt)).all():

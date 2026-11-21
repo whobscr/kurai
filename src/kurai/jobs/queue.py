@@ -11,9 +11,9 @@ from kurai.db.models import Job
 from kurai.i18n import _
 
 # lanes: «general» runs one job at a time (syncs, the night's work, plugins' jobs); «interactive» runs what a person
-# waits for (a request to the model, an explanation, «Моя волна»), several at once up to «Параллельные запросы к
+# waits for (a request to the model, an explanation, «Пульс»), several at once up to «Параллельные запросы к
 # модели»; «audio» is the audio container's (kurai.audio), so the main worker never takes its jobs
-INTERACTIVE = {"ask", "explain", "wave"}
+INTERACTIVE = {"ask", "explain", "pulse"}
 AUDIO = {"analyze_audio"}
 LANES = {"interactive": INTERACTIVE, "audio": AUDIO}
 KEEP_DAYS = 30  # finished jobs older than this are removed at night

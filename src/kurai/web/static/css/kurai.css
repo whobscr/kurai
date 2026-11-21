@@ -105,7 +105,7 @@ article > h6::before, article > form > h6::before { content: ""; flex: none; inl
 .login-page { overflow: hidden; }
 .login { position: relative; display: flex; align-items: center; justify-content: center; min-height: 100vh;
   background: var(--surface-container, var(--surface-variant)); }
-/* each scene covers half the screen: their cable / tape / wave meets at the middle, behind the card */
+/* each scene covers half the screen: their cable / tape / pulse meets at the middle, behind the card */
 .login .scene { position: absolute; top: 0; bottom: 0; width: 50%; overflow: hidden; }
 .login .scene-left { left: 0; } .login .scene-right { right: 0; }
 .login .scene svg { width: 100%; height: 100%; display: block; }
@@ -247,42 +247,42 @@ main .row > :is(form, div) { min-inline-size: 0; max-inline-size: 100%; }  /* a 
 [hidden] { display: none !important; }
 article > table { display: block; overflow-x: auto; }
 
-/* ---------- «Для вас»: the wave's big button on a wide band of the accent, «Плейлисты» on it, the notifications below.
+/* ---------- «Для вас»: the pulse's big button on a wide band of the accent, «Плейлисты» on it, the notifications below.
    a picture behind it (Material's shapes or a drawn scene); nothing moves (no animation) ---------- */
 .kicker { display: block; font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
   opacity: .85; }
-.wave-stage { position: relative; overflow: hidden; margin: 0 0 1.5rem; padding: 5.5rem 2.5rem 3rem; min-block-size: 24rem;
+.pulse-stage { position: relative; overflow: hidden; margin: 0 0 1.5rem; padding: 5.5rem 2.5rem 3rem; min-block-size: 24rem;
   display: flex; align-items: center; border-radius: 2.5rem 2.5rem 2.5rem .75rem; color: var(--on-primary-container);
   background:
     radial-gradient(40rem 26rem at 85% 110%, color-mix(in srgb, var(--tertiary-container) 85%, transparent), transparent 70%),
     linear-gradient(135deg, var(--primary-container) 10%, color-mix(in srgb, var(--primary-container) 55%, var(--secondary-container)) 100%); }
-.wave-art { position: absolute; inset: 0; pointer-events: none; }
-.wave-art .shape { position: absolute; }
-.wave-art .w1 { inline-size: 26rem; block-size: 26rem; right: -7rem; top: -9rem; background: var(--primary); opacity: .14; }
-.wave-art .w2 { inline-size: 12rem; block-size: 12rem; right: 9rem; bottom: -4rem; background: var(--tertiary); opacity: .22; }
-.wave-art .w3 { inline-size: 5rem; block-size: 5rem; right: 4rem; bottom: 3.5rem; background: var(--secondary); opacity: .35; }
-.wave-art .w4 { inline-size: 7rem; block-size: 3rem; left: 40%; top: 1.25rem; background: var(--primary); opacity: .12;
+.pulse-art { position: absolute; inset: 0; pointer-events: none; }
+.pulse-art .shape { position: absolute; }
+.pulse-art .w1 { inline-size: 26rem; block-size: 26rem; right: -7rem; top: -9rem; background: var(--primary); opacity: .14; }
+.pulse-art .w2 { inline-size: 12rem; block-size: 12rem; right: 9rem; bottom: -4rem; background: var(--tertiary); opacity: .22; }
+.pulse-art .w3 { inline-size: 5rem; block-size: 5rem; right: 4rem; bottom: 3.5rem; background: var(--secondary); opacity: .35; }
+.pulse-art .w4 { inline-size: 7rem; block-size: 3rem; left: 40%; top: 1.25rem; background: var(--primary); opacity: .12;
   transform: rotate(-24deg); }
-/* a drawn picture (art/wave/*.svg, 3:2): the card's height at its right edge, fading out towards the button */
-.wave-art svg { position: absolute; right: 0; bottom: 0; block-size: 100%; inline-size: auto; aspect-ratio: 3 / 2;
+/* a drawn picture (art/pulse/*.svg, 3:2): the card's height at its right edge, fading out towards the button */
+.pulse-art svg { position: absolute; right: 0; bottom: 0; block-size: 100%; inline-size: auto; aspect-ratio: 3 / 2;
   max-inline-size: none; opacity: .8; -webkit-mask-image: linear-gradient(to right, transparent, #000 45%);
   mask-image: linear-gradient(to right, transparent, #000 45%); }
-.wave-body { position: relative; z-index: 1; display: flex; align-items: center; gap: 2.5rem; inline-size: 100%; }
-.wave-text { flex: 1; min-inline-size: 0; }
-.wave-text h2 { margin: .25rem 0 .5rem; font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 700; line-height: 1;
+.pulse-body { position: relative; z-index: 1; display: flex; align-items: center; gap: 2.5rem; inline-size: 100%; }
+.pulse-text { flex: 1; min-inline-size: 0; }
+.pulse-text h2 { margin: .25rem 0 .5rem; font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 700; line-height: 1;
   letter-spacing: -.02em; }
-.wave-status { margin: 0 0 .5rem; max-inline-size: 32rem; }
-.wave-rate { gap: .25rem; }
+.pulse-status { margin: 0 0 .5rem; max-inline-size: 32rem; }
+.pulse-rate { gap: .25rem; }
 /* the big button: a circle of the accent inside a cookie of its container colour (a ring with petals) */
-.wave-play { flex: none; inline-size: 11rem; block-size: 11rem; margin: 0; padding: 0; border: 0; cursor: pointer;
+.pulse-play { flex: none; inline-size: 11rem; block-size: 11rem; margin: 0; padding: 0; border: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--on-primary);
   background: radial-gradient(circle, var(--primary) 0 60%, color-mix(in srgb, var(--primary) 30%, transparent) 61% 100%);
   box-shadow: 0 .75rem 2rem color-mix(in srgb, var(--primary) 45%, transparent); }
-.wave-play > i { font-size: 5rem; inline-size: 5rem; block-size: 5rem; }
-.wave-play:hover { background: radial-gradient(circle, color-mix(in srgb, var(--primary) 88%, var(--on-primary)) 0 60%,
+.pulse-play > i { font-size: 5rem; inline-size: 5rem; block-size: 5rem; }
+.pulse-play:hover { background: radial-gradient(circle, color-mix(in srgb, var(--primary) 88%, var(--on-primary)) 0 60%,
   color-mix(in srgb, var(--primary) 38%, transparent) 61% 100%); }
-.wave-play:focus-visible { outline: .25rem solid var(--tertiary); outline-offset: .25rem; }
-.wave-play:disabled { cursor: not-allowed; opacity: .5; }
+.pulse-play:focus-visible { outline: .25rem solid var(--tertiary); outline-offset: .25rem; }
+.pulse-play:disabled { cursor: not-allowed; opacity: .5; }
 [data-play] .when-playing, [data-play].playing .when-stopped { display: none; }
 [data-play].playing .when-playing { display: inline-flex; }  /* as Beer CSS draws every icon: on the same line */
 /* «Плейлисты»: a pill of the surface over the band, always in sight */
@@ -295,13 +295,13 @@ article > table { display: block; overflow-x: auto; }
   font-size: .8rem; line-height: 1.5rem; background: var(--primary); color: var(--on-primary); }
 .playlists-open:hover { background: var(--surface-container-high); }
 @media (max-width: 600px) {
-  .wave-stage { padding: 4.75rem 1.25rem 1.75rem; min-block-size: 0; border-radius: 2rem 2rem 2rem .5rem; }
-  .wave-body { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
-  .wave-play { inline-size: 8.5rem; block-size: 8.5rem; align-self: center; }
-  .wave-play > i { font-size: 4rem; inline-size: 4rem; block-size: 4rem; }
-  .wave-art .w1 { inline-size: 16rem; block-size: 16rem; right: -6rem; top: -5rem; }
-  .wave-art .w4 { display: none; }
-  .wave-art svg { opacity: .35; }
+  .pulse-stage { padding: 4.75rem 1.25rem 1.75rem; min-block-size: 0; border-radius: 2rem 2rem 2rem .5rem; }
+  .pulse-body { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
+  .pulse-play { inline-size: 8.5rem; block-size: 8.5rem; align-self: center; }
+  .pulse-play > i { font-size: 4rem; inline-size: 4rem; block-size: 4rem; }
+  .pulse-art .w1 { inline-size: 16rem; block-size: 16rem; right: -6rem; top: -5rem; }
+  .pulse-art .w4 { display: none; }
+  .pulse-art svg { opacity: .35; }
 }
 
 /* the playlists' sheet: Beer CSS's dialog from the left, without its slide */

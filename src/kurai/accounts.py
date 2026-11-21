@@ -9,7 +9,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kurai import security
-from kurai.db.models import Listen, Playlist, Session, Taste, User, WaveEvent
+from kurai.db.models import Listen, Playlist, PulseEvent, Session, Taste, User
 from kurai.i18n import _
 from kurai.integrations.navidrome import NavidromeError, forget_account
 from kurai.jobs import queue
@@ -70,9 +70,9 @@ async def set_password(db: AsyncSession, user: User, password: str) -> None:
 async def forget_listens(db: AsyncSession, user: User) -> None:
     """«Забыть прослушивания». Navidrome can't clear an account's plays, so the user's music account is made anew,
     with the same name and password (the music apps go on logging in): Navidrome deletes the old one's plays, stars,
-    ratings, playlists and play queue with it. Kurai forgets its copy of them, the wave's plays and skips, the taste
+    ratings, playlists and play queue with it. Kurai forgets its copy of them, the pulse's plays and skips, the taste
     and «Любимое», writes its own playlists into the new account and makes the taste (from «Что вы любите слушать» only)
-    and the wave anew. The old account's id is let go before the new one is made, so after a failure halfway a
+    and the pulse anew. The old account's id is let go before the new one is made, so after a failure halfway a
     second try only makes the account."""
     account = user_account(user)
     if account is not None:
@@ -83,7 +83,7 @@ async def forget_listens(db: AsyncSession, user: User) -> None:
             await db.commit()
         forget_account(user.username)
         user.navidrome_id = await nd.create_user(token, user.username, user.display_name, account.password)
-    for model in (Listen, WaveEvent, Taste):
+    for model in (Listen, PulseEvent, Taste):
         await db.execute(delete(model).where(model.user_id == user.id))
     await db.execute(update(Playlist).where(Playlist.user_id == user.id).values(navidrome_id=None))
     await db.commit()
@@ -93,7 +93,7 @@ async def forget_listens(db: AsyncSession, user: User) -> None:
             await playlists.write(db, user, playlist)
         except NavidromeError as e:  # the next version of it is written anyway
             log.warning("playlist %s not written into the new account: %s", playlist.id, e)
-    await queue.enqueue(db, "wave", {"retaste": True}, user_id=user.id, priority=20, dedupe_key=f"wave-start:{user.id}")
+    await queue.enqueue(db, "pulse", {"retaste": True}, user_id=user.id, priority=20, dedupe_key=f"pulse-start:{user.id}")
     await db.commit()
 
 

@@ -1,9 +1,9 @@
-"""The web player: what to play (a playlist's tracks, «Моя волна» as it is now), the music and covers from Navidrome as
+"""The web player: what to play (a playlist's tracks, «Пульс» as it is now), the music and covers from Navidrome as
 the user, and what the listener did with each track.
 
 A finished track is a play in Navidrome (scrobbled, so the tastes see it like a play in any app); a played or skipped
-track is also an event of «Моя волна» at once (the worker's watching of «now playing» is for the other apps), so a skip
-in the browser rebuilds the wave within moments and the player picks up the new version."""
+track is also an event of «Пульс» at once (the worker's watching of «now playing» is for the other apps), so a skip
+in the browser rebuilds the pulse within moments and the player picks up the new version."""
 
 import logging
 from datetime import UTC, datetime, timedelta
@@ -16,7 +16,7 @@ from kurai.db.models import Job, Listen, Playlist, Track
 from kurai.i18n import _
 from kurai.integrations.navidrome import WEB_PLAYER, Account, NavidromeError
 from kurai.jobs import queue as jobs
-from kurai.recommend import library, mixing, playlists, search, wave
+from kurai.recommend import library, mixing, playlists, pulse, search
 from kurai.web import upstream
 from kurai.web.deps import Ctx, user_required
 from kurai.web.routes.misc import MEDIA_HEADERS
@@ -52,47 +52,47 @@ async def _tracks(ctx: Ctx, ids: list[str]) -> list[dict]:
     return [track_item(*rows[i]) for i in ids if i in rows]
 
 
-async def _wave_state(ctx: Ctx) -> dict:
-    """No wave yet: one is being made (a job queued now if none is), or why there's none."""
-    if not await settings.get(ctx.db, "wave.enabled"):
-        return {"message": _("«Моя волна» выключена администратором.")}
-    last = (await ctx.db.execute(select(Job).where(Job.user_id == ctx.user.id, Job.kind == "wave")
+async def _pulse_state(ctx: Ctx) -> dict:
+    """No pulse yet: one is being made (a job queued now if none is), or why there's none."""
+    if not await settings.get(ctx.db, "pulse.enabled"):
+        return {"message": _("«Пульс» выключена администратором.")}
+    last = (await ctx.db.execute(select(Job).where(Job.user_id == ctx.user.id, Job.kind == "pulse")
                                  .order_by(Job.id.desc()))).scalars().first()
     if last is not None and last.status in ("queued", "running"):
         return {"pending": True}
     if last is not None and last.status == "done" and (last.result or {}).get("skipped"):
         return {"message": _("Волну пока не из чего собрать: {why}. Послушайте любой микс — и она появится.").format(
             why=last.result["skipped"])}
-    await jobs.enqueue(ctx.db, "wave", user_id=ctx.user.id, priority=20, dedupe_key=f"wave:{ctx.user.id}")
+    await jobs.enqueue(ctx.db, "pulse", user_id=ctx.user.id, priority=20, dedupe_key=f"pulse:{ctx.user.id}")
     return {"pending": True}
 
 
-async def _unheard_wave(ctx: Ctx, playlist: Playlist) -> list[str] | None:
-    """The wave's tracks without what the user heard within a track's pause («Волна»), so coming back to it never
+async def _unheard_pulse(ctx: Ctx, playlist: Playlist) -> list[str] | None:
+    """The pulse's tracks without what the user heard within a track's pause («Волна»), so coming back to it never
     starts with a track just played. Less than half left: a fresh version is made (it comes as a new version); nothing
     left: None (wait for it), unless a version made since found nothing new either (a small library): then it plays
     as it is."""
-    mix = await mixing.load(ctx.db, "wave")
-    heard = await wave.recently_heard(ctx.db, ctx.user, datetime.now(UTC), mix.track_rest_days)
+    mix = await mixing.load(ctx.db, "pulse")
+    heard = await pulse.recently_heard(ctx.db, ctx.user, datetime.now(UTC), mix.track_rest_days)
     ids = [i for i in playlist.track_ids if i not in heard]
     if len(ids) >= mix.size // 2:
         return ids
-    last = (await ctx.db.execute(select(Job).where(Job.user_id == ctx.user.id, Job.kind == "wave")
+    last = (await ctx.db.execute(select(Job).where(Job.user_id == ctx.user.id, Job.kind == "pulse")
                                  .order_by(Job.id.desc()))).scalars().first()
     rebuilt_in_vain = (last is not None and last.status == "done" and last.finished_at is not None
                        and last.finished_at > playlist.created_at)
     if rebuilt_in_vain:
         return ids or playlist.track_ids
     if last is None or last.status not in ("queued", "running"):
-        await jobs.enqueue(ctx.db, "wave", user_id=ctx.user.id, priority=20, dedupe_key=f"wave:{ctx.user.id}")
+        await jobs.enqueue(ctx.db, "pulse", user_id=ctx.user.id, priority=20, dedupe_key=f"pulse:{ctx.user.id}")
     return ids or None
 
 
 @router.get("/queue/{which:path}")
 async def queue(which: str, ctx: Ctx = Depends(user_required)):
-    """«wave» (the user's wave as it is now), «history» (what they played last), a playlist's id, or a set the user
-    chose in the library search («artist:…», «album:…», «track:…», kind «set»: the player goes on into the wave after
-    it): its tracks, and its version (the player compares it to learn that the wave was rebuilt)."""
+    """«pulse» (the user's pulse as it is now), «history» (what they played last), a playlist's id, or a set the user
+    chose in the library search («artist:…», «album:…», «track:…», kind «set»: the player goes on into the pulse after
+    it): its tracks, and its version (the player compares it to learn that the pulse was rebuilt)."""
     if which.partition(":")[0] in search.KINDS:
         name, ids = await search.tracks_of(ctx.db, which)
         if not ids:
@@ -103,19 +103,19 @@ async def queue(which: str, ctx: Ctx = Depends(user_required)):
         rows = await library.recent_listens(ctx.db, ctx.user, HISTORY)
         return {"id": "history", "kind": "history", "name": _("История"), "description": "", "version": "",
                 "tracks": [track_item(t, listen) for t, listen in rows]}
-    if which == "wave":
+    if which == "pulse":
         playlist = (await ctx.db.execute(select(Playlist).where(Playlist.user_id == ctx.user.id,
-                                                                Playlist.kind == "wave")
+                                                                Playlist.kind == "pulse")
                                          .order_by(Playlist.id.desc()))).scalars().first()
         if playlist is None or not playlist.track_ids:
-            return await _wave_state(ctx)
-        ids = await _unheard_wave(ctx, playlist)
+            return await _pulse_state(ctx)
+        ids = await _unheard_pulse(ctx, playlist)
         if ids is None:
             return {"pending": True}
         # «Между треками одного исполнителя»: the player keeps it from what it just played to the new version
         return {"id": playlist.id, "kind": playlist.kind, "name": playlist.name,
                 "description": playlist.description, "version": playlist.created_at.isoformat(),
-                "artist_gap": (await mixing.load(ctx.db, "wave")).artist_gap, "tracks": await _tracks(ctx, ids)}
+                "artist_gap": (await mixing.load(ctx.db, "pulse")).artist_gap, "tracks": await _tracks(ctx, ids)}
     else:
         playlist = await ctx.db.get(Playlist, int(which)) if which.isdigit() else None
         if playlist is None or playlist.user_id != ctx.user.id:
@@ -151,10 +151,10 @@ async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = 
     now = datetime.now(UTC)
     seconds = max(0, seconds)
     if not_now:  # «Не сейчас»: a mood mismatch, not a dislike — no scrobble, no skip, no taste signal
-        if await settings.get(ctx.db, "wave.enabled"):
-            await wave.record(ctx.db, [(ctx.user.id, track_id, False, seconds, chosen, False, True)], now)
+        if await settings.get(ctx.db, "pulse.enabled"):
+            await pulse.record(ctx.db, [(ctx.user.id, track_id, False, seconds, chosen, False, True)], now)
         return {"skipped": False, "rebuilding": False, "not_now": True}
-    skipped = wave.is_skip(seconds, track.duration, disliked, (await mixing.load(ctx.db, "wave")).skip_share)
+    skipped = pulse.is_skip(seconds, track.duration, disliked, (await mixing.load(ctx.db, "pulse")).skip_share)
     if skipped and chosen and not disliked:
         return {"skipped": True, "rebuilding": False}
     if not skipped:
@@ -164,8 +164,8 @@ async def event(track_id: str = Body(), seconds: int = Body(), disliked: bool = 
         except NavidromeError as e:
             log.warning("scrobble: %s", e)
     rebuilding = False
-    if await settings.get(ctx.db, "wave.enabled"):
-        rebuilding = bool(await wave.record(ctx.db,
+    if await settings.get(ctx.db, "pulse.enabled"):
+        rebuilding = bool(await pulse.record(ctx.db,
                                             [(ctx.user.id, track_id, skipped, seconds, chosen, disliked, False)], now))
     return {"skipped": skipped, "rebuilding": rebuilding}
 

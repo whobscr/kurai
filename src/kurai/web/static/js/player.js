@@ -1,14 +1,14 @@
-// The web player: plays «Моя волна» or a playlist from the server (/player/…) in the bar at the bottom, which stays
+// The web player: plays «Пульс» or a playlist from the server (/player/…) in the bar at the bottom, which stays
 // while the pages change (kurai.js swaps only the page). Each track that gives way to the next is reported, played on or
-// skipped; the wave is rebuilt from that on the server, and the player takes the new version's tracks as the next ones
-// (asking after each report and every half a minute), without a gap. Buttons with data-play="wave" or a playlist's id
+// skipped; the pulse is rebuilt from that on the server, and the player takes the new version's tracks as the next ones
+// (asking after each report and every half a minute), without a gap. Buttons with data-play="pulse" or a playlist's id
 // start it (data-start: from that track of it, as in «История»), or pause and resume what they started; data-play
-// "artist:…", "album:…" or "track:…" is a set chosen in the library search: played to its end, then on into the wave,
+// "artist:…", "album:…" or "track:…" is a set chosen in the library search: played to its end, then on into the pulse,
 // and a skip of what was chosen isn't told as one (a 👎 is). data-add (the same values) puts a set into the player's
-// list instead: the end of a chosen set, or right after the current track of the wave or a playlist (it plays next,
+// list instead: the end of a chosen set, or right after the current track of the pulse or a playlist (it plays next,
 // then they go on). The list («Очередь», from the bar or Q) shows what plays and what comes; a track plays on a tap,
 // ✕ takes it out, «Сохранить» keeps it as the user's own playlist. The list is kept on this device (a reload finds it
-// paused where it was). ♥ and 👎 (data-rate, data-track) rate a track. Repeat (off, the playlist, the track; the wave has no end, so no playlist
+// paused where it was). ♥ and 👎 (data-rate, data-track) rate a track. Repeat (off, the playlist, the track; the pulse has no end, so no playlist
 // repeat there), the previous track, the volume and the keys (the «Клавиши» dialog lists them) are the player's too.
 // The phone's lock screen and headphones control it as well (Media Session).
 // Two audio elements take turns: while one plays, the other loads the next track (PRELOAD seconds before the end), and
@@ -40,7 +40,7 @@
     body: JSON.stringify(data)});
   const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-  let source = null;  // {which: "wave", a playlist's id, a chosen set or "queue", name, version, chosen}
+  let source = null;  // {which: "pulse", a playlist's id, a chosen set or "queue", name, version, chosen}
   let tracks = [], index = 0;  // a track the user put in the list has `added`
   // seconds the current track really played: every step forward of its time, but not a seek (every seek goes
   // through seek(), which counts up to where it was first). Counted from the time itself, not from how often
@@ -58,11 +58,11 @@
     lastTime = to;
   };
   let failures = 0;
-  const heard = new Set();  // this session's tracks: a new version of the wave doesn't bring them back
+  const heard = new Set();  // this session's tracks: a new version of the pulse doesn't bring them back
   const statuses = {};  // what the player says about each source (shown wherever the page has its place)
   let refreshing = null;
   const current = () => tracks[index];
-  const isWave = () => source && source.which === "wave";
+  const isPulse = () => source && source.which === "pulse";
   const REPEATS = ["off", "all", "one"];
   let repeat = REPEATS.includes(store.get("kurai.repeat")) ? store.get("kurai.repeat") : "off";
   const volume = Number(store.get("kurai.volume"));
@@ -101,7 +101,7 @@
     return data;
   }
 
-  // a source's tracks; the wave may first have to be made (the server queues it): asked again until it's there
+  // a source's tracks; the pulse may first have to be made (the server queues it): asked again until it's there
   async function load(which) {
     for (let i = 0; i < 40; i++) {
       const data = await fetchQueue(which);
@@ -124,14 +124,14 @@
     try {
       const data = await load(which);
       if (!data || !data.tracks.length) return;
-      source = {which, name: data.kind === "wave" ? say("wave") : data.name, version: data.version,
+      source = {which, name: data.kind === "pulse" ? say("pulse") : data.name, version: data.version,
         chosen: data.kind === "set"};
-      // the wave after something else: spaced from what just played (still `tracks` here)
-      let fresh = which === "wave" ? data.tracks.filter((t) => !heard.has(t.id)) : data.tracks;
+      // the pulse after something else: spaced from what just played (still `tracks` here)
+      let fresh = which === "pulse" ? data.tracks.filter((t) => !heard.has(t.id)) : data.tracks;
       if (!fresh.length) fresh = data.tracks;
-      tracks = which === "wave" && current() ? spaced(fresh, data.artist_gap || 0) : fresh;
+      tracks = which === "pulse" && current() ? spaced(fresh, data.artist_gap || 0) : fresh;
       index = Math.max(0, startId ? tracks.findIndex((t) => t.id === startId) : 0);
-      if (which === "wave") setStatus("wave", data.description || "");
+      if (which === "pulse") setStatus("pulse", data.description || "");
       playCurrent();
     } catch (e) {
       setStatus(which, `${say("error")} ${e.message || e}`);
@@ -160,12 +160,12 @@
     els.title.textContent = t.title;
     els.artist.textContent = t.artist;
     els.source.querySelector("span").textContent = source.name;
-    els.source.querySelector("i").textContent = isWave() ? "waves" : "queue_music";
+    els.source.querySelector("i").textContent = isPulse() ? "pulses" : "queue_music";
     els.duration.textContent = clock(t.duration || 0);
     showRepeat();
     bar.querySelectorAll("[data-rate]").forEach((b) => { b.dataset.track = t.id; });
     showRating();
-    if (isWave()) setStatus("wave", say("now", {track: `${t.artist} — ${t.title}`}));
+    if (isPulse()) setStatus("pulse", say("now", {track: `${t.artist} — ${t.title}`}));
     if ("mediaSession" in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({title: t.title, artist: t.artist, album: t.album,
         artwork: [{src: els.cover.src, sizes: "600x600"}]});
@@ -182,9 +182,9 @@
 
   const stream = (id) => `/player/stream/${encodeURIComponent(id)}`;
 
-  // the track that plays after this one if nothing changes (the wave's next version is asked earlier: next())
+  // the track that plays after this one if nothing changes (the pulse's next version is asked earlier: next())
   const following = () => (repeat === "one" ? null
-    : tracks[index + 1] || (repeat === "all" && !isWave() && tracks.length > 1 ? tracks[0] : null));
+    : tracks[index + 1] || (repeat === "all" && !isPulse() && tracks.length > 1 ? tracks[0] : null));
 
   // near the end: the spare loads what follows (once; a list changed since only means it isn't used)
   function preload() {
@@ -197,7 +197,7 @@
   }
 
   // the current track gave way (next, the end, another source, the page closed): played on or skipped, told to the
-  // server, which counts the play and rebuilds the wave when it's due
+  // server, which counts the play and rebuilds the pulse when it's due
   // a 👎 is a skip however long the track played
   function report(disliked = false) {
     const t = current();
@@ -207,18 +207,18 @@
     played = 0;
     post("/player/event", {track_id: t.id, seconds, disliked, chosen: !!(t.added || source.chosen)}, true)
       .then((r) => (r.ok ? r.json() : {}))
-      .then((r) => { if (r.rebuilding && isWave()) followRebuild(); })
+      .then((r) => { if (r.rebuilding && isPulse()) followRebuild(); })
       .catch(() => {});
   }
 
   function next(disliked = false) {
     report(disliked);
     index += 1;
-    if (isWave() && index >= tracks.length - 3) refresh();  // the wave never ends: its next version is asked early
+    if (isPulse() && index >= tracks.length - 3) refresh();  // the pulse never ends: its next version is asked early
     if (index < tracks.length) playCurrent();
-    else if (isWave()) refresh().then(() => { if (index < tracks.length) playCurrent(); });
+    else if (isPulse()) refresh().then(() => { if (index < tracks.length) playCurrent(); });
     else if (repeat === "all" && tracks.length) { index = 0; playCurrent(); }
-    else if (source.chosen) { index = tracks.length - 1; start("wave"); }  // a chosen set over: on into the wave
+    else if (source.chosen) { index = tracks.length - 1; start("pulse"); }  // a chosen set over: on into the pulse
     else { audio.pause(); index = tracks.length - 1; }
   }
 
@@ -255,9 +255,9 @@
     next();
   }
 
-  // off → the playlist → the track; the wave can't be repeated as a whole (it never ends): off → the track
+  // off → the playlist → the track; the pulse can't be repeated as a whole (it never ends): off → the track
   const showRepeat = () => {
-    const shown = isWave() && repeat === "all" ? "off" : repeat;
+    const shown = isPulse() && repeat === "all" ? "off" : repeat;
     els.repeat.classList.toggle("on", shown !== "off");
     els.repeat.setAttribute("aria-pressed", shown !== "off" ? "true" : "false");
     els.repeat.querySelector("i").textContent = shown === "one" ? "repeat_one" : "repeat";
@@ -265,7 +265,7 @@
   };
   function cycleRepeat() {
     const shown = showRepeat();
-    repeat = shown === "off" ? (isWave() ? "one" : "all") : shown === "all" ? "one" : "off";
+    repeat = shown === "off" ? (isPulse() ? "one" : "all") : shown === "all" ? "one" : "off";
     store.set("kurai.repeat", repeat);
     note(strings[{off: "repeatOff", all: "repeatAll", one: "repeatOne"}[showRepeat()]]);
   }
@@ -286,13 +286,13 @@
     return out;
   }
 
-  // the wave's newest version: its tracks not yet heard become the ones after the current track
+  // the pulse's newest version: its tracks not yet heard become the ones after the current track
   async function refresh() {
-    if (!isWave()) return false;
+    if (!isPulse()) return false;
     if (refreshing) return refreshing;
     refreshing = (async () => {
       try {
-        const data = await fetchQueue("wave");
+        const data = await fetchQueue("pulse");
         if (!data || !data.tracks || data.version === source.version) return false;
         const now = current();
         const pending = tracks.slice(index + 1).filter((t) => t.added);  // what the user put in plays first
@@ -302,7 +302,7 @@
         keep();
         showQueue();
         source.version = data.version;
-        setStatus("wave", say("updated", {t: new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}));
+        setStatus("pulse", say("updated", {t: new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}));
         return true;
       } catch {
         return false;
@@ -320,7 +320,7 @@
       if (await refresh()) return;
     }
   }
-  setInterval(() => { if (isWave() && !audio.paused) refresh(); }, 30000);
+  setInterval(() => { if (isPulse() && !audio.paused) refresh(); }, 30000);
 
   // ---------- the list: kept on this device, filled from the search, shown in «Очередь», saved as a playlist ----------
   const KEEP = "kurai.player";
@@ -342,7 +342,7 @@
     }
   }
 
-  // a chosen set (or the list itself) gets them at its end; the wave or a playlist right after the current track and
+  // a chosen set (or the list itself) gets them at its end; the pulse or a playlist right after the current track and
   // what was added before, then goes on; nothing in the player: the list is made of them, ready, not playing
   function add(items) {
     const fresh = items.map((t) => ({...t, added: true}));
@@ -367,7 +367,7 @@
   }
 
   // what the list shows: a chosen list whole (the heard ones dimmed), else from the current track: the added ones,
-  // then the wave's or the playlist's next
+  // then the pulse's or the playlist's next
   function showQueue() {
     if (!els.queue) return;
     const list = els.queueList;
@@ -431,7 +431,7 @@
     playCurrent(wasPlaying);
   }
 
-  // «Очистить»: a chosen list is emptied and the player stops; the wave or a playlist only loses what was added
+  // «Очистить»: a chosen list is emptied and the player stops; the pulse or a playlist only loses what was added
   function clear() {
     if (source && !source.chosen) {
       tracks = tracks.filter((t, i) => i <= index || !t.added);
@@ -446,7 +446,7 @@
     keep(); showQueue(); syncButtons();
   }
 
-  // «Сохранить»: a chosen list whole; of the wave or a playlist, the current track and what was added
+  // «Сохранить»: a chosen list whole; of the pulse or a playlist, the current track and what was added
   async function saveQueue(form) {
     const name = form.elements.name.value.trim();
     const picked = !source ? [] : source.chosen ? tracks

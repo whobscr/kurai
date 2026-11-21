@@ -1,5 +1,5 @@
 <svg class="art" viewBox="0 0 480 160" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
-  <!-- the sun setting into the sea, its rays a sound wave, a sail far off -->
+  <!-- the sun setting into the sea, its rays a sound pulse, a sail far off -->
   <circle class="tc" cx="350" cy="96" r="54"/>
   <g class="line-tc" stroke-width="4" opacity=".7">
     <path d="M270 40 v14 M282 30 v34 M294 20 v54 M406 20 v54 M418 30 v34 M430 40 v14"/></g>

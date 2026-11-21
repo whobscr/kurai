@@ -1,10 +1,10 @@
 """The start of a listener who hasn't played anything yet: what they said they like (styles of the library, their own
-words) as a first taste, and the library's popular tracks (here, then in the world) for the wave.
+words) as a first taste, and the library's popular tracks (here, then in the world) for the pulse.
 The first taste joins the taste from listens as a prior that fades: it counts like PRIOR tracks, so it leads at first
 and is a hint once dozens of tracks are played (library.build_taste).
 
 The first taste is computed once, at start_asked_at, and stored on the User. It used to be re-drawn at random nightly,
-so a new user's wave swung for no reason and the top artists seeded «слушают вместе» from a different sample every
+so a new user's pulse swung for no reason and the top artists seeded «слушают вместе» from a different sample every
 night."""
 
 import logging

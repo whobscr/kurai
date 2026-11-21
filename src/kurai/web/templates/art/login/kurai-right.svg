@@ -5,7 +5,7 @@
   <path class="sc" d="M0 748 C40 740 80 720 120 690 L260 520 L360 640 L430 560 L600 760 V1000 H0 Z"/>
   <path class="sf" d="M260 520 L300 568 L276 562 L256 586 L232 556 Z" opacity=".8"/>
   <path class="pc" d="M0 878 C120 860 260 880 380 900 C480 916 560 910 600 900 V1000 H0 Z"/>
-  <!-- the wave arrives from the left edge and spreads -->
+  <!-- the pulse arrives from the left edge and spreads -->
   <path class="line" d="M0 425 C30 400 60 450 90 425 S150 400 180 425 S240 450 270 425" stroke-width="7"/>
   <path class="line soft" d="M0 390 C40 360 80 410 120 385 S200 350 240 380" stroke-width="7"/>
   <!-- birds -->

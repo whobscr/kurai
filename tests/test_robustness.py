@@ -64,7 +64,7 @@ async def test_one_failing_part_of_the_night_doesnt_stop_the_rest(db, monkeypatc
     monkeypatch.setattr(worker.library, "build_taste", ok)
     monkeypatch.setattr(worker.playlists, "nightly", ok)
     monkeypatch.setattr(worker.playlists, "remove_old", ok)
-    monkeypatch.setattr(worker.wave, "build", ok)
+    monkeypatch.setattr(worker.pulse, "build", ok)
     job = Job(kind="nightly", payload={})
     db.add(job)
     await db.commit()
@@ -233,7 +233,7 @@ async def test_a_secret_can_be_cleared(web, db):
     await settings.put(db, {"telegram.token": "123:abc"})
     await db.commit()
     await web.post("/admin/general", data={"csrf": token, "night.start": "06:00", "night.end": "10:00",
-                                          "ui.default_accent": "#6750a4", "ui.wave_art_hours": "1",
+                                          "ui.default_accent": "#6750a4", "ui.pulse_art_hours": "1",
                                           "ui.hero_art_hours": "24", "telegram.token.clear": "on"})
     db.expire_all()
     assert await settings.get(db, "telegram.token") == ""

@@ -17,7 +17,7 @@ Legend: **[bug]** confirmed defect · **[risk]** plausible failure, mechanism id
   rating. Kurai has no such rating and rebuilds taste from source nightly, so the document's
   most elaborate part (§8, θ/φ logits) is the part needed least.
 - **The mood feature layer already exists** (`tags.MOOD_HEADS`, `danceability`, `voice`, `bpm`,
-  `energy()`), and **the event log already exists** (`WaveEvent`, all apps). Mood needs no new
+  `energy()`), and **the event log already exists** (`PulseEvent`, all apps). Mood needs no new
   table and no re-indexing.
 - Two confirmed bugs corrupt the feedback any mood layer would sit on. Fix those first.
 - The plugin system is a clean hook registry with **no version-compatibility mechanism that
@@ -94,7 +94,7 @@ overlay that sync may not clobber. Any mood/feedback layer built on `Listen` inh
 ### 1.4 [bug] The onboarding prior is re-drawn at random every night
 `library.build_taste` → `start.first_taste` → `.order_by(func.random()).limit(STYLE_TRACKS)`,
 plus a fresh LLM embedding call, every night, forever. With `PRIOR = 10` a new user's taste is
-mostly prior, so their wave swings nightly for no reason. Worse: `top_artists` from that random
+mostly prior, so their pulse swings nightly for no reason. Worse: `top_artists` from that random
 sample becomes `Taste.top_artists` when nothing is learned → seeds `related.seeds_of` → a
 newcomer's entire ListenBrainz neighbourhood is rebuilt from a different random sample nightly.
 Fix: compute the first taste once at `start_asked_at` and store it.
@@ -111,7 +111,7 @@ Fix: add `Taste.audio_model`, mirror the text guard.
 Only guard is `count == 0`. `navidrome.songs()` pages until a short page, sorted
 `_sort=title&_order=ASC` — ties are unordered, so paging can skip rows, and a Navidrome rescan
 can legitimately return a partial library. Anything not seen gets
-`delete(Track).where(seen_at < started)`; `TrackAudio`, `Listen`, `WaveEvent` all cascade.
+`delete(Track).where(seen_at < started)`; `TrackAudio`, `Listen`, `PulseEvent` all cascade.
 On this box (4–5 s/track analysis) that is days of CPU lost to a transient partial response.
 Fix: page by `id` (unique, stable) instead of `title`; refuse the delete when the drop exceeds
 a fraction of the table, or mark unseen and purge after N consecutive syncs.
@@ -121,17 +121,17 @@ a fraction of the table, or mark unseen and purge after N consecutive syncs.
 the studio-album filter runs after. An artist whose first 100 groups are mostly compilations
 and live releases silently returns far fewer than 100 albums.
 
-### 1.8 [bug] `_unheard_wave` treats a failed job as "nothing new found"
-`player._unheard_wave`: `rebuilt_in_vain` accepts `status in ("done", "failed")`, so a DB error
+### 1.8 [bug] `_unheard_pulse` treats a failed job as "nothing new found"
+`player._unheard_pulse`: `rebuilt_in_vain` accepts `status in ("done", "failed")`, so a DB error
 makes the player replay already-heard tracks. Should be `done` with a `skipped` result only.
 
 ---
 
 ## 2. Retractions — do not act on my earlier advice here
 
-- **[retracted] "No play history outside the web player."** Wrong. `wave.Watcher` polls
+- **[retracted] "No play history outside the web player."** Wrong. `pulse.Watcher` polls
   Navidrome «now playing» every 15 s for *every* app and writes
-  `WaveEvent(user_id, track_id, skipped, seconds, at)`, kept 30 days. Do **not** build a
+  `PulseEvent(user_id, track_id, skipped, seconds, at)`, kept 30 days. Do **not** build a
   `PlayEvent` table. Mood at event time is reconstructable from the log; a stored snapshot is
   a convenience, not a blocker.
 - **[retracted] "The mood doc's z-score is in a different unit than your corrections."**
@@ -149,7 +149,7 @@ makes the player replay already-heard tracks. Should be `done` with a `skipped` 
 - **[retracted] "`player.event` double-counts."** `report()` zeroes `played` and returns early
   when `played < 1`, so the client guards against firing twice. No server-side dedupe exists,
   so a retried POST would still double-count — latent, not observed.
-- **[retracted] "`artist_gap` isn't kept across wave versions."** `player.js spaced()` runs in
+- **[retracted] "`artist_gap` isn't kept across pulse versions."** `player.js spaced()` runs in
   both `start()` and `refresh()`, against the last `gap` tracks played including the current
   one. And `arrange`'s crowded-artist lookahead was added in 1.8.2 precisely to stop tail
   adjacency.
@@ -165,7 +165,7 @@ decay; explicit/implicit weighting in `listen_weight`. Candidate source labels p
 ## 3. Performance — two easy wins that fund everything else
 
 ### 3.1 [perf] `retrieval.joint()` recomputes library means on every call
-`func.avg(func.l2_normalize(col))` over every valid row, per space. Called by `wave.plan` on
+`func.avg(func.l2_normalize(col))` over every valid row, per space. Called by `pulse.plan` on
 every rebuild (every 4 min per listening user), plus every `plan_mixes`, `ask` and admin
 preview. At ~30k tracks × (1024 text + 1280 effnet + 512 clap) that is a few hundred MB read
 and ~10⁸ normalize ops per call, on the Postgres capped at ~1 CPU / 1 GB (decision G) and
@@ -175,7 +175,7 @@ shared with RealVelach. The means change only when the library or a model change
 ### 3.2 [perf] `mmr_select` recomputes norms in the innermost loop
 `normalize(c.vector)` and `normalize(s.vector)` are called for every (candidate, chosen) pair
 on every iteration: ≈ `count × pool × avg_chosen` ≈ 40 × 900 × 20 ≈ 700k iterations per part,
-each two `norm` calls plus a dot on a ~2800-dim vector, times up to 5 parts per wave.
+each two `norm` calls plus a dot on a ~2800-dim vector, times up to 5 parts per pulse.
 Precompute unit vectors once per pool and keep chosen as a matrix so redundancy is one
 `chosen_matrix @ unit` BLAS call. Note `j.item` already returns a unit vector when all spaces
 are present, so most of those norms are no-ops being paid for. Measure, but expect this and
@@ -208,7 +208,7 @@ three-year-old love has 30%. The negative term's relative influence grows monoto
 years — the opposite of an evolving taste.
 
 ### 4.3 [bug] `_anchors` groups against a stale representative, and force-absorbs outliers
-`wave._anchors`: `groups[best][0]` stays the *freshest* track's vector while the query is the
+`pulse._anchors`: `groups[best][0]` stays the *freshest* track's vector while the query is the
 mean of all members, so identity and direction diverge. Once `len(groups) >= ANCHORS`, a fifth
 unrelated direction is force-joined to its nearest group even at likeness 0.05 — silently
 mixing directions, the exact failure the separate-quotas design exists to prevent.
@@ -225,10 +225,10 @@ as one from 10 s ago, while positives decay with `session_half_life`. And `adjus
 ("several skips share a mood") until `away` carries weights.
 
 ### 4.6 [bug] Skipped tracks eat pool slots
-`candidates` filters `Listen.last_played >= since` in SQL, but `wave.recently_heard` also
-unions `WaveEvent` — and a skip Navidrome never counted as a play has no `Listen` row. Those
+`candidates` filters `Listen.last_played >= since` in SQL, but `pulse.recently_heard` also
+unions `PulseEvent` — and a skip Navidrome never counted as a play has no `Listen` row. Those
 are fetched into the 300 then dropped in Python. After a skip-heavy session a meaningful
-fraction of every pool is wasted. Push the `WaveEvent` exclusion into SQL.
+fraction of every pool is wasted. Push the `PulseEvent` exclusion into SQL.
 
 ### 4.7 [bug] `retrieval.seeds` takes `.limit(200)` with no `order_by`
 For several named artists with large discographies an arbitrary 200 rows may all come from one
@@ -236,7 +236,7 @@ of them, so «Спросить» silently gets one artist's sound. Sample per ar
 
 ### 4.8 [risk] «Слушают вместе» can starve at depth 1
 `related.refresh` keeps `KEEP=60` sorted by score across all depths; depth-2 entries accumulate
-score from many seeds and can crowd out depth-1 ones. If playlists use depth 2 and the wave
+score from many seeds and can crowd out depth-1 ones. If playlists use depth 2 and the pulse
 depth 1, `artists_for(taste, 1)` returns little. Keep per-depth quotas.
 
 ### 4.9 [design] Skip-label quality — the real mood prerequisite
@@ -254,17 +254,17 @@ The log exists; the labels are biased in specific directions:
 - `player.event` sets `skipped = disliked or seconds < …`, so a 👎 after a full play is logged
   as a skip. For mood attribution those are opposite cases. Add a flag (deriving it later from
   `Listen.rating` doesn't work — ratings change).
-- No source column, so wave-caused plays are indistinguishable from deliberate ones.
+- No source column, so pulse-caused plays are indistinguishable from deliberate ones.
   **`chosen` is already a parameter to `player.event` and is thrown away** — persisting it is
   one column and unlocks both the exposure-bias discount and a much stronger intent signal
   (a track sought out and finished ≫ a passive completion).
-- 30 days is short for daypart priors, and `_save` only prunes when a wave is saved. Keep raw
+- 30 days is short for daypart priors, and `_save` only prunes when a pulse is saved. Keep raw
   events 30 days and add a tiny nightly rollup (user × daypart × mood bucket × outcome).
 - Add absolute-time thresholds: `< 10 s` → ignore as accidental; `> 180 s and > 25%` → not a
   skip. `DEFAULT_DURATION = 240` is used when the client reports no duration.
 
 ### 4.10 [risk] Landmine for the mood work: popular candidates have 1-dim vectors
-`wave._popular` builds `Candidate(i, "", np.zeros(1), 0.0, "popular")`. Safe today **only**
+`pulse._popular` builds `Candidate(i, "", np.zeros(1), 0.0, "popular")`. Safe today **only**
 because `_between` runs after `arrange`. The moment you add mood continuity to ordering (mood
 doc §5.3) or score popular candidates at all, `np.dot` against a 2800-dim vector raises.
 Give them real vectors first.
@@ -280,16 +280,16 @@ count, not a successfully-embedded count.
 `artist_ids.look_up` runs in the worker. A module-level timestamp (like `navidrome._tokens`)
 is therefore **insufficient** — needs a DB lease or advisory lock. MusicBrainz bans for this.
 
-### 4.13 [design] Contamination path: mood → top_artists → related → 15 % of the wave
+### 4.13 [design] Contamination path: mood → top_artists → related → 15 % of the pulse
 `build_taste` appends to `artists` only when `w > 0` → `top_artists` → `Taste.top_artists` →
 `related.artists_for` → the «слушают вместе» share. One bad evening can reshuffle top artists,
-which reshuffles the ListenBrainz neighbourhood, which reshapes 15 % of the wave for days.
+which reshuffles the ListenBrainz neighbourhood, which reshapes 15 % of the pulse for days.
 Bigger and more persistent than the taste-vector damage; neither review mentions it.
 Fix: compute `top_artists` from explicit feedback and completions only, or smooth it over a
 longer window than the vector.
 
 ### 4.14 [design] Discount plays the system caused
-`WaveEvent` identifies wave plays; `Listen` comes from everywhere. Down-weight wave-originated
+`PulseEvent` identifies pulse plays; `Listen` comes from everywhere. Down-weight pulse-originated
 plays in `build_taste` (×0.5–0.7, explicit feedback untouched) to correct exposure bias. Needs
 4.9's source column. Concrete fix for the Qwen review's feedback-loop concern.
 
@@ -300,7 +300,7 @@ plays in `build_taste` (×0.5–0.7, explicit feedback untouched) to correct exp
   deviation is over-scaled — the pool query is more extreme than the scoring query, worst for
   mainstream taste near the library mean.
 - A track missing a space gets zeros there, shrinking its relevance toward 0: it can never be
-  a strong match. During indexing, unanalysed new music can't reach the top of the wave.
+  a strong match. During indexing, unanalysed new music can't reach the top of the pulse.
 - `popularity.track_score`: `artist.c.listens / 10` is Postgres **integer division** → ties at 0
   for artists under 10 listens.
 - `search._matches` escapes `%` and `_` but not `\`.
@@ -313,7 +313,7 @@ plays in `build_taste` (×0.5–0.7, explicit feedback untouched) to correct exp
   `Track.listens` — which `search._popular_first` puts first. A filler track on a popular album
   ranks as popular. Align the two.
 - `library.recent_listens` is one row per track, so «История» can't show repeats even though
-  `WaveEvent` has them.
+  `PulseEvent` has them.
 
 ### 4.16 [risk] `audio/models.py` operational notes
 - `_clap_audio` decodes the **whole file at 48 kHz**: a 20-minute track is ~230 MB of samples
@@ -370,7 +370,7 @@ What's actually wanted for "spikes" is a **session-level regime detector**, not 
 attribution: acceptance rate collapsing + no coherent accepted direction = "nothing fits right
 now". Response: damp *all* implicit negatives for that session and switch to comfort mode
 (raise familiar share, cut new/related, cap `skip_push`). Note `skip_push` on a bad day pushes
-the wave away from everything the user likes, since everything played is near their taste —
+the pulse away from everything the user likes, since everything played is near their taste —
 that guardrail is worth having regardless of mood.
 
 ### 5.3 [design] θ/φ online ratings fight the architecture
@@ -385,8 +385,8 @@ full weight. One function plus the event log. §11 is already satisfied: `Listen
 are Navidrome's own annotations, synced both ways.
 
 ### 5.4 Scope and knobs
-- **Mood is wave-only.** Nightly mixes have no session; `ask` already *is* an explicit mood
-  request (CLAP text + bpm/energy/vocals). Add params with `defaults={"wave": ...}` only — and
+- **Mood is pulse-only.** Nightly mixes have no session; `ask` already *is* an explicit mood
+  request (CLAP text + bpm/energy/vocals). Add params with `defaults={"pulse": ...}` only — and
   note `Mix.__getattr__` falls back to the first profile's default, so guard against playlists
   code reading them accidentally.
 - Ship **two** knobs (influence; reuse `session_half_life` for decay). Keep the rest as module
@@ -398,12 +398,12 @@ are Navidrome's own annotations, synced both ways.
 - Reuse the existing "now" directions for change detection rather than building a second
   detector: several comparable fresh directions = ambiguous mood = low confidence; one dominant
   fresh direction = high confidence.
-- **Do the wave→pulse rename before adding `mix.wave.mood_*` keys**, or write two settings
+- **Do the pulse→pulse rename before adding `mix.pulse.mood_*` keys**, or write two settings
   migrations.
 
 ### 5.5 What's genuinely worth taking from the doc
 Phase 0 (logging — but see 4.9: fix labels, don't build a log), shadow mode first, and
-**«Не сейчас» / "Not now"** as a `WaveEvent` kind that never touches Navidrome. Highest value
+**«Не сейчас» / "Not now"** as a `PulseEvent` kind that never touches Navidrome. Highest value
 per line of code in either document, and it gives *labelled* mood-mismatch events instead of
 inferred ones.
 
@@ -467,14 +467,14 @@ table yet" (first run → all on) from "couldn't read" (retry or fail closed).
 
 ### 7.4 [bug] Namespaces are convention only — a plugin can replace core behaviour
 Every merge is last-wins with no collision check:
-- `handlers() = {**HANDLERS, **plugins.jobs()}` → a plugin defining `jobs={"wave": …}`
-  **replaces the wave builder**.
+- `handlers() = {**HANDLERS, **plugins.jobs()}` → a plugin defining `jobs={"pulse": …}`
+  **replaces the pulse builder**.
 - `{**EVERY, **plugins.every()}` in `schedule()` → change a core job's interval.
 - `{**CORE_MANUAL_JOBS, **plugins.merged("manual_jobs")}` → relabel core buttons.
 - `merged()` is `out.update(getattr(p, attr))` → between plugins the alphabetically-last
   entry-point name wins, silently, for jobs, tabs, checks, apps.
 - `admin.tabs()` sandwiches plugin tabs between two slices of `CORE_TABS` at
-  `index("gateway")+1`, so a plugin tab named `wave`/`playlists`/`models`/`audio`/`gateway`/
+  `index("gateway")+1`, so a plugin tab named `pulse`/`playlists`/`models`/`audio`/`gateway`/
   `general` **overwrites the core tab**, while `users`/`apps`/`plugins`/`jobs` happen to be
   protected. An accident of dict ordering, not a policy. `fields(tab)` and `tab_docs(tab)`
   check plugin tabs first.
@@ -564,18 +564,18 @@ Unusually complete docs.
     nightly daypart rollup (4.9).
 15. `mood_of(a) -> ndarray | None` in `tags.py` next to `energy()`: two centered axes from the
     existing heads. Pure function, trivially testable (5.1).
-16. **Shadow mode**: compute session mood in `wave.plan`, put it in `Plan.result` beside
+16. **Shadow mode**: compute session mood in `pulse.plan`, put it in `Plan.result` beside
     `played`/`skips` so «Задачи» shows it. Verify skipped tracks score lower than completed
     ones. **If they don't, stop here.**
-17. «Не сейчас» in the web player as a `WaveEvent` kind that never touches Navidrome (5.5).
+17. «Не сейчас» in the web player as a `PulseEvent` kind that never touches Navidrome (5.5).
 18. Session regime detector + comfort mode (5.2).
-19. Soft bonus in `adjust`, in spread units, wave-only, not inside the related part (5.4).
+19. Soft bonus in `adjust`, in spread units, pulse-only, not inside the related part (5.4).
     Give popular candidates real vectors first (4.10).
 20. Context-weighted `listen_weight` at the nightly rebuild + `top_artists` from explicit
     feedback and completions only (5.3, 4.13).
 
 **Also worth doing:** `away` decay and weights (4.5); `_anchors` representative + outlier
-handling (4.3); repeat freshness (4.4); WaveEvent exclusion in SQL (4.6); per-artist seed
+handling (4.3); repeat freshness (4.4); PulseEvent exclusion in SQL (4.6); per-artist seed
 sampling (4.7); per-depth related quotas (4.8); MusicBrainz cross-process lease (4.12);
 `new_listener` signal (4.11); `rebuild_minutes`/rename sequencing (5.4).
 

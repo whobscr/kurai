@@ -69,11 +69,11 @@ def _plugin_globals() -> None:
 # a login scene is a pair of pictures, «<name>-left.svg» and «<name>-right.svg», joined by a line across the form
 LOGIN_SCENES = sorted(p.stem.removesuffix("-left") for p in (ROOT / "templates" / "art" / "login").glob("*-left.svg"))
 DOODLES = sorted(p.stem for p in (ROOT / "templates" / "art" / "doodles").glob("*.svg"))
-# the pictures that take turns: «Моя волна»'s card (wave) and every page's band (hero); a picture is an SVG or, for
+# the pictures that take turns: «Пульс»'s card (pulse) and every page's band (hero); a picture is an SVG or, for
 # Material's shapes, a bit of HTML
 ART_POOLS = {pool: sorted(p.name for p in (ROOT / "templates" / "art" / pool).iterdir()
                           if p.suffix in (".svg", ".html"))
-             for pool in ("wave", "hero")}
+             for pool in ("pulse", "hero")}
 
 
 def art_hours(values: dict[str, Any]) -> dict[str, float]:

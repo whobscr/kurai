@@ -131,7 +131,7 @@ def mmr_select(candidates: list[Candidate], count: int, diversity: float = 0.35,
     returns it with up to `count` more.
 
     The unit vectors are made once and the redundancy is one matrix product: they used to be recomputed for every
-    (candidate, chosen) pair at every step — some 700k norms per part of a wave."""
+    (candidate, chosen) pair at every step — some 700k norms per part of a pulse."""
     chosen = list(chosen or [])
     taken = {c.id for c in chosen}
     per_artist: dict[str, int] = {}
@@ -210,7 +210,7 @@ def compose(parts: list[tuple[list[Candidate], int]], size: int, diversity: floa
     mix: no repeats, the artists counted): returns it with up to `size` more.
 
     `relax`: the limit per artist is the last thing to hold. It used to be absolute, so a pool of three artists gave
-    a six-track wave instead of forty; now it rises until the mix is full or the candidates run out. Pass False to
+    a six-track pulse instead of forty; now it rises until the mix is full or the candidates run out. Pass False to
     keep it absolute."""
     chosen = list(chosen or [])
     goal = len(chosen) + size

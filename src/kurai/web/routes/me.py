@@ -126,7 +126,7 @@ async def telegram_unlink(ctx: Ctx = Depends(user_required)):
 @router.post("/start")
 async def start_styles(request: Request, ctx: Ctx = Depends(user_required)):
     """What the user likes, before (or instead of) listening: styles of the library and their own words; «Пропустить»
-    saves only that they were asked. The wave is made anew from the answers."""
+    saves only that they were asked. The pulse is made anew from the answers."""
     form = await request.form()
     back = RedirectResponse("/me#start" if form.get("back") == "me" else "/", 303)
     if not form.get("skip"):
@@ -139,8 +139,8 @@ async def start_styles(request: Request, ctx: Ctx = Depends(user_required)):
             await start.store(ctx.db, ctx.user, taste)
         else:
             await start.clear(ctx.db, ctx.user)
-        await queue.enqueue(ctx.db, "wave", {"retaste": True}, user_id=ctx.user.id, priority=20,
-                            dedupe_key=f"wave-start:{ctx.user.id}")
+        await queue.enqueue(ctx.db, "pulse", {"retaste": True}, user_id=ctx.user.id, priority=20,
+                            dedupe_key=f"pulse-start:{ctx.user.id}")
     ctx.user.start_asked_at = datetime.now(UTC)
     await ctx.db.commit()
     return back
@@ -177,7 +177,7 @@ async def forget(request: Request, sure: str = Form(""), ctx: Ctx = Depends(user
     except NavidromeError as e:
         await ctx.db.rollback()
         return await _page(request, ctx, message=_("Не получилось: {e}. Попробуйте ещё раз.").format(e=e))
-    return await _page(request, ctx, message=_("Прослушивания забыты. «Моя волна» собирается заново — из того, что "
+    return await _page(request, ctx, message=_("Прослушивания забыты. «Пульс» собирается заново — из того, что "
                                                "вы указали в «Что вы любите слушать»."))
 
 
