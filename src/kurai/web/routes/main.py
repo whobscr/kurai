@@ -1,5 +1,5 @@
-"""The pages every user has: «Для вас» (the pulse's big button, the playlists, notifications), «Спросить», «История», and
-the PWA's share target."""
+"""The pages every user has: «Для вас» (the pulse's big button, the playlists, notifications), «Спросить», «История»,
+ and the PWA's share target."""
 
 from urllib.parse import quote
 

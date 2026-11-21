@@ -93,7 +93,8 @@ async def forget_listens(db: AsyncSession, user: User) -> None:
             await playlists.write(db, user, playlist)
         except NavidromeError as e:  # the next version of it is written anyway
             log.warning("playlist %s not written into the new account: %s", playlist.id, e)
-    await queue.enqueue(db, "pulse", {"retaste": True}, user_id=user.id, priority=20, dedupe_key=f"pulse-start:{user.id}")
+    await queue.enqueue(db, "pulse", {"retaste": True}, user_id=user.id, priority=20,
+     dedupe_key=f"pulse-start:{user.id}")
     await db.commit()
 
 
