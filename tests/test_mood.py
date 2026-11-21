@@ -121,3 +121,50 @@ def test_shadow_gate_needs_two_completions():
     out = shadow_correlation([_event(False, 1, "c"), _event(True, 1, "s")],
                              {"c": v, "s": np.array([0.99, 0.14], dtype=np.float32)}, 45, NOW)
     assert out["passes"] is False  # one completion can't define the mood it is scored against
+
+
+async def test_track_vectors_uses_only_current_effnet_model(db, monkeypatch):
+    from kurai.audio import EFFNET_MODEL
+    from kurai.db.models import TrackAudio
+    from kurai.recommend import mood
+
+    mean = np.array([0.0, 0.0], dtype=np.float32)
+    std = np.array([1.0, 1.0], dtype=np.float32)
+
+    async def fake_read_stats(db):
+        return mean, std
+
+    monkeypatch.setattr(mood, "read_stats", fake_read_stats)
+
+    # Create two analyses of the same track from different model versions.
+    db.add_all([
+        TrackAudio(
+            track_id="model-test",
+            effnet_model=EFFNET_MODEL,
+            moods={"happy": 0.9, "sad": 0.1},
+            danceability=0.8,
+            voice=0.5,
+            error=None,
+        ),
+        TrackAudio(
+            track_id="model-test",
+            effnet_model="old-model",
+            moods={"happy": 0.1, "sad": 0.9},
+            danceability=0.2,
+            voice=0.5,
+            error=None,
+        ),
+    ])
+    await db.flush()
+
+    vectors = await mood.track_vectors(db, {"model-test"})
+
+    assert "model-test" in vectors
+
+    expected = mood.centered(
+        mood.mood_of_tags({"happy": 0.9, "sad": 0.1}, 0.8, 0.5),
+        mean,
+        std,
+    )
+    np.testing.assert_allclose(vectors["model-test"], expected)
+

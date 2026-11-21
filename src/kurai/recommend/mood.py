@@ -97,9 +97,18 @@ async def track_vectors(db: AsyncSession, ids: set[str]) -> dict[str, np.ndarray
     if stats is None:
         return {}
     mean, std = stats
-    rows = (await db.execute(select(TrackAudio.track_id, TrackAudio.moods, TrackAudio.danceability,
-                                     TrackAudio.voice).where(TrackAudio.track_id.in_(list(ids)),
-                                                             TrackAudio.error.is_(None)))).all()
+    rows = (await db.execute(
+        select(
+            TrackAudio.track_id,
+            TrackAudio.moods,
+            TrackAudio.danceability,
+            TrackAudio.voice,
+        ).where(
+            TrackAudio.track_id.in_(list(ids)),
+            TrackAudio.effnet_model == EFFNET_MODEL,
+            TrackAudio.error.is_(None),
+        )
+    )).all()
     out: dict[str, np.ndarray] = {}
     for tid, moods, dance, voice in rows:
         raw = mood_of_tags(moods, dance, voice)
