@@ -93,3 +93,85 @@ def test_shadow_gate_needs_both_sides():
     events = [_event(False, 1, "c1"), _event(False, 2, "c2")]
     out = shadow_correlation(events, {"c1": fit, "c2": fit}, 45, NOW)
     assert out["passes"] is False  # no skips to compare against
+
+
+def test_centered_floor_and_noise():
+    from kurai.recommend.mood import centered
+    mean = np.array([0.0, 0.2], dtype=np.float32)
+    std = np.array([0.2, 0.2], dtype=np.float32)
+    assert centered(np.array([0.0, 0.2]), mean, std) is None          # neutral
+    assert centered(np.array([0.001, 0.2]), mean, std) is None        # noise
+    v = centered(np.array([0.5, 0.2]), mean, std)
+    assert v is not None and abs(float(np.linalg.norm(v)) - 1) < 1e-5
+
+
+def test_coherence_is_freshness_weighted():
+    v = np.array([1.0, 0.0], dtype=np.float32)
+    m = session_mood([_event(False, 1, "f"), _event(False, 179, "o")], {"f": v, "o": -v}, 45, NOW)
+    assert m.confidence > 0.2  # an opposite track at the session edge no longer zeroes confidence
+
+
+def test_bad_day_without_mood_coverage():
+    events = [_event(True, i, f"s{i}") for i in range(1, 6)] + [_event(False, 1, "a")]
+    assert session_mood(events, {}, 45, NOW).regime == "bad_day"
+
+
+def test_shadow_gate_needs_two_completions():
+    v = np.array([1.0, 0.0], dtype=np.float32)
+    out = shadow_correlation([_event(False, 1, "c"), _event(True, 1, "s")],
+                             {"c": v, "s": np.array([0.99, 0.14], dtype=np.float32)}, 45, NOW)
+    assert out["passes"] is False  # one completion can't define the mood it is scored against
+
+
+async def test_track_vectors_filters_current_effnet_model(db, monkeypatch):
+    from kurai.audio import EFFNET_MODEL
+    from kurai.recommend import mood
+
+    mean = np.array([0.0, 0.0], dtype=np.float32)
+    std = np.array([1.0, 1.0], dtype=np.float32)
+
+    async def fake_read_stats(_db):
+        return mean, std
+
+    monkeypatch.setattr(mood, "read_stats", fake_read_stats)
+
+    executed_statements = []
+
+    class FakeResult:
+        def all(self):
+            return [
+                (
+                    "model-test",
+                    {"happy": 0.9, "sad": 0.1},
+                    0.8,
+                    0.5,
+                )
+            ]
+
+    async def fake_execute(statement):
+        executed_statements.append(statement)
+        return FakeResult()
+
+    monkeypatch.setattr(db, "execute", fake_execute)
+
+    vectors = await mood.track_vectors(db, {"model-test"})
+
+    assert "model-test" in vectors
+    assert len(vectors) == 1
+
+    # Ensure the query filters out analyses produced by older models.
+    sql = str(executed_statements[0])
+    assert "effnet_model" in sql
+    assert EFFNET_MODEL in executed_statements[0].compile().params.values()
+
+    expected = mood.centered(
+        mood.mood_of_tags(
+            {"happy": 0.9, "sad": 0.1},
+            0.8,
+            0.5,
+        ),
+        mean,
+        std,
+    )
+    np.testing.assert_allclose(vectors["model-test"], expected)
+

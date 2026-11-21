@@ -42,6 +42,8 @@ CORE_RESERVED_JOBS = {"nightly", "sync_library", "embed_new", "sync_listens", "a
                       "wave", "popularity", "artist_ids", "analyze_audio"}
 CORE_RESERVED_CHECKS = {"telegram", "llm", "embed", "audio", "public_data", "musicbrainz", "webpush", "models"}
 CORE_ADMIN_TABS = {"general", "wave", "playlists", "models", "audio", "gateway", "users", "apps", "plugins", "jobs"}
+# keep in sync with worker.EVERY: a plugin must not change a core job's interval
+CORE_RESERVED_EVERY = {"sync_library", "sync_listens", "embed_new", "popularity", "artist_ids"}
 
 
 @dataclass(frozen=True)
@@ -76,7 +78,7 @@ class Plugin:
     title: str = ""
     description: str = ""
     # a PEP 440 specifier the running Kurai must satisfy; on mismatch the plugin is not loaded
-    requires: str = ""
+    requires: str = ">=1,<2"
     settings: Callable[[], dict[str, Any]] = dict
     secret_keys: frozenset[str] = frozenset()
     outbound: dict[str, str] = field(default_factory=dict)
@@ -126,6 +128,13 @@ def _check_collisions(p: Plugin) -> str | None:
         return f"check {kind!r} is reserved by Kurai core"
     for kind in (p.admin_tabs.keys() & CORE_ADMIN_TABS):
         return f"admin tab {kind!r} is reserved by Kurai core"
+    for kind in (p.every.keys() & CORE_RESERVED_EVERY):
+        return f"recurring job {kind!r} is reserved by Kurai core"
+    for kind in (p.manual_jobs.keys() & CORE_RESERVED_JOBS):
+        return f"manual job {kind!r} is reserved by Kurai core"
+    for kind in p.on_start:
+        if kind not in p.jobs:
+            return f"on_start job {kind!r} is not one of the plugin's own jobs"
     return None
 
 
@@ -148,22 +157,18 @@ def _load_all() -> tuple[Plugin, ...]:
     for ep in sorted(entry_points(group=GROUP), key=lambda e: e.name):
         try:
             p = ep.load()
+            if not isinstance(p, Plugin):
+                failures[ep.name] = f"entry point is {type(p).__name__}, not Plugin"
+                continue
+            reason = (_check_requires(ep.name, p.requires) or _check_collisions(p)
+                      or _check_settings_prefix(p))
+            if reason:
+                failures[ep.name] = reason
+                continue
+            out.append(p)
         except Exception as e:
             failures[ep.name] = f"load: {e.__class__.__name__}: {e}"
             continue
-        if not isinstance(p, Plugin):
-            failures[ep.name] = f"entry point is {type(p).__name__}, not Plugin"
-            continue
-        if reason := _check_requires(ep.name, p.requires):
-            failures[ep.name] = reason
-            continue
-        if reason := _check_collisions(p):
-            failures[ep.name] = reason
-            continue
-        if reason := _check_settings_prefix(p):
-            failures[ep.name] = reason
-            continue
-        out.append(p)
     _loaded = tuple(out)
     _load_failures = failures
     return _loaded
@@ -210,7 +215,9 @@ def disabled() -> frozenset[str]:
     except Exception as e:
         if "does not exist" not in str(e).lower() and "no such table" not in str(e).lower():
             log.error("plugin switches not read: %s", e)
-        return frozenset()
+            disabled.last_read_ok = False
+            return frozenset()
+    disabled.last_read_ok = True
     _disabled_cache = frozenset(value or ())
     return _disabled_cache
 
@@ -218,11 +225,11 @@ def disabled() -> frozenset[str]:
 disabled.cache_clear = _disabled_cache_clear  # the restart simulation in tests; plugins() has the same via lru_cache
 
 
-def _load_plugins() -> tuple[Plugin, ...]:
-    """The plugins switched on: everything the core asks them about."""
+def _load_plugins() -> tuple[Plugin, ...] | None:
     off = disabled()
+    if not disabled.last_read_ok:
+        return None  # couldn't read the switches: fail closed for this call, retry on the next
     return tuple(p for p in installed() if p.name not in off)
-    _plugins_cache: tuple | None = None
 
 
 _plugins_cache: tuple | None = None
@@ -234,11 +241,12 @@ def _plugins_cache_clear() -> None:
 
 
 def plugins() -> tuple:
-    """The loaded plugins, once per process: the web and the worker restart to apply a switch change, so the cache
-    lives until the restart (the test simulates a new process by clearing this cache and disabled()'s)."""
     global _plugins_cache
     if _plugins_cache is None:
-        _plugins_cache = _load_plugins()
+        loaded = _load_plugins()
+        if loaded is None:
+            return ()
+        _plugins_cache = loaded
     return _plugins_cache
 
 

@@ -282,7 +282,8 @@ async def save(request: Request, tab: str, ctx: Ctx = Depends(admin_required)):
             await queue.enqueue(ctx.db, "wave", {"retaste": True}, user_id=user.id, priority=30,
                                 dedupe_key=f"wave:{user.id}")
     # an embedding or audio model changed: refresh the cached space means now so the next recommendation uses them
-    if tab in ("models", "audio") and any(k in values for k in ("embed.model", "audio.enabled", "audio.clap")):
+    if tab in ("models", "audio") and any(values.get(k) != before.get(k)
+                                          for k in ("embed.model", "audio.enabled", "audio.clap")):
         try:
             await retrieval.refresh_means(ctx.db)
         except Exception as e:

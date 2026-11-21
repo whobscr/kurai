@@ -25,6 +25,7 @@ DAYTIME_EMBED_LIMIT = 200
 # the audio analysis (when it's on): new imports during the day, the backlog at night
 AUDIO_EVERY = timedelta(minutes=30)
 JOB_TIMEOUT_S = 3600  # one hour: a hanging job must not stop the queue
+LONG_JOBS = {"nightly", "analyze_audio"}
 
 
 class PartialFailure(Exception):
@@ -84,25 +85,6 @@ async def _nightly(db, job: Job) -> dict:
     for plugin in plugins.plugins():
         for name, fn in plugin.nightly:
             await plugin_step(name, fn)
-    await step("old_playlists_removed", lambda: playlists.remove_old(db))
-    await step("old_sessions_removed", lambda: accounts.prune_sessions(db))
-    await step("old_jobs_removed", lambda: queue.prune(db))
-    if failed:
-        raise PartialFailure(failed, result)
-    return result
-
-    async def plugin_step(name: str, run) -> None:
-        """Plugin step in its own session: its failures don't touch the nightly session."""
-        try:
-            async with database.session() as plugin_db:
-                result[name] = await run(plugin_db)
-        except Exception as e:
-            log.exception("plugin step %s failed", name)
-            failed.append(f"{name}: {str(e) or e.__class__.__name__}")
-
-    for plugin in plugins.plugins():
-        for name, plugin_step in plugin.nightly:
-            await plugin_step(name, plugin_step)
     await step("old_playlists_removed", lambda: playlists.remove_old(db))
     await step("old_sessions_removed", lambda: accounts.prune_sessions(db))
     await step("old_jobs_removed", lambda: queue.prune(db))
@@ -181,34 +163,41 @@ def handlers() -> dict:
 
 
 async def run_one(job_id: int) -> None:
-    """Run a single job with a per-job timeout. A hanging job is cancelled and marked failed rather than stopping the
-    queue."""
+    """Run a job with a per-job timeout (whole-library jobs excepted). A hanging job is cancelled and marked failed
+    rather than stopping the queue; the failure is recorded in a fresh session so a broken one can't lose it."""
     async with database.session() as db:
         job = await db.get(Job, job_id)
         kind = job.kind
         handler = handlers().get(kind)
+        timeout = None if kind in LONG_JOBS else JOB_TIMEOUT_S
+        ask_user = job.user_id if kind == "ask" else None
+        chat = (job.payload or {}).get("reply_to")
+        error, partial = None, None
         try:
             if handler is None:
                 raise ValueError(_("неизвестная задача {kind}").format(kind=kind))
-            result = await asyncio.wait_for(handler(db, job), timeout=JOB_TIMEOUT_S)
+            result = await asyncio.wait_for(handler(db, job), timeout=timeout)
             await queue.finish(db, job, result if isinstance(result, dict) else {"result": result})
+            return
         except TimeoutError:
-            log.error("job %s (%s) timed out after %s s", job_id, kind, JOB_TIMEOUT_S)
-            await db.rollback()
-            job = await db.get(Job, job_id)
-            await queue.finish(db, job, error=f"timed out after {JOB_TIMEOUT_S} s")
-        except Exception as e:  # a job's failure is recorded for the admin page, the worker goes on
+            log.error("job %s (%s) timed out after %s s", job_id, kind, timeout)
+            error = f"timed out after {timeout} s"
+        except Exception as e:
             log.exception("job %s (%s) failed", job_id, kind)
+            error = (str(e) or e.__class__.__name__)[:2000]
+            partial = e.result if isinstance(e, PartialFailure) else None
+        try:
             await db.rollback()
-            job = await db.get(Job, job_id)
-            message = str(e) or e.__class__.__name__
-            await queue.finish(db, job, e.result if isinstance(e, PartialFailure) else None, error=message[:2000])
-            if job.kind == "ask" and job.user_id:
-                text = _("Не получилось: {message}").format(message=message[:300])
-                chat = job.payload.get("reply_to")
-                await notify(db, job.user_id, text, "/ask", telegram=not chat)
-                if chat:
-                    await send_telegram(db, chat, text)
+        except Exception:
+            log.warning("rollback after job %s failed; finishing in a fresh session", job_id)
+    async with database.session() as db:
+        job = await db.get(Job, job_id)
+        await queue.finish(db, job, partial, error=error)
+        if ask_user:
+            text = _("Не получилось: {message}").format(message=error[:300])
+            await notify(db, ask_user, text, "/ask", telegram=not chat)
+            if chat:
+                await send_telegram(db, chat, text)
 
 
 async def schedule(now: datetime) -> bool:
@@ -261,7 +250,11 @@ async def lane(interactive: bool, state: dict) -> None:
 
 async def plugins_switched(db) -> bool:
     """Whether the plugins' switches changed since this process started (it then restarts to pick them up)."""
-    return frozenset(await settings.get(db, plugins.DISABLED_KEY)) != plugins.disabled()
+    saved = frozenset(await settings.get(db, plugins.DISABLED_KEY))
+    off = plugins.disabled()
+    if not plugins.disabled.last_read_ok:
+        return False
+    return saved != off
 
 
 async def scheduler(state: dict) -> None:

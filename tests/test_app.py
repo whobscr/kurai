@@ -422,9 +422,9 @@ async def test_wave_follows_plays_and_skips(db, navidrome):
 
     now = datetime.now(UTC)
     # she plays two calm tracks on and skips two loud ones: the first wave is due at once
-    events = [("wava", "w0", False, 190, False, False), ("wava", "w1", False, 200, False, False),
-              ("wava", "w12", True, 10, False, False), ("wava", "w13", True, 8, False, False),
-              ("someone", "w2", False, 200, False, False), ("wava", "unknown", False, 100, False, False)]
+    events = [("wava", "w0", False, 190, False, False, False), ("wava", "w1", False, 200, False, False, False),
+              ("wava", "w12", True, 10, False, False, False), ("wava", "w13", True, 12, False, False, False),
+              ("someone", "w2", False, 200, False, False, False), ("wava", "unknown", False, 100, False, False, False)]
     assert await wave.record(db, events, now) == [user.id]
     stored = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars().all()
     assert len(stored) == 4  # not other people's, not unknown tracks
@@ -444,7 +444,7 @@ async def test_wave_follows_plays_and_skips(db, navidrome):
     job.status = "done"
     await db.commit()
     assert not await wave.due(db, user, now + timedelta(minutes=1))
-    await wave.record(db, [("wava", "w2", True, 5, False, False)], now + timedelta(minutes=5))
+    await wave.record(db, [("wava", "w2", True, 15, False, False, False)], now + timedelta(minutes=5))
     assert await wave.due(db, user, now + timedelta(minutes=5))  # a skip after the gap
     await wave.build(db, user)
     assert (await db.execute(select(func.count()).select_from(Playlist).where(
@@ -712,7 +712,7 @@ async def test_the_web_player_plays_the_wave_and_reports_plays_and_skips(client,
 
     form = {"X-CSRF-Token": token}
     played = await client.post("/player/event", json={"track_id": "p2", "seconds": 190}, headers=form)
-    skipped = await client.post("/player/event", json={"track_id": "p0", "seconds": 9}, headers=form)
+    skipped = await client.post("/player/event", json={"track_id": "p0", "seconds": 15}, headers=form)
     assert played.json()["skipped"] is False and skipped.json()["skipped"] is True
     assert navidrome.scrobbles == [("pia", "p2")]  # only a play counts in Navidrome
     events = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == pia.id))).scalars().all()

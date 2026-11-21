@@ -242,6 +242,7 @@ class WaveEvent(Base):
     seconds: Mapped[int] = mapped_column(Integer)  # how long it played
     chosen: Mapped[bool] = mapped_column(Boolean, default=False)
     disliked: Mapped[bool] = mapped_column(Boolean, default=False)
+    not_now: Mapped[bool] = mapped_column(Boolean, default=False)  # «Не сейчас»: a mood mismatch, not a dislike
     at: Mapped[datetime] = _now()
 
 

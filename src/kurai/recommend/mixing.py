@@ -24,6 +24,8 @@ from kurai.recommend.vectors import Candidate, adjust, arrange, compose, spread
 PROFILES = {"wave": _("«Моя волна»"), "playlists": _("Плейлисты")}
 # a resting artist let back in (others ran short): this many spreads lower, so after everyone else
 REST_LAST = 10
+BAD_DAY_PUSH = 0.25    # comfort mode: a bad day's skip_push is capped (it otherwise pushes away from everything liked)
+BAD_DAY_SHARE = 0.5    # comfort mode: halve the new and related shares, lean on the familiar
 
 
 @dataclass(frozen=True)
@@ -259,22 +261,23 @@ def choose(pool: list[Candidate], near: list[Candidate], known: set[str], mix: M
     cut = statistics.median(c.relevance for c in base) if base else 0.0
     fits = {c.id for c in base if c.relevance >= cut}
     scale = spread(pool + near)
-    push = mix.skip_push if away else 0.0
+    comfort = mood is not None and mood.regime == "bad_day"
+    push = (mix.skip_push * BAD_DAY_PUSH if comfort else mix.skip_push) if away else 0.0
     pool = adjust(pool, mix.randomness, resting, REST_LAST, rng, scale, away, push)
     near = adjust(near, mix.randomness, resting, REST_LAST, rng, scale, away, push)
     if mood is not None and mood_strength > 0 and track_moods:
         def _mooded(c: Candidate) -> Candidate:
             bonus = moodmod.mood_bonus(track_moods.get(c.id), mood, mood_strength)
             return replace(c, relevance=c.relevance + bonus * scale)
+        # the «слушают вместе» part (near) is deliberately NOT mooded: that share exists to be off-taste
         pool = sorted((_mooded(c) for c in pool), key=lambda c: -c.relevance)
-        near = sorted((_mooded(c) for c in near), key=lambda c: -c.relevance)
     new = [replace(c, kind="new") for c in pool if c.id not in known]
     old = [replace(c, kind="known") for c in pool if c.id in fits and c.id in known]
     rest = [replace(c, kind="known") for c in pool if c.id not in fits and c.id in known]
-    # the related artists' tracks the user hasn't heard come first: that's what they're mixed in for
     near = [replace(c, kind="related") for c in sorted(near, key=lambda c: (c.id in known, -c.relevance))]
-    n_related = round(size * mix.related_share) if near else 0
-    n_new = round(size * mix.new_share)
+    share = BAD_DAY_SHARE if comfort else 1.0
+    n_related = round(size * mix.related_share * share) if near else 0
+    n_new = round(size * mix.new_share * share)
     parts = [(near, n_related), (new, n_new), (old, max(0, size - n_related - n_new)), (rest, 0)]
     return compose(parts, size, mix.variety, mix.artist_max, chosen, relax=True)
 

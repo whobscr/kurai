@@ -15,6 +15,7 @@ from kurai import settings
 from kurai.artists import artist_key
 from kurai.audio import CLAP_MODEL, EFFNET_MODEL
 from kurai.db.models import Listen, SpaceMean, Track, TrackAudio, User
+from kurai.recommend import mood as moodmod
 from kurai.recommend.vectors import Candidate, Joint, mean_unit, weights_of
 
 POOL = 300
@@ -51,8 +52,8 @@ def language_filter(scripts: Collection[str] = (), letters: str = "", tags: Coll
         conditions.append(written)
     genres = cast(Track.genres, Text)
     for tag in {t.strip().casefold() for t in tags if t.strip()}:
-                conditions.append(genres.ilike("%" + tag.replace("\\", "\\\\").replace("%", "\\%")
-                .replace("_", "\\_") + "%"))
+        conditions.append(genres.ilike("%" + tag.replace("\\", "\\\\").replace("%", "\\%")
+                                       .replace("_", "\\_") + "%"))
     return or_(*conditions) if conditions else None
 
 
@@ -129,6 +130,7 @@ async def refresh_means(db: AsyncSession) -> dict:
             (SpaceMean.space == space) & (SpaceMean.model == model)))
         db.add(SpaceMean(space=space, model=model, vector=mean.tolist(), computed_at=datetime.now(UTC)))
         written[space] = model
+    await moodmod.refresh_stats(db)
     await db.commit()
     return written
 

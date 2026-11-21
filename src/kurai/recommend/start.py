@@ -73,8 +73,20 @@ async def first_taste(db: AsyncSession, user: User, recompute: bool = False) -> 
     except Exception as e:
         log.info("the answers not embedded: %s", e)
     top = top_artists(artists)
-    return {"text": text_vector, "sound": mean_unit(sound), "top_artists": top,
-            "text_model": model_name, "audio_model": EFFNET_MODEL}
+    result = {"text": text_vector, "sound": mean_unit(sound), "top_artists": top,
+              "text_model": model_name, "audio_model": EFFNET_MODEL}
+    await store(db, user, result)  # persist here too: a model change must not re-draw the prior at random nightly
+    return result
+
+
+async def clear(db: AsyncSession, user: User) -> None:
+    """Drop the stored first taste (the answers were cleared). Commit is the caller's."""
+    user.start_text_vector = None
+    user.start_audio_vector = None
+    user.start_top_artists = []
+    user.start_text_model = None
+    user.start_audio_model = None
+    db.add(user)
 
 
 async def _read_stored(db: AsyncSession, user: User) -> dict | None:
