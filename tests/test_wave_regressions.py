@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
+from datetime import timedelta
 from kurai.db.models import Track, User, WaveEvent
 from kurai.recommend import wave
 
