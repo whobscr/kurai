@@ -28,6 +28,7 @@ async def test_record_stores_external_app_events_by_username(db):
     assert events["watcher-t2"].chosen and events["watcher-t2"].disliked
     assert queued == [user.id]
     # an accidental sub-floor skip is not stored
-    await wave.record(db, [("watcher-ann", "watcher-t1", True, 5, False, False, False)], now)
-    assert len((await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars().all()) =
-    assert queued == [user.id]  # no wave playlist yet: a rebuild is due
+    queued2 = await wave.record(db, [("watcher-ann", "watcher-t1", True, 5, False, False, False)], now)
+    stored = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars().all()
+    assert len(stored) == 2
+    assert queued2 == []  # nothing stored -> no rebuild queued
