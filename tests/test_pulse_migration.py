@@ -65,8 +65,8 @@ def _seed(engine):
     with engine.begin() as conn:
         user_id = conn.execute(
             text("""
-                INSERT INTO users (username, password_hash)
-                VALUES ('pulse-migration-user', 'test-hash') RETURNING id
+                INSERT INTO users (username, display_name, password_hash)
+                VALUES ('pulse-migration-user', 'Pulse migration test', 'test-hash') RETURNING id
             """)
         ).scalar_one()
 
@@ -118,6 +118,18 @@ def _seed(engine):
             """),
             {"uid": user_id, "dedupe": f"wave:{user_id}"},
         ).scalar_one()
+
+        # Remove destination defaults so this test checks a clean rename.
+        # The separate conflict test verifies what happens when both keys exist.
+        conn.execute(text("""
+            DELETE FROM settings WHERE key IN (
+                'pulse.enabled',
+                'mix.pulse.mood',
+                'mix.pulse.session_hours',
+                'mix.pulse.size',
+                'ui.pulse_art_hours'
+            )
+        """))
 
         # Current code has three persisted namespaces to rename.
         conn.execute(text("""
@@ -284,9 +296,17 @@ def test_new_settings_values_win_when_both_namespaces_exist(migration_schema):
         conn.execute(text("""
             INSERT INTO settings (key, value) VALUES
                 ('wave.enabled', 'true'::jsonb),
+                ('mix.wave.size', '40'::jsonb)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """))
+
+        # Destination keys can already be present in defaults from revision 0017.
+        # Set their values explicitly for this conflict-policy test.
+        conn.execute(text("""
+            INSERT INTO settings (key, value) VALUES
                 ('pulse.enabled', 'false'::jsonb),
-                ('mix.wave.size', '40'::jsonb),
                 ('mix.pulse.size', '60'::jsonb)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
         """))
 
     command.upgrade(cfg, "head")
