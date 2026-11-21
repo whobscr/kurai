@@ -10,7 +10,7 @@ those («Reverse proxy», «Backups»).
 
 ## Setting up
 
-Run these from this folder, on a checkout of the release you deploy (`git checkout v1.12.1`): the compose file and
+Run these from this folder, on a checkout of the release you deploy (`git checkout v1.12.2`): the compose file and
 `.env.example` are taken from it.
 
 ```sh
