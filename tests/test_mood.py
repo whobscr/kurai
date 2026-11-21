@@ -97,7 +97,8 @@ def test_shadow_gate_needs_both_sides():
 
 def test_centered_floor_and_noise():
     from kurai.recommend.mood import centered
-    mean = np.array([0.0, 0.2], dtype=np.float32); std = np.array([0.2, 0.2], dtype=np.float32)
+    mean = np.array([0.0, 0.2], dtype=np.float32)
+    std = np.array([0.2, 0.2], dtype=np.float32)
     assert centered(np.array([0.0, 0.2]), mean, std) is None          # neutral
     assert centered(np.array([0.001, 0.2]), mean, std) is None        # noise
     v = centered(np.array([0.5, 0.2]), mean, std)

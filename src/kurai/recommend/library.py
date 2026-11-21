@@ -54,7 +54,8 @@ async def _skip_context(db: AsyncSession, user: User, values: dict, now: datetim
         v = moods.get(e.track_id)
         fit = float(np.dot(v, sm.vector)) if (v is not None and sm.vector is not None) else None
         age_days = (now - e.at).total_seconds() / 86400
-        neg[e.track_id] = neg.get(e.track_id, 0.0) + skip_weight(fit, sm.regime == "bad_day", age_days, half_life, floor)
+        neg[e.track_id] = neg.get(e.track_id, 0.0) +
+         skip_weight(fit, sm.regime == "bad_day", age_days, half_life, floor)
     return {t: max(-SKIP_CAP, w) for t, w in neg.items()}, chosen
 
 
@@ -211,9 +212,11 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
         if w == 0:
             return
         if track.embedding is not None and track.embedding_model == model_name:
-            text_vectors.append(np.asarray(track.embedding, dtype=np.float32)); text_weights.append(w)
+            text_vectors.append(np.asarray(track.embedding, dtype=np.float32))
+            text_weights.append(w)
         if effnet is not None:
-            sound_vectors.append(np.asarray(effnet, dtype=np.float32)); sound_weights.append(w)
+            sound_vectors.append(np.asarray(effnet, dtype=np.float32))
+            sound_weights.append(w)
 
     for listen, track, effnet in rows:
         if (since is not None and listen.last_played is not None and listen.last_played < since
