@@ -1,8 +1,8 @@
 """The library as Kurai sees it: tracks from Navidrome, their text embeddings, each user's plays and stars, and each
 user's taste vector."""
 
-import logging
 import bisect
+import logging
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
@@ -18,8 +18,8 @@ from kurai.db.models import Listen, Taste, Track, TrackAudio, User, WaveEvent
 from kurai.i18n import _
 from kurai.integrations.navidrome import Account, Navidrome, song_fields
 from kurai.recommend import artist_ids, start
-from kurai.recommend.vectors import SKIP_CAP, listen_weight, skip_weight, taste_vector
 from kurai.recommend import mood as moodmod
+from kurai.recommend.vectors import SKIP_CAP, listen_weight, skip_weight, taste_vector
 
 log = logging.getLogger(__name__)
 
