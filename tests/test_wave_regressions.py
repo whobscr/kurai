@@ -19,11 +19,15 @@ async def test_record_stores_external_app_events_by_username(db):
     db.add_all([Track(id="watcher-t1", title="T", artist="A"), Track(id="watcher-t2", title="U", artist="B")])
     await db.commit()
     now = datetime.now(UTC)
-    queued = await wave.record(db, [("watcher-ann", "watcher-t1", True, 15, False, False),
-                                    ("watcher-ann", "watcher-t2", True, 5, True, True)], now)
+    queued = await wave.record(db, [("watcher-ann", "watcher-t1", True, 15, False, False, False),
+                                        ("watcher-ann", "watcher-t2", True, 12, True, True, False)], now)
     events = {e.track_id: e for e in
               (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars()}
     assert events["watcher-t1"].skipped and events["watcher-t1"].seconds == 15
     assert not events["watcher-t1"].chosen and not events["watcher-t1"].disliked
     assert events["watcher-t2"].chosen and events["watcher-t2"].disliked
+    assert queued == [user.id]
+    # an accidental sub-floor skip is not stored
+    await wave.record(db, [("watcher-ann", "watcher-t1", True, 5, False, False, False)], now)
+    assert len((await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id))).scalars().all()) =
     assert queued == [user.id]  # no wave playlist yet: a rebuild is due

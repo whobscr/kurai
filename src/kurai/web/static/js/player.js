@@ -28,7 +28,7 @@
   const els = {cover: $("player-cover"), title: $("player-title"), artist: $("player-artist"), source: $("player-source"),
     toggle: $("player-toggle"), next: $("player-next"), prev: $("player-prev"), seek: $("player-seek"),
     time: $("player-time"), duration: $("player-duration"), repeat: $("player-repeat"), keys: $("player-keys"),
-    queue: $("player-queue"), queueList: $("player-queue-list")};
+    queue: $("player-queue"), queueList: $("player-queue-list"), notNow: $("player-not-now")};
   const store = {  // per-device remembering; private windows may refuse it
     get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
     set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* not remembered */ } },
@@ -222,6 +222,18 @@
     else { audio.pause(); index = tracks.length - 1; }
   }
 
+  // «Не сейчас»: this track doesn't fit the moment — skip without prejudice (no 👎, no scrobble, no taste signal)
+  function notNow() {
+    const t = current();
+    if (!t) return;
+    count();
+    const seconds = Math.round(played);
+    played = 0;
+    post("/player/event", {track_id: t.id, seconds, not_now: true, chosen: !!(t.added || source.chosen)}, true)
+        .catch(() => {});
+    next();  // report() inside next() is a no-op now (played reset)
+  }
+
   // back: to this track's start when it has played a few seconds (as players do), else the one before
   function previous() {
     if (!current()) return;
@@ -263,7 +275,7 @@
   // too: the server doesn't know it yet) while another is left — as the server spaces a version within itself
   function spaced(upcoming, gap) {
     if (gap <= 0) return upcoming;
-    const artist = (t) => artistKey(t.artist);
+    const artist = (t) => t.artist_key || artistKey(t.artist);
     const recent = tracks.slice(Math.max(0, index + 1 - gap), index + 1).map(artist);
     const rest = upcoming.slice(), out = [];
     while (rest.length) {
@@ -553,6 +565,7 @@
   // ---------- the bar's buttons, the page's buttons, the lock screen ----------
   els.toggle.addEventListener("click", () => { if (audio.paused) audio.play(); else audio.pause(); });
   els.next.addEventListener("click", () => next());
+  if (els.notNow) els.notNow.addEventListener("click", notNow);
   els.prev.addEventListener("click", previous);
   els.repeat.addEventListener("click", cycleRepeat);
   els.seek.addEventListener("change", () => {

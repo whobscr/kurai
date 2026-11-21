@@ -2,6 +2,66 @@
 
 ## Версия 1.12.0 {#v1-12-0}
 
+### Blocker
+
+packaging is not a core dependency — the whole install won’t start. plugins.py:25-26 imports packaging.specifiers/version at module top. In uv.lock, packaging is reachable only via transformers/huggingface-hub (audio extra) and pytest (dev). The Dockerfile runs uv sync --frozen --no-dev with no extras → ModuleNotFoundError in kurai.web.app, kurai.jobs.worker and migrations/env.py (all import plugins). CI is green because dev installs pytest→packaging. This is exactly the “one import bricks everything” outage the PR claims to contain. Add packaging to [project].dependencies.
+
+### Confirmed bugs (reproduced)
+
+mood_of amplifies noise/neutral tracks into full-strength directions (tags.py:154). Any nonzero norm is normalized to a unit vector: happy=0.5000001, sad=0.5 → [1,0]; happy=sad=0.5, aggressive=0.2 (arousal cancels) → [-1,0] — a neutral-valence track becomes confidently “sad” from a −0.033 residual. Exact cancellation returns a zero vector, not None, which then counts as “known mood” evidence: it inflates effective_n (1.95→2.91 in my test) and drags coherence down. Needs a magnitude floor before normalizing, and zero → None.
+
+Coherence is unweighted while the mean is freshness-weighted (mood.py:81). One opposite-mood track at the session edge (179 min ago, freshness weight 0.063 with defaults) zeroes confidence entirely → mood silently disables itself. Coherence must use the same weights.
+
+bad_day disappears when accepted tracks lack mood analysis (mood.py:72): 5 skips + 1 accepted with unknown mood → no_evidence, not bad_day. The regime detector depends on effnet coverage — precisely the unanalysed-library case it should survive.
+
+The shadow gate is self-fulfilling (mood.py:shadow_correlation). Completed tracks define the mood they’re scored against; with 1 completed, completed=1.0 ≥ skipped always → passes=True even when the skip is nearly identical in mood (verified). The doc’s “turn it on only when the check stably passes” gate is decorative early on. Use leave-one-out for the completed side.
+
+SKIP_FLOOR_SECONDS is dead code (wave.py:91): seconds >= 10 and seconds >= 180 — the first conjunct never binds. The “<10 s = accidental, ignore” threshold from qwen.md 4.9 / todo item 5 is not implemented; 5 s events are still recorded as skips.
+
+refresh_means runs on every save of the models/audio tabs (admin.py:285): condition is k in values, but values contains all posted fields, changed or not. Three full-table vector averages run in the web process when you edit an unrelated field — the exact cost item 4 removes from the hot path. Compare against before.
+
+Migration 0014 wipes everyone’s onboarding prior (0014:30): start_asked_at = null for all users, and build_taste gates the prior on start_asked_at → existing users lose the prior from their taste until they re-answer, though start_styles/start_text are still there. Backfill the stored taste (or keep the timestamp and store lazily) instead.
+
+The nightly-random-prior bug returns after any model change (start.py): _read_stored rejects a stored taste whose model changed, first_taste recomputes a fresh random sample + LLM call, and nothing calls store() outside me.py → bug 1.4, which this PR fixes, reappears permanently after an embed/effnet model switch. Also, submitting empty answers returns None → store skipped → the stale stored prior keeps applying (me.py:137-139).
+
+0013 loses found MusicBrainz ids on key merge (0013:43): coalesce(artist_ids.mbid, excluded.mbid) keeps '' (the “looked up, not found” sentinel) over a real mbid when the empty row is inserted first. Use nullif(artist_ids.mbid, '').
+
+rate’s current_starred optimization trusts a possibly stale local row (player.py + navidrome.py:209): 👎/“none” on a track starred in another app but not yet synced skips the unstar call → Navidrome keeps the star, and the next sync reverts the local click. Only skip the call when the local state is known-fresh.
+
+Blanket 1 h job timeout applies to nightly (worker.py:JOB_TIMEOUT_S): sync + embeddings + per-user taste/mixes + throttled ListenBrainz can exceed an hour on a real library → nightly cancelled every night. Also, cancelling a handler mid-transaction can leave the session unusable, so the db.rollback() inside except TimeoutError may itself raise. Scope the timeout to plugin/general-lane jobs as the review asked.
+
+Plugin containment is incomplete:
+
+_check_requires/_check_collisions/_check_settings_prefix run outside the per-entry-point try (plugins.py:157-163) — a plugin whose settings() raises still bricks installed() → migrate().
+
+disabled() still fails open per call; plugins() then caches that result for the process lifetime — a transient DB error at startup still enables every plugin (the 7.3 scenario), at least in the web process.
+
+every, manual_jobs, on_start are not reserved-name checked: {**EVERY, **plugins.every()} in worker.schedule still lets a plugin change a core job’s interval.
+
+requires defaults to "" and the example plugin doesn’t declare it — the --no-deps pin problem is untouched in practice.
+
+Mood vs. the stated intent
+
+Mood never touches ratings. Todo item 6 / qwen.md §5.3 step 20 call for context-weighted listen_weight at the nightly rebuild (down-weight off-mood implicit negatives, explicit 👎 untouched) and top_artists from explicit feedback/completions. build_taste is unchanged on both counts. The PR follows chatgpt.md’s “mood must not change permanent taste” line instead — a defensible choice, but it’s a scope deviation from qwen-todo, and the docs/changelog present it as the plan.
+
+Bonus is applied inside the «слушают вместе» part (mixing.py:270, _mooded over near) — qwen.md 5.4 explicitly says not to, since that share exists to be off-taste.
+
+bad_day only zeroes the bonus. No comfort mode: skip_push still repels at full strength on a bad day (qwen.md 5.2’s main guardrail), familiar share isn’t raised. The detector exists; the response doesn’t.
+
+Axes are not library-centered. Todo: “two centered axes”; qwen.md 5.1: z-score across the library. Implementation is signed differences + per-track unit normalization — no library mean/std, magnitudes discarded, confidence tied to the arbitrary origin of the probability space. (My plausible-probability spot check shows cosines do spread, so it’s not fatal — but it’s not what was specified.)
+
+disliked is persisted but never used. A 👎 after a full play is still skipped=True (is_skip), so it’s excluded from mood inference, counts toward bad_day and artist_skip_ban, and enters away at full push — the exact conflation the flag was added to resolve (qwen.md 4.9).
+
+«Не сейчас» is missing (todo item 6, qwen.md 5.5/step 17). The existing “Не сейчас” strings in base.html/kurai.js predate the PR and are unrelated; no mood-mismatch event kind exists.
+
+Todo leftovers: item 5 — Watcher.seconds is still wall-clock (pauses read as completions) and the last track of a session is still dropped (wave.py:78); item 7 — popular candidates are still np.zeros(1) (wave.py:202) despite “give them real vectors before touching ordering” (I verified the new matrix-based mmr_select hard-crashes on a 1-dim candidate), arrange front-loading and the overflow’s better-half bypass are unchanged; item 1 — JS toLowerCase vs Python casefold (ß → straße/strasse) still diverges.
+
+### Artifacts and minor
+
+Dead duplicated block after return in _nightly (worker.py:~94-113): a second plugin_step (without commit), a second plugin loop that shadows the function name, duplicated prune steps. Unreachable, but a clear editing artifact (ruff F811). Same pattern: dead _plugins_cache: … annotation after return in plugins.py:225.
+
+## Версия 1.12.0 {#v1-12-0}
+
 ### Настроение (тень)
 - Волна считает настроение сессии по принятым трекам (пропуски не учитываются — они неоднозначны) и показывает
   его, уверенность и проверку «пропущенные дальше от настроения, чем дослушанные» в «Задачах». На выбор треков это

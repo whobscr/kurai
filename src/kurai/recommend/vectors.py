@@ -39,6 +39,21 @@ def listen_weight(play_count: int, starred: bool, rating: int, last_played: date
     return weight
 
 
+SKIP_WEIGHT = 0.5      # one contextual skip, before decay and mood context
+SKIP_CAP = 2.0         # a track's skips never outweigh an explicit 👎
+BAD_DAY_DAMP = 0.25    # a bad day's skips say little about permanent taste
+
+
+def skip_weight(fit: float | None, bad_day: bool, age_days: float, half_life_days: float, floor: float) -> float:
+    """One contextual skip's negative weight: an off-mood skip is excused by the mood, an on-mood one is real
+    evidence; a bad day damps them all. Explicit 👎 is not here — listen_weight keeps it at full weight."""
+    factor = 1.0 if fit is None else 0.25 + 0.75 * (fit + 1) / 2
+    if bad_day:
+        factor *= BAD_DAY_DAMP
+    decay = 0.5 ** (max(0.0, age_days) / max(half_life_days, 1e-6)) * (1 - floor) + floor
+    return -SKIP_WEIGHT * factor * decay
+
+
 def normalize(v: np.ndarray) -> np.ndarray:
     n = np.linalg.norm(v)
     return v / n if n > 0 else v
@@ -204,10 +219,11 @@ def compose(parts: list[tuple[list[Candidate], int]], size: int, diversity: floa
     if len(chosen) < goal:
         seen: set[str] = set()
         everything: list[Candidate] = []
-        for c in sorted((c for pool, _n in parts for c in pool), key=lambda c: -c.relevance):
-            if c.id not in seen:  # a track both near the query and of a «слушают вместе» artist
-                seen.add(c.id)
-                everything.append(c)
+        for pool, _n in parts:  # parts order keeps the "better half" ahead of the rest, not raw relevance
+            for c in sorted(pool, key=lambda c: -c.relevance):
+                if c.id not in seen:
+                    seen.add(c.id)
+                    everything.append(c)
         chosen = mmr_select(everything, goal - len(chosen), diversity, max_per_artist, chosen)
         cap = max_per_artist
         while relax and len(chosen) < goal and cap < goal:

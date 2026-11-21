@@ -137,6 +137,8 @@ async def start_styles(request: Request, ctx: Ctx = Depends(user_required)):
         taste = await start.first_taste(ctx.db, ctx.user, recompute=True)
         if taste is not None:
             await start.store(ctx.db, ctx.user, taste)
+        else:
+            await start.clear(ctx.db, ctx.user)
         await queue.enqueue(ctx.db, "wave", {"retaste": True}, user_id=ctx.user.id, priority=20,
                             dedupe_key=f"wave-start:{ctx.user.id}")
     ctx.user.start_asked_at = datetime.now(UTC)

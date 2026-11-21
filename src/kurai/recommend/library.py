@@ -2,6 +2,7 @@
 user's taste vector."""
 
 import logging
+import bisect
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
@@ -13,11 +14,12 @@ from kurai import llm, security, settings
 from kurai.artists import top_artists
 from kurai.audio import EFFNET_MODEL
 from kurai.config import get_config
-from kurai.db.models import Listen, Taste, Track, TrackAudio, User
+from kurai.db.models import Listen, Taste, Track, TrackAudio, User, WaveEvent
 from kurai.i18n import _
 from kurai.integrations.navidrome import Account, Navidrome, song_fields
 from kurai.recommend import artist_ids, start
-from kurai.recommend.vectors import listen_weight, taste_vector
+from kurai.recommend.vectors import SKIP_CAP, listen_weight, skip_weight, taste_vector
+from kurai.recommend import mood as moodmod
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +28,34 @@ EMBED_BATCH = 16
 # from Navidrome must not cost days of audio analysis.
 MAX_DELETE_FRACTION = 0.25
 NEVER_LOCALLY_WRITTEN = datetime(1970, 1, 1, tzinfo=UTC)  # sync's own rows: the grace hour protects only local writes
+
+
+async def _skip_context(db: AsyncSession, user: User, values: dict, now: datetime,
+                        half_life: float, floor: float) -> tuple[dict[str, float], set[str]]:
+    """Contextual skips as gentle, mood-weighted negatives (only when «Учитывать настроение» is on) and the tracks
+    the user chose to play. Explicit 👎 stays in listen_weight at full weight; «Не сейчас» says nothing."""
+    if not values.get("mix.wave.mood"):
+        return {}, set()
+    events = [e for e in (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id)
+                                           .order_by(WaveEvent.at))).scalars() if not e.not_now]
+    if not events:
+        return {}, set()
+    chosen = {e.track_id for e in events if e.chosen and not e.skipped}
+    moods = await moodmod.track_vectors(db, {e.track_id for e in events})
+    hours = float(values.get("mix.wave.session_hours", 3))
+    hl = float(values.get("mix.wave.session_half_life", 45))
+    ats = [e.at for e in events]
+    neg: dict[str, float] = {}
+    for i, e in enumerate(events):
+        if not e.skipped or e.disliked:
+            continue
+        lo = bisect.bisect_left(ats, e.at - timedelta(hours=hours))
+        sm = moodmod.session_mood(events[lo:i], moods, hl, e.at)
+        v = moods.get(e.track_id)
+        fit = float(np.dot(v, sm.vector)) if (v is not None and sm.vector is not None) else None
+        age_days = (now - e.at).total_seconds() / 86400
+        neg[e.track_id] = neg.get(e.track_id, 0.0) + skip_weight(fit, sm.regime == "bad_day", age_days, half_life, floor)
+    return {t: max(-SKIP_CAP, w) for t, w in neg.items()}, chosen
 
 
 def navidrome() -> Navidrome:
@@ -171,27 +201,48 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
     now = datetime.now(UTC)
     values = await settings.get_all(db)
     half_life, floor = float(values["taste.half_life_days"]), float(values["taste.floor"]) / 100
-    # «Только последние N дней»: a track last played before it says nothing; a 👎 always counts (it's a «no»)
     since = now - timedelta(days=float(values["taste.window_days"])) if values["taste.window"] else None
-    text_vectors, text_weights, sound_vectors, sound_weights, artists = [], [], [], [], []
+    skip_neg, chosen_tids = await _skip_context(db, user, values, now, half_life, floor)
+    text_vectors, text_weights, sound_vectors, sound_weights = [], [], [], []
+    artists_all, artists_explicit, artists_chosen = [], [], []
+    seen: set[str] = set()
+
+    def add(track, effnet, w):
+        if w == 0:
+            return
+        if track.embedding is not None and track.embedding_model == model_name:
+            text_vectors.append(np.asarray(track.embedding, dtype=np.float32)); text_weights.append(w)
+        if effnet is not None:
+            sound_vectors.append(np.asarray(effnet, dtype=np.float32)); sound_weights.append(w)
+
     for listen, track, effnet in rows:
         if (since is not None and listen.last_played is not None and listen.last_played < since
                 and listen.rating not in (1, 2)):
             continue
+        seen.add(track.id)
         w = listen_weight(listen.play_count, listen.starred, listen.rating, listen.last_played, now, half_life, floor)
-        if w == 0:
-            continue
-        if track.embedding is not None and track.embedding_model == model_name:
-            text_vectors.append(np.asarray(track.embedding, dtype=np.float32))
-            text_weights.append(w)
-        if effnet is not None:
-            sound_vectors.append(np.asarray(effnet, dtype=np.float32))
-            sound_weights.append(w)
+        w += skip_neg.get(track.id, 0.0)
+        add(track, effnet, w)
         if w > 0:
-            artists.append((track.artist, w))
+            artists_all.append((track.artist, w))
+            if listen.starred or listen.rating >= 4:
+                artists_explicit.append((track.artist, w))
+            if track.id in chosen_tids:
+                artists_chosen.append((track.artist, w))
+    # tracks only skipped (never scrobbled): their contextual negatives still belong in the taste
+    extra_ids = [t for t in skip_neg if t not in seen]
+    if extra_ids:
+        extra = (await db.execute(
+            select(Track, TrackAudio.effnet).join(Track, Track.id == TrackAudio.track_id)
+            .outerjoin(TrackAudio, (TrackAudio.track_id == Track.id) & (TrackAudio.effnet_model == audio_model)
+                       & TrackAudio.error.is_(None))
+            .where(Track.id.in_(extra_ids)))).all()
+        for track, effnet in extra:
+            add(track, effnet, skip_neg[track.id])
     vector = taste_vector(text_vectors, text_weights)
     sound = taste_vector(sound_vectors, sound_weights)
-    top = top_artists(artists)  # the artists themselves, not each line of guests
+    # top artists from explicit feedback and deliberate plays first; passive wave plays only as a fallback
+    top = top_artists(artists_explicit + artists_chosen) or top_artists(artists_all)
     first = await start.first_taste(db, user) if user.start_asked_at else None
     if first is not None:
         vector = start.with_prior(vector, first["text"], len(text_vectors))

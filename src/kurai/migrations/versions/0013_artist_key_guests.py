@@ -40,7 +40,7 @@ def upgrade() -> None:
         conn.execute(sa.text(
             "insert into artist_ids (artist_key, mbid, looked_up_at) values (:k, :m, :t) "
             "on conflict (artist_key) do update set "
-            "mbid = coalesce(artist_ids.mbid, excluded.mbid), "
+            "mbid = coalesce(nullif(artist_ids.mbid, ''), excluded.mbid), "
             "looked_up_at = greatest(artist_ids.looked_up_at, excluded.looked_up_at)"),
             {"k": new, "m": mbid, "t": looked_up})
 

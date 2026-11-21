@@ -149,6 +149,6 @@ def mood_of(a: Analysed | None) -> np.ndarray | None:
         arousal_parts.append(-relaxed)
     valence = float(np.mean(valence_parts)) if valence_parts else 0.0
     arousal = float(np.mean(arousal_parts)) if arousal_parts else 0.0
-    out = np.array([valence, arousal], dtype=np.float32)
-    norm = np.linalg.norm(out)
-    return out / norm if norm > 0 else out
+    # raw signed axes, NOT normalized: mood.centered() z-scores them across the library and only then makes a unit
+    # vector, so a neutral or noisy track stays None instead of being amplified into a confident direction.
+    return np.array([valence, arousal], dtype=np.float32)
