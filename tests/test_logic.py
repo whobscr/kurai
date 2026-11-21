@@ -302,7 +302,8 @@ def test_wave_watcher_tells_plays_from_skips():
     assert w.update(t0 + timedelta(seconds=45), [{**entry, "id": "c"}]) == [("ann", "b", True, 15)]  # skipped
     # another app of hers is followed apart
     assert w.update(t0 + timedelta(seconds=60), [{**entry, "id": "c"}, {**entry, "playerId": "2", "id": "x"}]) == []
-    assert w.update(t0 + timedelta(seconds=45 + 200), [{**entry, "id": "d"}]) == [("ann", "c", False, 200)]
+    assert w.update(t0 + timedelta(seconds=45 + 200), [{**entry, "id": "d"}]) == [
+        ("ann", "c", False, 200), ("ann", "x", False, 185)]  # c played on; x's app stopped after 185 s — logged too
     assert ("ann", "2") not in w.playing  # that app stopped
 
 

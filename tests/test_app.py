@@ -712,7 +712,7 @@ async def test_the_web_player_plays_the_wave_and_reports_plays_and_skips(client,
 
     form = {"X-CSRF-Token": token}
     played = await client.post("/player/event", json={"track_id": "p2", "seconds": 190}, headers=form)
-    skipped = await client.post("/player/event", json={"track_id": "p0", "seconds": 9}, headers=form)
+    skipped = await client.post("/player/event", json={"track_id": "p0", "seconds": 15}, headers=form)
     assert played.json()["skipped"] is False and skipped.json()["skipped"] is True
     assert navidrome.scrobbles == [("pia", "p2")]  # only a play counts in Navidrome
     events = (await db.execute(select(WaveEvent).where(WaveEvent.user_id == pia.id))).scalars().all()
