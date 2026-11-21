@@ -1,10 +1,9 @@
 """The paths the first revision of the overhaul broke: the set skip threshold, and external-app events by username."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
-from datetime import timedelta
 from kurai.db.models import Track, User, WaveEvent
 from kurai.recommend import wave
 
