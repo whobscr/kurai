@@ -469,3 +469,56 @@ def test_the_migration_rewrites_old_tastes_by_the_first_credited_artist():
                        {"name": "Charli XCX", "weight": 3}]
     assert [(a["name"], a["mbid"]) for a in new_related] == [("Caroline Polachek", "a"), ("Kero Kero Bonito", "c")]
     assert m.cleaned(new_top, new_related) == (new_top, new_related)  # a clean taste stays as it is
+
+
+def test_mood_bonus_does_not_change_related_artist_candidates():
+    """The related share is intentionally exploratory and must not be reranked by session mood."""
+    from kurai.recommend.mood import SessionMood
+
+    mix = mixing.Mix("wave", {
+        "mix.wave.new_share": 0,
+        "mix.wave.related_share": 1,
+        "mix.wave.randomness": 0,
+        "mix.wave.artist_max": 5,
+        "mix.wave.variety": 0,
+    })
+
+    pool = [_cand("p1", "Pool artist", [1, 0], 0.9)]
+    near = [
+        _cand("r1", "Related 1", [0, 1], 0.8),
+        _cand("r2", "Related 2", [0, 0.9], 0.7),
+    ]
+
+    mood = SessionMood(
+        vector=np.array([1.0, 0.0], dtype=np.float32),
+        confidence=1.0,
+        effective_n=3.0,
+        coherence=1.0,
+        regime="ok",
+    )
+
+    # Both related tracks have a mood opposite to the current session.
+    track_moods = {
+        "p1": np.array([1.0, 0.0], dtype=np.float32),
+        "r1": np.array([-1.0, 0.0], dtype=np.float32),
+        "r2": np.array([-1.0, 0.0], dtype=np.float32),
+    }
+
+    without_mood = mixing.choose(
+        pool, near, set(), mix, 2,
+        rng=random.Random(1),
+    )
+    with_mood = mixing.choose(
+        pool, near, set(), mix, 2,
+        rng=random.Random(1),
+        mood=mood,
+        mood_strength=1.0,
+        track_moods=track_moods,
+    )
+
+    # The related share must still contain the same tracks with the same relevance.
+    expected = {c.id: c.relevance for c in without_mood if c.kind == "related"}
+    actual = {c.id: c.relevance for c in with_mood if c.kind == "related"}
+
+    assert expected == actual
+    assert set(actual) == {"r1", "r2"}

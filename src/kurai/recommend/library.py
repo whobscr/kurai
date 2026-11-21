@@ -31,13 +31,23 @@ NEVER_LOCALLY_WRITTEN = datetime(1970, 1, 1, tzinfo=UTC)  # sync's own rows: the
 
 
 async def _skip_context(db: AsyncSession, user: User, values: dict, now: datetime,
-                        half_life: float, floor: float) -> tuple[dict[str, float], set[str]]:
+                        half_life: float, floor: float,
+                        since: datetime | None = None) -> tuple[dict[str, float], set[str]]:
     """Contextual skips as gentle, mood-weighted negatives (only when «Учитывать настроение» is on) and the tracks
     the user chose to play. Explicit 👎 stays in listen_weight at full weight; «Не сейчас» says nothing."""
     if not values.get("mix.wave.mood"):
         return {}, set()
-    events = [e for e in (await db.execute(select(WaveEvent).where(WaveEvent.user_id == user.id)
-                                           .order_by(WaveEvent.at))).scalars() if not e.not_now]
+    event_query = select(WaveEvent).where(WaveEvent.user_id == user.id)
+
+    # Apply the same history window to contextual events as to Listen rows.
+    # Old skips must not influence the taste vector when the taste window is enabled.
+    if since is not None:
+        event_query = event_query.where(WaveEvent.at >= since)
+
+    events = [
+        e for e in (await db.execute(event_query.order_by(WaveEvent.at))).scalars()
+        if not e.not_now
+    ]
     if not events:
         return {}, set()
     chosen = {e.track_id for e in events if e.chosen and not e.skipped}
@@ -203,7 +213,9 @@ async def build_taste(db: AsyncSession, user: User) -> dict:
     values = await settings.get_all(db)
     half_life, floor = float(values["taste.half_life_days"]), float(values["taste.floor"]) / 100
     since = now - timedelta(days=float(values["taste.window_days"])) if values["taste.window"] else None
-    skip_neg, chosen_tids = await _skip_context(db, user, values, now, half_life, floor)
+    skip_neg, chosen_tids = await _skip_context(
+        db, user, values, now, half_life, floor, since
+    )
     text_vectors, text_weights, sound_vectors, sound_weights = [], [], [], []
     artists_all, artists_explicit, artists_chosen = [], [], []
     seen: set[str] = set()

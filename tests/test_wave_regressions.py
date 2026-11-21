@@ -44,3 +44,73 @@ def test_watcher_logs_a_track_once_when_it_gives_way():
     for tid, sec in [("a", 0), ("a", 15), ("b", 30), ("b", 45), ("b", 60), ("c", 75)]:
         events += w.update(t0 + timedelta(seconds=sec), entry(tid), 0.5)
     assert events == [("ann", "b", True, 45)]  # one event for b — not a 15 s «skip» on every poll
+
+
+async def test_skip_context_respects_taste_window(db, monkeypatch):
+    """Contextual skips outside the configured taste window must not affect permanent taste."""
+    from types import SimpleNamespace
+
+    from kurai.recommend import library
+
+    user = User(username="skip-window-user", password_hash="x")
+    db.add(user)
+    db.add_all([
+        Track(id="old-skip", title="Old", artist="Artist A"),
+        Track(id="recent-skip", title="Recent", artist="Artist B"),
+    ])
+    await db.flush()
+
+    now = datetime.now(UTC)
+    since = now - timedelta(days=30)
+
+    db.add_all([
+        WaveEvent(
+            user_id=user.id,
+            track_id="old-skip",
+            skipped=True,
+            seconds=10,
+            chosen=False,
+            disliked=False,
+            not_now=False,
+            at=since - timedelta(days=1),
+        ),
+        WaveEvent(
+            user_id=user.id,
+            track_id="recent-skip",
+            skipped=True,
+            seconds=10,
+            chosen=False,
+            disliked=False,
+            not_now=False,
+            at=since + timedelta(days=1),
+        ),
+    ])
+    await db.commit()
+
+    async def fake_track_vectors(db, ids):
+        return {}
+
+    def fake_session_mood(events, moods, half_life, at):
+        return SimpleNamespace(vector=None, regime="ok")
+
+    monkeypatch.setattr(library.moodmod, "track_vectors", fake_track_vectors)
+    monkeypatch.setattr(library.moodmod, "session_mood", fake_session_mood)
+    monkeypatch.setattr(library, "skip_weight", lambda *args: -1.0)
+
+    negatives, chosen = await library._skip_context(
+        db,
+        user,
+        {
+            "mix.wave.mood": True,
+            "mix.wave.session_hours": 3,
+            "mix.wave.session_half_life": 45,
+        },
+        now,
+        half_life=30,
+        floor=0.3,
+        since=since,
+    )
+
+    assert negatives == {"recent-skip": -1.0}
+    assert "old-skip" not in negatives
+    assert chosen == set()
