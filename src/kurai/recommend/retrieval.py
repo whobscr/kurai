@@ -15,8 +15,8 @@ from kurai import settings
 from kurai.artists import artist_key
 from kurai.audio import CLAP_MODEL, EFFNET_MODEL
 from kurai.db.models import Listen, SpaceMean, Track, TrackAudio, User
-from kurai.recommend.vectors import Candidate, Joint, mean_unit, weights_of
 from kurai.recommend import mood as moodmod
+from kurai.recommend.vectors import Candidate, Joint, mean_unit, weights_of
 
 POOL = 300
 SPACES = ("text", "sound", "clap")
