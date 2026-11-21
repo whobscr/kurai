@@ -123,46 +123,53 @@ def test_shadow_gate_needs_two_completions():
     assert out["passes"] is False  # one completion can't define the mood it is scored against
 
 
-async def test_track_vectors_uses_only_current_effnet_model(db, monkeypatch):
+async def test_track_vectors_filters_current_effnet_model(db, monkeypatch):
     from kurai.audio import EFFNET_MODEL
-    from kurai.db.models import TrackAudio
     from kurai.recommend import mood
 
     mean = np.array([0.0, 0.0], dtype=np.float32)
     std = np.array([1.0, 1.0], dtype=np.float32)
 
-    async def fake_read_stats(db):
+    async def fake_read_stats(_db):
         return mean, std
 
     monkeypatch.setattr(mood, "read_stats", fake_read_stats)
 
-    # Create two analyses of the same track from different model versions.
-    db.add_all([
-        TrackAudio(
-            track_id="model-test",
-            effnet_model=EFFNET_MODEL,
-            moods={"happy": 0.9, "sad": 0.1},
-            danceability=0.8,
-            voice=0.5,
-            error=None,
-        ),
-        TrackAudio(
-            track_id="model-test",
-            effnet_model="old-model",
-            moods={"happy": 0.1, "sad": 0.9},
-            danceability=0.2,
-            voice=0.5,
-            error=None,
-        ),
-    ])
-    await db.flush()
+    executed_statements = []
+
+    class FakeResult:
+        def all(self):
+            return [
+                (
+                    "model-test",
+                    {"happy": 0.9, "sad": 0.1},
+                    0.8,
+                    0.5,
+                )
+            ]
+
+    async def fake_execute(statement):
+        executed_statements.append(statement)
+        return FakeResult()
+
+    monkeypatch.setattr(db, "execute", fake_execute)
 
     vectors = await mood.track_vectors(db, {"model-test"})
 
     assert "model-test" in vectors
+    assert len(vectors) == 1
+
+    # Ensure the query filters out analyses produced by older models.
+    sql = str(executed_statements[0])
+    assert "effnet_model" in sql
+    assert EFFNET_MODEL in executed_statements[0].compile().params.values()
 
     expected = mood.centered(
-        mood.mood_of_tags({"happy": 0.9, "sad": 0.1}, 0.8, 0.5),
+        mood.mood_of_tags(
+            {"happy": 0.9, "sad": 0.1},
+            0.8,
+            0.5,
+        ),
         mean,
         std,
     )
