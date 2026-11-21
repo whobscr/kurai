@@ -65,15 +65,28 @@ def _seed(engine):
     with engine.begin() as conn:
         user_id = conn.execute(
             text("""
-                INSERT INTO users (username, display_name, password_hash)
-                VALUES ('pulse-migration-user', 'Pulse migration test', 'test-hash') RETURNING id
+                INSERT INTO users (
+                    username, display_name, password_hash, role, active,
+                    must_change_password, totp_enabled, recovery_codes,
+                    theme_mode, notify_push, notify_telegram
+                )
+                VALUES (
+                    'pulse-migration-user', 'Pulse migration test', 'test-hash',
+                    'user', true, false, false, '[]'::jsonb,
+                    'system', false, false
+                )
+                RETURNING id
             """)
         ).scalar_one()
 
         conn.execute(text("""
-            INSERT INTO tracks (id, title, artist) VALUES
-            ('pulse-migration-track-1', 'Track one', 'Artist one'),
-            ('pulse-migration-track-2', 'Track two', 'Artist two')
+            INSERT INTO tracks (
+                id, title, artist, album, album_id, path, duration, genres, size
+            ) VALUES
+            ('pulse-migration-track-1', 'Track one', 'Artist one', 'Album one',
+             'album-one', '/tmp/pulse-track-1.flac', 210, '[]'::jsonb, 1000),
+            ('pulse-migration-track-2', 'Track two', 'Artist two', 'Album two',
+             'album-two', '/tmp/pulse-track-2.flac', 195, '[]'::jsonb, 1000)
         """))
 
         event_id = conn.execute(
@@ -89,9 +102,11 @@ def _seed(engine):
 
         playlist_id = conn.execute(
             text("""
-                INSERT INTO playlists (user_id, kind, name, description, track_ids)
+                INSERT INTO playlists (
+                    user_id, kind, name, description, track_ids, feedback
+                )
                 VALUES (:uid, 'wave', 'Моя волна', 'legacy description',
-                        '["pulse-migration-track-1", "pulse-migration-track-2"]'::jsonb)
+                        '["pulse-migration-track-1", "pulse-migration-track-2"]'::jsonb, 0)
                 RETURNING id
             """),
             {"uid": user_id},
@@ -99,9 +114,11 @@ def _seed(engine):
 
         custom_playlist_id = conn.execute(
             text("""
-                INSERT INTO playlists (user_id, kind, name, description, track_ids)
+                INSERT INTO playlists (
+                    user_id, kind, name, description, track_ids, feedback
+                )
                 VALUES (:uid, 'wave', 'My personal mix', 'custom',
-                        '["pulse-migration-track-2"]'::jsonb)
+                        '["pulse-migration-track-2"]'::jsonb, 0)
                 RETURNING id
             """),
             {"uid": user_id},
