@@ -54,8 +54,8 @@ async def _skip_context(db: AsyncSession, user: User, values: dict, now: datetim
         v = moods.get(e.track_id)
         fit = float(np.dot(v, sm.vector)) if (v is not None and sm.vector is not None) else None
         age_days = (now - e.at).total_seconds() / 86400
-        neg[e.track_id] = neg.get(e.track_id, 0.0) +
-         skip_weight(fit, sm.regime == "bad_day", age_days, half_life, floor)
+        neg[e.track_id] = neg.get(e.track_id, 0.0) + skip_weight(fit, sm.regime == "bad_day", age_days, half_life,
+         floor)
     return {t: max(-SKIP_CAP, w) for t, w in neg.items()}, chosen
 
 
